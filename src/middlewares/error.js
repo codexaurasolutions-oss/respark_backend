@@ -1,0 +1,23 @@
+export const errorHandler = (err, req, res, next) => {
+  console.error(`[${req.requestId || "no-request-id"}]`, err);
+  if (err?.code === "P2002") {
+    const target = Array.isArray(err.meta?.target) ? err.meta.target.join(", ") : err.meta?.target || "unique field";
+    return res.status(409).json({ message: `${target} already exists` });
+  }
+
+  if (err?.code === "P2025") {
+    return res.status(404).json({ message: err.message || "Record not found" });
+  }
+
+  const status = err.status || 500;
+  const message = status >= 500
+    ? process.env.NODE_ENV === "production"
+      ? "Internal server error"
+      : (err.message || "Internal server error")
+    : (err.message || "Request failed");
+
+  res.status(status).json({
+    message,
+    requestId: req.requestId || null
+  });
+};

@@ -1,0 +1,1868 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum SystemRole {
+  SUPER_ADMIN
+  SALON_USER
+  CUSTOMER
+}
+
+enum SalonRoleCode {
+  SALON_OWNER
+  MANAGER
+  RECEPTIONIST
+  STAFF
+  INVENTORY_MANAGER
+  ACCOUNTANT
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+}
+
+enum PaymentMode {
+  CASH
+  CARD
+  UPI
+  BANK_TRANSFER
+  WALLET
+  ONLINE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PAID
+  PARTIAL
+  UNPAID
+  REFUNDED
+  CANCELLED
+}
+
+enum DemoLeadStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum ProductType {
+  RETAIL
+  CONSUMABLE
+}
+
+enum StockMovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  POS_SALE
+  PRODUCT_RETURN
+  TRANSFER_IN
+  TRANSFER_OUT
+  CONSUMABLE_USAGE
+  PURCHASE_RECEIVED
+  RECONCILIATION
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum MembershipBenefitType {
+  DISCOUNT_PERCENT
+  DISCOUNT_AMOUNT
+  WALLET_VALUE
+}
+
+enum CustomerPackageStatus {
+  ACTIVE
+  EXPIRED
+  FULLY_USED
+  CANCELLED
+}
+
+enum OnlineOrderStatus {
+  NEW
+  ACCEPTED
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum CatalogAnalyticsEventType {
+  QR_SCAN
+  PAGE_VIEW
+  SERVICE_VIEW
+  PRODUCT_CLICK
+  BOOKING_CLICK
+  WHATSAPP_CLICK
+  OFFER_CLICK
+  SHOP_CLICK
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+  CANCELLED
+}
+
+enum CampaignType {
+  WHATSAPP
+  SMS
+  EMAIL
+  SOCIAL_BANNER
+  CATALOG_BANNER
+}
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  ADJUST
+  BONUS
+  EXPIRE
+}
+
+enum CouponDiscountType {
+  PERCENT
+  FIXED
+}
+
+enum FeedbackStatus {
+  NEW
+  REVIEWED
+  CONTACTED
+  RESOLVED
+}
+
+enum EnquiryStatus {
+  NEW
+  CONTACTED
+  INTERESTED
+  CONVERTED
+  LOST
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrollStatus {
+  DRAFT
+  CALCULATED
+  APPROVED
+  PAID
+}
+
+enum CampaignTemplateTier {
+  FREE
+  PREMIUM
+}
+
+enum WhatsAppLogStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  OPEN_PLACEHOLDER
+}
+
+model User {
+  id                     String              @id @default(cuid())
+  email                  String              @unique
+  passwordHash           String
+  name                   String
+  systemRole             SystemRole
+  isActive               Boolean             @default(true)
+  passwordSetupRequired  Boolean             @default(false)
+  isDemoAccount          Boolean             @default(false)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  memberships            UserSalon[]
+  passwordSetupTokens    PasswordSetupToken[]
+  appointmentLogs        AppointmentLog[]
+  stockMovements         StockMovement[]
+  purchaseOrdersCreated  PurchaseOrder[]     @relation("PurchaseOrderCreatedBy")
+  purchaseTransfersCreated StockTransfer[]   @relation("StockTransferCreatedBy")
+  customerProfile        Customer?
+}
+
+model Salon {
+  id                  String               @id @default(cuid())
+  name                String
+  slug                String               @unique
+  businessType        String?
+  logoUrl             String?
+  email               String?
+  phone               String?
+  address             String?
+  city                String?
+  country             String?
+  timezone            String?
+  currency            String?              @default("PKR")
+  taxRate             Decimal?             @db.Decimal(5, 2)
+  trialStartsAt       DateTime?
+  trialEndsAt         DateTime?
+  internalNote        String?
+  status              SubscriptionStatus   @default(TRIAL)
+  featureFlags        Json?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  users               UserSalon[]
+  branches            Branch[]
+  services            Service[]
+  customers           Customer[]
+  serviceCategories   ServiceCategory[]
+  invoices            Invoice[]
+  payments            Payment[]
+  demoLeads           DemoLead[]
+  subscriptions       Subscription[]
+  supportTickets      SupportTicket[]
+  settings            SalonSetting[]
+  customRoles         CustomRole[]
+  appointments        Appointment[]
+  appointmentSettings AppointmentSetting[]
+  products            Product[]
+  productCategories   ProductCategory[]
+  stockMovements      StockMovement[]
+  vendors             Vendor[]
+  purchaseOrders      PurchaseOrder[]
+  stockTransfers      StockTransfer[]
+  reconciliations     StockReconciliation[]
+  membershipPlans     MembershipPlan[]
+  customerMemberships CustomerMembership[]
+  packages            Package[]
+  customerPackages    CustomerPackage[]
+  catalogSettings     CatalogSetting[]
+  catalogBanners      CatalogBanner[]
+  catalogOffers       CatalogOffer[]
+  catalogAnalytics    CatalogAnalyticsEvent[]
+  ecommerceSettings   EcommerceSetting[]
+  onlineOrders        OnlineOrder[]
+  campaigns           Campaign[]
+  messageTemplates    MessageTemplate[]
+  customerCoupons     CustomerCoupon[]
+  customerNotifications CustomerNotification[]
+  customerFeedback    CustomerFeedback[]
+  loyaltyRules        LoyaltyRule[]
+  loyaltyTransactions LoyaltyTransaction[]
+  coupons             Coupon[]
+  couponRedemptions   CouponRedemption[]
+  giftCards           GiftCard[]
+  giftCardRedemptions GiftCardRedemption[]
+  enquiries           Enquiry[]
+  expenseCategories   ExpenseCategory[]
+  expenses            Expense[]
+  attendanceRecords   AttendanceRecord[]
+  leaveRequests       LeaveRequest[]
+  incentiveRules      IncentiveRule[]
+  payrollRuns         PayrollRun[]
+  payrollItems        PayrollItem[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  campaignTemplates   CampaignTemplate[]
+  campaignConversions CampaignConversion[]
+  whatsappSettings    WhatsAppSetting[]
+  whatsappAutomations WhatsAppAutomation[]
+  whatsappLogs        WhatsAppLog[]
+}
+
+model UserSalon {
+  id                   String                    @id @default(cuid())
+  userId               String
+  salonId              String
+  salonRole            SalonRoleCode
+  branchId             String?
+  customRoleId         String?
+  phone                String?
+  profileNote          String?
+  avatarUrl            String?
+  roleTitle            String?
+  showInCatalog        Boolean                   @default(false)
+  isArchived           Boolean                   @default(false)
+  permissions          Json?
+  user                 User                      @relation(fields: [userId], references: [id])
+  salon                Salon                     @relation(fields: [salonId], references: [id])
+  branch               Branch?                   @relation(fields: [branchId], references: [id])
+  customRole           CustomRole?               @relation(fields: [customRoleId], references: [id])
+  serviceAssignments   StaffServiceAssignment[]
+  appointmentAssignments AppointmentServiceStaff[]
+  appointmentPrimary   Appointment[]             @relation("AppointmentPrimaryStaff")
+  invoiceItems         InvoiceItem[]
+  staffSchedules       StaffSchedule[]
+  staffBreaks          StaffBreak[]
+  appointmentsOwned    Appointment[]             @relation("AppointmentCreatedBy")
+  preferredByCustomers Customer[]               @relation("CustomerPreferredStaff")
+  loyaltyTransactions  LoyaltyTransaction[]
+  giftCardsCreated     GiftCard[]                @relation("GiftCardCreatedBy")
+  enquiriesAssigned    Enquiry[]                 @relation("EnquiryAssignedTo")
+  enquiriesCreated     Enquiry[]                 @relation("EnquiryCreatedBy")
+  enquiryFollowUps     EnquiryFollowUp[]
+  expensesCreated      Expense[]                 @relation("ExpenseCreatedBy")
+  expensesApproved     Expense[]                 @relation("ExpenseApprovedBy")
+  attendanceRecords    AttendanceRecord[]        @relation("AttendanceStaff")
+  attendanceRecordedBy AttendanceRecord[]        @relation("AttendanceRecordedBy")
+  leaveRequests        LeaveRequest[]            @relation("LeaveRequestedBy")
+  leaveApproved        LeaveRequest[]            @relation("LeaveApprovedBy")
+  incentiveRules       IncentiveRule[]
+  payrollRunsGenerated PayrollRun[]              @relation("PayrollGeneratedBy")
+  payrollRunsApproved  PayrollRun[]              @relation("PayrollApprovedBy")
+  payrollItems         PayrollItem[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+  campaignTemplates    CampaignTemplate[]        @relation("CampaignTemplateCreatedBy")
+  campaignConversions  CampaignConversion[]      @relation("CampaignConversionActor")
+  whatsappAutomations  WhatsAppAutomation[]      @relation("WhatsAppAutomationUpdatedBy")
+  whatsappLogs         WhatsAppLog[]             @relation("WhatsAppLogActor")
+  feedback             CustomerFeedback[]
+
+  @@unique([userId, salonId])
+}
+
+model Plan {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  monthlyPrice  Decimal  @db.Decimal(10, 2)
+  yearlyPrice   Decimal  @db.Decimal(10, 2)
+  trialDays     Int      @default(14)
+  branchLimit   Int      @default(1)
+  userLimit     Int      @default(5)
+  customerLimit Int      @default(500)
+  invoiceLimit  Int      @default(1000)
+  storageLimit  Int?
+  isCustom      Boolean  @default(false)
+  featureFlags  Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id             String                @id @default(cuid())
+  salonId        String
+  planId         String
+  status         SubscriptionStatus    @default(TRIAL)
+  paymentStatus  String?               @default("PENDING")
+  manualDiscount Decimal?              @db.Decimal(10, 2)
+  notes          String?
+  startsAt       DateTime
+  endsAt         DateTime
+  reminderSentAt DateTime?
+  convertedAt    DateTime?
+  salon          Salon                 @relation(fields: [salonId], references: [id])
+  plan           Plan                  @relation(fields: [planId], references: [id])
+  history        SubscriptionHistory[]
+}
+
+model DemoLead {
+  id                  String               @id @default(cuid())
+  name                String
+  email               String
+  phone               String
+  company             String?
+  message             String?
+  status              DemoLeadStatus       @default(PENDING)
+  salonId             String?
+  approvedUserId      String?
+  reviewedAt          DateTime?
+  reviewedByName      String?
+  reviewNote          String?
+  inviteSentAt        DateTime?
+  createdAt           DateTime             @default(now())
+  salon               Salon?               @relation(fields: [salonId], references: [id])
+  passwordSetupTokens PasswordSetupToken[]
+}
+
+model PasswordSetupToken {
+  id         String    @id @default(cuid())
+  userId     String
+  demoLeadId String?
+  tokenHash  String    @unique
+  purpose    String    @default("PASSWORD_SETUP")
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id])
+  demoLead   DemoLead? @relation(fields: [demoLeadId], references: [id])
+}
+
+model Branch {
+  id               String                @id @default(cuid())
+  salonId          String
+  name             String
+  phone            String?
+  email            String?
+  address          String?
+  businessHours    String?
+  weeklyOff        String?
+  isActive         Boolean               @default(true)
+  createdAt        DateTime              @default(now())
+  salon            Salon                 @relation(fields: [salonId], references: [id])
+  users            UserSalon[]
+  services         Service[]
+  invoices         Invoice[]
+  settings         SalonSetting[]
+  appointments     Appointment[]
+  products         Product[]
+  vendors          Vendor[]
+  purchaseOrders   PurchaseOrder[]
+  transfersFrom    StockTransfer[]       @relation("TransferSourceBranch")
+  transfersTo      StockTransfer[]       @relation("TransferDestinationBranch")
+  reconciliations  StockReconciliation[]
+  catalogSettings  CatalogSetting[]
+  onlineOrders     OnlineOrder[]
+  feedback         CustomerFeedback[]
+  enquiries        Enquiry[]
+  expenses         Expense[]
+  attendanceRecords AttendanceRecord[]
+  payrollRuns      PayrollRun[]
+  loyaltyRules     LoyaltyRule[]
+  coupons          Coupon[]
+}
+
+model ServiceCategory {
+  id        String   @id @default(cuid())
+  salonId   String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  salon     Salon    @relation(fields: [salonId], references: [id])
+}
+
+model Service {
+  id                   String                    @id @default(cuid())
+  salonId              String
+  branchId             String?
+  name                 String
+  price                Decimal                   @db.Decimal(10, 2)
+  durationMin          Int
+  description          String?
+  taxRate              Decimal?                  @db.Decimal(5, 2)
+  onlineBookingEnabled Boolean                   @default(false)
+  commissionPct        Decimal?                  @db.Decimal(5, 2)
+  isFeatured           Boolean                   @default(false)
+  isPopular            Boolean                   @default(false)
+  isPublicVisible      Boolean                   @default(true)
+  isActive             Boolean                   @default(true)
+  createdAt            DateTime                  @default(now())
+  salon                Salon                     @relation(fields: [salonId], references: [id])
+  branch               Branch?                   @relation(fields: [branchId], references: [id])
+  staffAssignments     StaffServiceAssignment[]
+  appointmentItems     AppointmentService[]
+  membershipPlans      MembershipPlanService[]
+  packageServices      PackageService[]
+  feedback             CustomerFeedback[]
+  coupons              Coupon[]
+  enquiries            Enquiry[]
+}
+
+model Customer {
+  id               String               @id @default(cuid())
+  salonId          String
+  userId           String?              @unique
+  name             String
+  phone            String
+  email            String?
+  gender           String?
+  dateOfBirth      DateTime?
+  anniversary      DateTime?
+  source           String?
+  tags             Json?
+  notes            String?
+  preferences      String?
+  preferredStaffId String?
+  allergies        String?
+  skinNotes        String?
+  lastVisitAt      DateTime?
+  totalSpend       Decimal              @default(0) @db.Decimal(12, 2)
+  averageSpend     Decimal              @default(0) @db.Decimal(12, 2)
+  loyaltyPoints    Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  salon            Salon                @relation(fields: [salonId], references: [id])
+  user             User?                @relation(fields: [userId], references: [id])
+  invoices         Invoice[]
+  appointments     Appointment[]
+  memberships      CustomerMembership[]
+  packages         CustomerPackage[]
+  preferredStaff   UserSalon?           @relation("CustomerPreferredStaff", fields: [preferredStaffId], references: [id])
+  timelineEntries  CustomerTimeline[]
+  orders           OnlineOrder[]
+  coupons          CustomerCoupon[]
+  notifications    CustomerNotification[]
+  feedback         CustomerFeedback[]
+  loyaltyTransactions LoyaltyTransaction[]
+  couponRedemptions   CouponRedemption[]
+  giftCardsIssued     GiftCard[]            @relation("GiftCardIssuedTo")
+  giftCardRedemptions GiftCardRedemption[]
+  enquiries           Enquiry[]             @relation("EnquiryConvertedCustomer")
+  campaignConversions CampaignConversion[]
+  whatsappLogs        WhatsAppLog[]
+
+  @@unique([salonId, phone])
+}
+
+model Invoice {
+  id                   String                @id @default(cuid())
+  salonId              String
+  branchId             String?
+  customerId           String
+  appointmentId        String?
+  invoiceNumber        String                @unique
+  status               InvoiceStatus         @default(UNPAID)
+  subtotal             Decimal               @db.Decimal(10, 2)
+  discount             Decimal               @db.Decimal(10, 2)
+  tax                  Decimal               @db.Decimal(10, 2)
+  total                Decimal               @db.Decimal(10, 2)
+  paidAmount           Decimal               @default(0) @db.Decimal(10, 2)
+  refundAmount         Decimal               @default(0) @db.Decimal(10, 2)
+  balanceAmount        Decimal               @default(0) @db.Decimal(10, 2)
+  notes                String?
+  couponCode           String?
+  giftVoucherCode      String?
+  loyaltyPointsUsed    Int?
+  paymentLinkToken     String?               @unique
+  paymentLinkStatus    String?
+  paymentLinkExpiresAt DateTime?
+  createdAt            DateTime              @default(now())
+  salon                Salon                 @relation(fields: [salonId], references: [id])
+  branch               Branch?               @relation(fields: [branchId], references: [id])
+  customer             Customer              @relation(fields: [customerId], references: [id])
+  appointment          Appointment?          @relation(fields: [appointmentId], references: [id])
+  items                InvoiceItem[]
+  payments             Payment[]
+  membershipSales      CustomerMembership[]  @relation("MembershipSaleInvoice")
+  packageSales         CustomerPackage[]     @relation("PackageSaleInvoice")
+  onlineOrders         OnlineOrder[]
+  loyaltyTransactions  LoyaltyTransaction[]
+  couponRedemptions    CouponRedemption[]
+  giftCardRedemptions  GiftCardRedemption[]
+  feedback             CustomerFeedback[]
+  giftCardsSold        GiftCard[]
+  campaignConversions  CampaignConversion[]
+}
+
+model InvoiceItem {
+  id                  String           @id @default(cuid())
+  invoiceId           String
+  serviceId           String?
+  productId           String?
+  membershipPlanId    String?
+  packageId           String?
+  staffUserSalonId    String?
+  serviceName         String
+  staffName           String?
+  qty                 Int
+  unitPrice           Decimal          @db.Decimal(10, 2)
+  taxPct              Decimal          @db.Decimal(5, 2)
+  lineTotal           Decimal          @db.Decimal(10, 2)
+  itemType            String           @default("SERVICE")
+  appliedBenefitType  String?
+  appliedBenefitValue Decimal?         @db.Decimal(10, 2)
+  packageSessionsUsed Int?             @default(0)
+  membershipWalletUsed Decimal?        @db.Decimal(10, 2)
+  commissionAmount    Decimal?         @db.Decimal(10, 2)
+  invoice             Invoice          @relation(fields: [invoiceId], references: [id])
+  product             Product?         @relation(fields: [productId], references: [id])
+  membershipPlan      MembershipPlan?  @relation(fields: [membershipPlanId], references: [id])
+  package             Package?         @relation(fields: [packageId], references: [id])
+  staffUserSalon      UserSalon?       @relation(fields: [staffUserSalonId], references: [id])
+}
+
+model Payment {
+  id           String      @id @default(cuid())
+  salonId      String
+  invoiceId    String
+  amount       Decimal     @db.Decimal(10, 2)
+  mode         PaymentMode
+  note         String?
+  type         String      @default("PAYMENT")
+  onlineStatus String?
+  gatewayName  String?
+  gatewayRef   String?
+  createdAt    DateTime    @default(now())
+  salon        Salon       @relation(fields: [salonId], references: [id])
+  invoice      Invoice     @relation(fields: [invoiceId], references: [id])
+}
+
+model StaffServiceAssignment {
+  id          String    @id @default(cuid())
+  userSalonId String
+  serviceId   String
+  createdAt   DateTime  @default(now())
+  userSalon   UserSalon @relation(fields: [userSalonId], references: [id])
+  service     Service   @relation(fields: [serviceId], references: [id])
+
+  @@unique([userSalonId, serviceId])
+}
+
+model Appointment {
+  id                     String                     @id @default(cuid())
+  salonId                String
+  branchId               String
+  customerId             String
+  primaryStaffUserId     String?
+  createdByMembershipId  String?
+  title                  String?
+  bookingChannel         String                     @default("MANUAL")
+  status                 AppointmentStatus          @default(PENDING)
+  startAt                DateTime
+  endAt                  DateTime
+  notes                  String?
+  customerPreferences    String?
+  isWalkIn               Boolean                    @default(false)
+  approvalStatus         String?                    @default("APPROVED")
+  advancePaymentRequired Boolean                    @default(false)
+  advancePaidAmount      Decimal?                   @db.Decimal(10, 2)
+  selfCancelToken        String?                    @unique
+  selfRescheduleToken    String?                    @unique
+  roomResourceNote       String?
+  convertedInvoiceId     String?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  salon                  Salon                      @relation(fields: [salonId], references: [id])
+  branch                 Branch                     @relation(fields: [branchId], references: [id])
+  customer               Customer                   @relation(fields: [customerId], references: [id])
+  primaryStaff           UserSalon?                 @relation("AppointmentPrimaryStaff", fields: [primaryStaffUserId], references: [id])
+  createdByMembership    UserSalon?                 @relation("AppointmentCreatedBy", fields: [createdByMembershipId], references: [id])
+  invoice                Invoice[]
+  items                  AppointmentService[]
+  logs                   AppointmentLog[]
+  feedback               CustomerFeedback[]
+  convertedFromEnquiries Enquiry[]
+
+  @@index([salonId, branchId, startAt])
+  @@index([salonId, customerId, startAt])
+}
+
+model AppointmentService {
+  id            String                    @id @default(cuid())
+  appointmentId String
+  serviceId     String
+  startAt       DateTime
+  endAt         DateTime
+  notes         String?
+  appointment   Appointment               @relation(fields: [appointmentId], references: [id])
+  service       Service                   @relation(fields: [serviceId], references: [id])
+  assignedStaff AppointmentServiceStaff[]
+}
+
+model AppointmentServiceStaff {
+  id                   String              @id @default(cuid())
+  appointmentServiceId String
+  userSalonId          String
+  appointmentService   AppointmentService  @relation(fields: [appointmentServiceId], references: [id])
+  userSalon            UserSalon           @relation(fields: [userSalonId], references: [id])
+
+  @@unique([appointmentServiceId, userSalonId])
+}
+
+model AppointmentLog {
+  id            String             @id @default(cuid())
+  appointmentId String
+  actorUserId   String?
+  action        String
+  fromStatus    AppointmentStatus?
+  toStatus      AppointmentStatus?
+  details       String?
+  createdAt     DateTime           @default(now())
+  appointment   Appointment        @relation(fields: [appointmentId], references: [id])
+  actorUser     User?              @relation(fields: [actorUserId], references: [id])
+}
+
+model AppointmentSetting {
+  id                     String   @id @default(cuid())
+  salonId                String
+  branchId               String?
+  autoConfirm            Boolean  @default(true)
+  advancePaymentRequired Boolean  @default(false)
+  onlineBookingEnabled   Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  salon                  Salon    @relation(fields: [salonId], references: [id])
+
+  @@unique([salonId, branchId])
+}
+
+model StaffSchedule {
+  id          String    @id @default(cuid())
+  salonId     String
+  branchId    String?
+  userSalonId String
+  weekday     Int
+  startTime   String
+  endTime     String
+  isOffDay    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  userSalon   UserSalon @relation(fields: [userSalonId], references: [id])
+
+  @@unique([userSalonId, weekday])
+}
+
+model StaffBreak {
+  id          String    @id @default(cuid())
+  userSalonId String
+  weekday     Int
+  startTime   String
+  endTime     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  userSalon   UserSalon @relation(fields: [userSalonId], references: [id])
+}
+
+model ProductCategory {
+  id              String    @id @default(cuid())
+  salonId         String
+  name            String
+  description     String?
+  imageUrl        String?
+  sortOrder       Int       @default(0)
+  isPublicVisible Boolean   @default(true)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+  salon           Salon     @relation(fields: [salonId], references: [id])
+  products        Product[]
+}
+
+model Product {
+  id                 String               @id @default(cuid())
+  salonId            String
+  branchId           String?
+  categoryId         String?
+  name               String
+  imageUrl           String?
+  sku                String?
+  barcode            String?
+  productType        ProductType          @default(RETAIL)
+  costPrice          Decimal              @db.Decimal(10, 2)
+  sellingPrice       Decimal              @db.Decimal(10, 2)
+  currentStock       Decimal              @default(0) @db.Decimal(12, 2)
+  minStock           Decimal              @default(0) @db.Decimal(12, 2)
+  expiryDate         DateTime?
+  allowNegativeStock Boolean              @default(false)
+  isOnlineVisible    Boolean              @default(true)
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  salon              Salon                @relation(fields: [salonId], references: [id])
+  branch             Branch?              @relation(fields: [branchId], references: [id])
+  category           ProductCategory?     @relation(fields: [categoryId], references: [id])
+  stockMovements     StockMovement[]
+  invoiceItems       InvoiceItem[]
+  purchaseItems      PurchaseOrderItem[]
+  transferItems      StockTransferItem[]
+  reconciliationItems StockReconciliationItem[]
+  orderItems         OnlineOrderItem[]
+  coupons            Coupon[]
+
+  @@unique([salonId, sku])
+}
+
+model StockMovement {
+  id              String            @id @default(cuid())
+  salonId         String
+  branchId        String?
+  productId       String
+  createdByUserId String?
+  movementType    StockMovementType
+  quantity        Decimal           @db.Decimal(12, 2)
+  stockBefore     Decimal           @db.Decimal(12, 2)
+  stockAfter      Decimal           @db.Decimal(12, 2)
+  referenceType   String?
+  referenceId     String?
+  note            String?
+  createdAt       DateTime          @default(now())
+  salon           Salon             @relation(fields: [salonId], references: [id])
+  product         Product           @relation(fields: [productId], references: [id])
+  createdByUser   User?             @relation(fields: [createdByUserId], references: [id])
+}
+
+model Vendor {
+  id             String          @id @default(cuid())
+  salonId        String
+  branchId       String?
+  name           String
+  phone          String?
+  email          String?
+  address        String?
+  notes          String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  salon          Salon           @relation(fields: [salonId], references: [id])
+  branch         Branch?         @relation(fields: [branchId], references: [id])
+  purchaseOrders PurchaseOrder[]
+  expenses       Expense[]
+}
+
+model PurchaseOrder {
+  id              String              @id @default(cuid())
+  salonId         String
+  branchId        String
+  vendorId        String
+  createdByUserId String?
+  orderNumber     String              @unique
+  status          PurchaseOrderStatus @default(DRAFT)
+  notes           String?
+  orderedAt       DateTime            @default(now())
+  receivedAt      DateTime?
+  totalCost       Decimal             @default(0) @db.Decimal(12, 2)
+  salon           Salon               @relation(fields: [salonId], references: [id])
+  branch          Branch              @relation(fields: [branchId], references: [id])
+  vendor          Vendor              @relation(fields: [vendorId], references: [id])
+  createdByUser   User?               @relation("PurchaseOrderCreatedBy", fields: [createdByUserId], references: [id])
+  items           PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id               String        @id @default(cuid())
+  purchaseOrderId  String
+  productId        String
+  quantityOrdered  Decimal       @db.Decimal(12, 2)
+  quantityReceived Decimal       @default(0) @db.Decimal(12, 2)
+  unitCost         Decimal       @db.Decimal(10, 2)
+  expiryDate       DateTime?
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  product          Product       @relation(fields: [productId], references: [id])
+}
+
+model StockTransfer {
+  id              String              @id @default(cuid())
+  salonId         String
+  fromBranchId    String
+  toBranchId      String
+  createdByUserId String?
+  note            String?
+  status          String              @default("COMPLETED")
+  createdAt       DateTime            @default(now())
+  salon           Salon               @relation(fields: [salonId], references: [id])
+  fromBranch      Branch              @relation("TransferSourceBranch", fields: [fromBranchId], references: [id])
+  toBranch        Branch              @relation("TransferDestinationBranch", fields: [toBranchId], references: [id])
+  createdByUser   User?               @relation("StockTransferCreatedBy", fields: [createdByUserId], references: [id])
+  items           StockTransferItem[]
+}
+
+model StockTransferItem {
+  id         String        @id @default(cuid())
+  transferId String
+  productId  String
+  quantity   Decimal       @db.Decimal(12, 2)
+  transfer   StockTransfer @relation(fields: [transferId], references: [id])
+  product    Product       @relation(fields: [productId], references: [id])
+}
+
+model StockReconciliation {
+  id         String                     @id @default(cuid())
+  salonId    String
+  branchId   String
+  note       String?
+  createdAt  DateTime                   @default(now())
+  salon      Salon                      @relation(fields: [salonId], references: [id])
+  branch     Branch                     @relation(fields: [branchId], references: [id])
+  items      StockReconciliationItem[]
+}
+
+model StockReconciliationItem {
+  id               String                @id @default(cuid())
+  reconciliationId String
+  productId        String
+  systemStock      Decimal               @db.Decimal(12, 2)
+  physicalStock    Decimal               @db.Decimal(12, 2)
+  variance         Decimal               @db.Decimal(12, 2)
+  reconciliation   StockReconciliation   @relation(fields: [reconciliationId], references: [id])
+  product          Product               @relation(fields: [productId], references: [id])
+}
+
+model MembershipPlan {
+  id                  String                  @id @default(cuid())
+  salonId             String
+  name                String
+  price               Decimal                 @db.Decimal(10, 2)
+  validityDays        Int
+  benefitType         MembershipBenefitType
+  discountValue       Decimal?                @db.Decimal(10, 2)
+  walletValue         Decimal?                @db.Decimal(10, 2)
+  serviceSpecificOnly Boolean                 @default(false)
+  isPublicVisible     Boolean                 @default(true)
+  isActive            Boolean                 @default(true)
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  salon               Salon                   @relation(fields: [salonId], references: [id])
+  services            MembershipPlanService[]
+  customers           CustomerMembership[]
+  invoiceItems        InvoiceItem[]
+}
+
+model MembershipPlanService {
+  id               String         @id @default(cuid())
+  membershipPlanId String
+  serviceId        String
+  membershipPlan   MembershipPlan @relation(fields: [membershipPlanId], references: [id])
+  service          Service        @relation(fields: [serviceId], references: [id])
+
+  @@unique([membershipPlanId, serviceId])
+}
+
+model CustomerMembership {
+  id                   String             @id @default(cuid())
+  salonId              String
+  customerId           String
+  membershipPlanId     String
+  soldInvoiceId        String?
+  status               String             @default("ACTIVE")
+  startsAt             DateTime           @default(now())
+  endsAt               DateTime
+  remainingWalletValue Decimal?           @db.Decimal(10, 2)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  salon                Salon              @relation(fields: [salonId], references: [id])
+  customer             Customer           @relation(fields: [customerId], references: [id])
+  membershipPlan       MembershipPlan     @relation(fields: [membershipPlanId], references: [id])
+  soldInvoice          Invoice?           @relation("MembershipSaleInvoice", fields: [soldInvoiceId], references: [id])
+  usageLogs            MembershipUsage[]
+}
+
+model MembershipUsage {
+  id                   String             @id @default(cuid())
+  customerMembershipId String
+  invoiceId            String?
+  appointmentId        String?
+  amountUsed           Decimal?           @db.Decimal(10, 2)
+  serviceId            String?
+  note                 String?
+  createdAt            DateTime           @default(now())
+  customerMembership   CustomerMembership @relation(fields: [customerMembershipId], references: [id])
+}
+
+model Package {
+  id            String           @id @default(cuid())
+  salonId       String
+  name          String
+  price         Decimal          @db.Decimal(10, 2)
+  totalSessions Int
+  validityDays  Int
+  isPublicVisible Boolean        @default(true)
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  salon         Salon            @relation(fields: [salonId], references: [id])
+  services      PackageService[]
+  customers     CustomerPackage[]
+  invoiceItems  InvoiceItem[]
+}
+
+model PackageService {
+  id        String   @id @default(cuid())
+  packageId String
+  serviceId String
+  sessions  Int      @default(1)
+  package   Package  @relation(fields: [packageId], references: [id])
+  service   Service  @relation(fields: [serviceId], references: [id])
+
+  @@unique([packageId, serviceId])
+}
+
+model CustomerPackage {
+  id                String                @id @default(cuid())
+  salonId           String
+  customerId        String
+  packageId         String
+  soldInvoiceId     String?
+  status            CustomerPackageStatus @default(ACTIVE)
+  startsAt          DateTime              @default(now())
+  endsAt            DateTime
+  remainingSessions Int
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  salon             Salon                 @relation(fields: [salonId], references: [id])
+  customer          Customer              @relation(fields: [customerId], references: [id])
+  package           Package               @relation(fields: [packageId], references: [id])
+  soldInvoice       Invoice?              @relation("PackageSaleInvoice", fields: [soldInvoiceId], references: [id])
+  usageLogs         PackageUsage[]
+}
+
+model PackageUsage {
+  id                String          @id @default(cuid())
+  customerPackageId String
+  invoiceId         String?
+  appointmentId     String?
+  serviceId         String?
+  sessionsUsed      Int             @default(1)
+  note              String?
+  createdAt         DateTime        @default(now())
+  customerPackage   CustomerPackage @relation(fields: [customerPackageId], references: [id])
+}
+
+model CustomerTimeline {
+  id          String    @id @default(cuid())
+  customerId  String
+  eventType   String
+  title       String
+  details     String?
+  referenceId String?
+  createdAt   DateTime  @default(now())
+  customer    Customer  @relation(fields: [customerId], references: [id])
+}
+
+model CatalogSetting {
+  id                     String   @id @default(cuid())
+  salonId                String
+  branchId               String?
+  catalogEnabled         Boolean  @default(true)
+  customSlug             String?
+  logoUrl                String?
+  bannerUrl              String?
+  showServices           Boolean  @default(true)
+  showPackages           Boolean  @default(true)
+  showMemberships        Boolean  @default(true)
+  showProducts           Boolean  @default(true)
+  showStaffPortfolio     Boolean  @default(true)
+  whatsappNumber         String?
+  googleReviewLink       String?
+  socialLinks            Json?
+  branchDisplaySettings  Json?
+  beforeAfterGallery     Json?
+  themeColor             String?
+  allowSuspendedCatalog  Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  salon                  Salon    @relation(fields: [salonId], references: [id])
+  branch                 Branch?  @relation(fields: [branchId], references: [id])
+
+  @@unique([salonId, branchId])
+}
+
+model CatalogBanner {
+  id         String   @id @default(cuid())
+  salonId    String
+  title      String
+  subtitle   String?
+  imageUrl   String?
+  linkUrl    String?
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  salon      Salon    @relation(fields: [salonId], references: [id])
+}
+
+model CatalogOffer {
+  id          String   @id @default(cuid())
+  salonId     String
+  title       String
+  description String?
+  imageUrl    String?
+  ctaLabel    String?
+  ctaUrl      String?
+  branchId    String?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  salon       Salon    @relation(fields: [salonId], references: [id])
+}
+
+model CatalogAnalyticsEvent {
+  id         String                    @id @default(cuid())
+  salonId    String
+  branchId   String?
+  eventType  CatalogAnalyticsEventType
+  slug       String
+  serviceId  String?
+  productId  String?
+  offerId    String?
+  metadata   Json?
+  createdAt  DateTime                  @default(now())
+  salon      Salon                     @relation(fields: [salonId], references: [id])
+}
+
+model EcommerceSetting {
+  id                    String   @id @default(cuid())
+  salonId               String
+  storeEnabled          Boolean  @default(false)
+  allowCod              Boolean  @default(true)
+  allowPayAtSalon       Boolean  @default(true)
+  allowOnlinePayment    Boolean  @default(false)
+  pickupEnabled         Boolean  @default(true)
+  deliveryEnabled       Boolean  @default(false)
+  deliveryNote          String?
+  supportPhone          String?
+  termsText             String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  salon                 Salon    @relation(fields: [salonId], references: [id])
+
+  @@unique([salonId])
+}
+
+model OnlineOrder {
+  id                 String               @id @default(cuid())
+  salonId            String
+  customerId         String?
+  branchId           String?
+  orderNumber        String               @unique
+  status             OnlineOrderStatus    @default(NEW)
+  paymentStatus      OrderPaymentStatus   @default(PENDING)
+  fulfillmentMethod  String               @default("PICKUP")
+  source             String               @default("PUBLIC_STORE")
+  customerName       String
+  customerPhone      String
+  customerEmail      String?
+  note               String?
+  subtotal           Decimal              @db.Decimal(10, 2)
+  discount           Decimal              @default(0) @db.Decimal(10, 2)
+  tax                Decimal              @default(0) @db.Decimal(10, 2)
+  total              Decimal              @db.Decimal(10, 2)
+  paidAmount         Decimal              @default(0) @db.Decimal(10, 2)
+  couponCode         String?
+  giftCardCode       String?
+  invoiceId          String?
+  stockDeductedAt    DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  salon              Salon                @relation(fields: [salonId], references: [id])
+  customer           Customer?            @relation(fields: [customerId], references: [id])
+  branch             Branch?              @relation(fields: [branchId], references: [id])
+  invoice            Invoice?             @relation(fields: [invoiceId], references: [id])
+  items              OnlineOrderItem[]
+  logs               OnlineOrderStatusLog[]
+  couponRedemptions  CouponRedemption[]
+  giftCardRedemptions GiftCardRedemption[]
+  campaignConversions CampaignConversion[]
+  loyaltyTransactions LoyaltyTransaction[]
+}
+
+model OnlineOrderItem {
+  id           String      @id @default(cuid())
+  orderId      String
+  productId    String
+  productName  String
+  qty          Int
+  unitPrice    Decimal     @db.Decimal(10, 2)
+  lineTotal    Decimal     @db.Decimal(10, 2)
+  order        OnlineOrder @relation(fields: [orderId], references: [id])
+  product      Product     @relation(fields: [productId], references: [id])
+}
+
+model OnlineOrderStatusLog {
+  id          String            @id @default(cuid())
+  orderId     String
+  actorName   String?
+  fromStatus  OnlineOrderStatus?
+  toStatus    OnlineOrderStatus
+  note        String?
+  createdAt   DateTime          @default(now())
+  order       OnlineOrder       @relation(fields: [orderId], references: [id])
+}
+
+model Campaign {
+  id              String         @id @default(cuid())
+  salonId         String
+  name            String
+  type            CampaignType
+  status          CampaignStatus @default(DRAFT)
+  audienceFilter  String
+  audienceMeta    Json?
+  message         String?
+  bannerUrl       String?
+  templateId      String?
+  linkedCouponId  String?
+  linkedBannerId  String?
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  salon           Salon          @relation(fields: [salonId], references: [id])
+  logs            CampaignLog[]
+  conversions     CampaignConversion[]
+  template        CampaignTemplate? @relation(fields: [templateId], references: [id])
+  linkedCoupon    Coupon?        @relation("CampaignLinkedCoupon", fields: [linkedCouponId], references: [id])
+  giftCards       GiftCard[]     @relation("CampaignLinkedGiftCard")
+  whatsappLogs    WhatsAppLog[]
+}
+
+model CampaignLog {
+  id          String    @id @default(cuid())
+  campaignId  String
+  eventType   String
+  details     String?
+  createdAt   DateTime  @default(now())
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+}
+
+model MessageTemplate {
+  id          String   @id @default(cuid())
+  salonId     String
+  type        String
+  title       String
+  content     String
+  variables   Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  salon       Salon    @relation(fields: [salonId], references: [id])
+
+  @@unique([salonId, type])
+}
+
+model CustomerCoupon {
+  id          String    @id @default(cuid())
+  salonId     String
+  customerId  String
+  code        String
+  title       String
+  description String?
+  discountType String?
+  discountValue Decimal? @db.Decimal(10, 2)
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  salon       Salon     @relation(fields: [salonId], references: [id])
+  customer    Customer  @relation(fields: [customerId], references: [id])
+  couponId    String?
+  coupon      Coupon?   @relation(fields: [couponId], references: [id])
+}
+
+model CustomerNotification {
+  id          String    @id @default(cuid())
+  salonId     String
+  customerId  String
+  title       String
+  message     String
+  linkUrl     String?
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  salon       Salon     @relation(fields: [salonId], references: [id])
+  customer    Customer  @relation(fields: [customerId], references: [id])
+}
+
+model CustomerFeedback {
+  id            String    @id @default(cuid())
+  salonId       String
+  customerId    String
+  appointmentId String?
+  invoiceId     String?
+  branchId      String?
+  serviceId     String?
+  staffUserSalonId String?
+  rating        Int
+  message       String?
+  status        FeedbackStatus @default(NEW)
+  complaintFollowUpStatus String?
+  internalNotes String?
+  requestSource String?
+  createdAt     DateTime  @default(now())
+  salon         Salon     @relation(fields: [salonId], references: [id])
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  invoice       Invoice?  @relation(fields: [invoiceId], references: [id])
+  branch        Branch?   @relation(fields: [branchId], references: [id])
+  service       Service?  @relation(fields: [serviceId], references: [id])
+  staffUserSalon UserSalon? @relation(fields: [staffUserSalonId], references: [id])
+}
+
+model SupportTicket {
+  id                String                 @id @default(cuid())
+  salonId           String?
+  title             String
+  category          String?
+  priority          String                 @default("MEDIUM")
+  status            String                 @default("OPEN")
+  description       String?
+  internalNote      String?
+  assignedAgentName String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  salon             Salon?                 @relation(fields: [salonId], references: [id])
+  messages          SupportTicketMessage[]
+  events            SupportTicketEvent[]
+}
+
+model SupportTicketMessage {
+  id            String        @id @default(cuid())
+  ticketId      String
+  authorType    String
+  authorName    String
+  message       String
+  attachmentUrl String?
+  createdAt     DateTime      @default(now())
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id])
+}
+
+model SalonSetting {
+  id                     String   @id @default(cuid())
+  salonId                String
+  branchId               String?
+  invoicePrefix          String?  @default("INV")
+  invoiceFooter          String?
+  taxLabel               String?  @default("Tax")
+  paymentModes           Json?
+  whatsappNumber         String?
+  bookingNotes           String?
+  cancellationPolicy     String?
+  paymentGatewaySettings Json?
+  allowNegativeStock     Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  salon                  Salon    @relation(fields: [salonId], references: [id])
+  branch                 Branch?  @relation(fields: [branchId], references: [id])
+
+  @@unique([salonId, branchId])
+}
+
+model GlobalSetting {
+  id                   String   @id @default(cuid())
+  systemName           String   @default("ReSpark Clone SaaS")
+  globalLogo           String?
+  maintenanceMode      Boolean  @default(false)
+  taxLabel             String   @default("Tax")
+  defaultCurrency      String   @default("PKR")
+  defaultCountry       String?
+  defaultCity          String?
+  defaultTimezone      String?
+  currencyOptions      Json?
+  notificationDefaults Json?
+  whatsappNumber       String?
+  smsProviderName      String?
+  emailProviderName    String?
+  whatsappProviderName String?
+  contactEmail         String?
+  supportEmail         String?
+  notificationEmail    String?
+  termsUrl             String?
+  privacyUrl           String?
+  demoBookingUrl       String?
+  blogTitle            String?
+  blogIntro            String?
+  backupPolicyNote     String?
+  invoicePrefix        String   @default("INV")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model CustomRole {
+  id             String   @id @default(cuid())
+  salonId        String
+  name           String
+  description    String?
+  permissions    Json?
+  isSystemPreset Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  salon          Salon    @relation(fields: [salonId], references: [id])
+  users          UserSalon[]
+
+  @@unique([salonId, name])
+}
+
+model SubscriptionHistory {
+  id                String       @id @default(cuid())
+  subscriptionId    String
+  action            String
+  createdBy         String?
+  fromStatus        String?
+  toStatus          String?
+  fromPaymentStatus String?
+  toPaymentStatus   String?
+  notes             String?
+  createdAt         DateTime     @default(now())
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id])
+}
+
+model SupportTicketEvent {
+  id         String        @id @default(cuid())
+  ticketId   String
+  eventType  String
+  actorName  String
+  details    String?
+  fromStatus String?
+  toStatus   String?
+  createdAt  DateTime      @default(now())
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id])
+}
+
+model LoyaltyRule {
+  id                   String   @id @default(cuid())
+  salonId              String
+  branchId             String?
+  name                 String
+  pointsPerCurrency    Decimal  @default(1) @db.Decimal(10, 2)
+  serviceMultiplier    Decimal? @db.Decimal(10, 2)
+  productMultiplier    Decimal? @db.Decimal(10, 2)
+  bonusRate            Decimal? @db.Decimal(10, 2)
+  minRedeemPoints      Int      @default(100)
+  maxRedeemPercent     Decimal? @db.Decimal(5, 2)
+  expiryDays           Int?
+  birthdayPoints       Int?
+  referralPoints       Int?
+  isActive             Boolean  @default(true)
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  salon                Salon    @relation(fields: [salonId], references: [id])
+  branch               Branch?  @relation(fields: [branchId], references: [id])
+}
+
+model LoyaltyTransaction {
+  id                   String                 @id @default(cuid())
+  salonId              String
+  branchId             String?
+  customerId           String
+  invoiceId            String?
+  orderId              String?
+  createdByMembershipId String?
+  type                 LoyaltyTransactionType
+  points               Int
+  balanceAfter         Int
+  expiresAt            DateTime?
+  note                 String?
+  metadata             Json?
+  createdAt            DateTime               @default(now())
+  salon                Salon                  @relation(fields: [salonId], references: [id])
+  customer             Customer               @relation(fields: [customerId], references: [id])
+  invoice              Invoice?               @relation(fields: [invoiceId], references: [id])
+  order                OnlineOrder?           @relation(fields: [orderId], references: [id])
+  createdByMembership  UserSalon?             @relation(fields: [createdByMembershipId], references: [id])
+}
+
+model Coupon {
+  id                 String              @id @default(cuid())
+  salonId            String
+  branchId           String?
+  serviceId          String?
+  productId          String?
+  code               String
+  title              String
+  description        String?
+  discountType       CouponDiscountType
+  discountValue      Decimal             @db.Decimal(10, 2)
+  minBillAmount      Decimal?            @db.Decimal(10, 2)
+  usageLimit         Int?
+  usageCount         Int                 @default(0)
+  customerUsageLimit Int?
+  startsAt           DateTime?
+  endsAt             DateTime?
+  isReferral         Boolean             @default(false)
+  isInfluencer       Boolean             @default(false)
+  isBirthday         Boolean             @default(false)
+  isFestival         Boolean             @default(false)
+  isArchived         Boolean             @default(false)
+  notes              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  salon              Salon               @relation(fields: [salonId], references: [id])
+  branch             Branch?             @relation(fields: [branchId], references: [id])
+  service            Service?            @relation(fields: [serviceId], references: [id])
+  product            Product?            @relation(fields: [productId], references: [id])
+  assignedCoupons    CustomerCoupon[]
+  redemptions        CouponRedemption[]
+  campaigns          Campaign[]          @relation("CampaignLinkedCoupon")
+
+  @@unique([salonId, code])
+}
+
+model CouponRedemption {
+  id           String      @id @default(cuid())
+  salonId      String
+  couponId     String
+  customerId   String?
+  invoiceId    String?
+  orderId      String?
+  amountSaved  Decimal     @db.Decimal(10, 2)
+  createdAt    DateTime    @default(now())
+  salon        Salon       @relation(fields: [salonId], references: [id])
+  coupon       Coupon      @relation(fields: [couponId], references: [id])
+  customer     Customer?   @relation(fields: [customerId], references: [id])
+  invoice      Invoice?    @relation(fields: [invoiceId], references: [id])
+  order        OnlineOrder? @relation(fields: [orderId], references: [id])
+}
+
+model GiftCard {
+  id                  String      @id @default(cuid())
+  salonId             String
+  issuedToCustomerId  String?
+  soldInvoiceId       String?
+  createdByMembershipId String?
+  linkedCampaignId    String?
+  code                String
+  title               String
+  originalAmount      Decimal     @db.Decimal(10, 2)
+  balanceAmount       Decimal     @db.Decimal(10, 2)
+  expiresAt           DateTime?
+  isActive            Boolean     @default(true)
+  note                String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  salon               Salon       @relation(fields: [salonId], references: [id])
+  issuedToCustomer    Customer?   @relation("GiftCardIssuedTo", fields: [issuedToCustomerId], references: [id])
+  soldInvoice         Invoice?    @relation(fields: [soldInvoiceId], references: [id])
+  createdByMembership UserSalon?  @relation("GiftCardCreatedBy", fields: [createdByMembershipId], references: [id])
+  campaign            Campaign?   @relation("CampaignLinkedGiftCard", fields: [linkedCampaignId], references: [id])
+  redemptions         GiftCardRedemption[]
+
+  @@unique([salonId, code])
+}
+
+model GiftCardRedemption {
+  id           String      @id @default(cuid())
+  salonId      String
+  giftCardId   String
+  customerId   String?
+  invoiceId    String?
+  orderId      String?
+  amountUsed   Decimal     @db.Decimal(10, 2)
+  createdAt    DateTime    @default(now())
+  salon        Salon       @relation(fields: [salonId], references: [id])
+  giftCard     GiftCard    @relation(fields: [giftCardId], references: [id])
+  customer     Customer?   @relation(fields: [customerId], references: [id])
+  invoice      Invoice?    @relation(fields: [invoiceId], references: [id])
+  order        OnlineOrder? @relation(fields: [orderId], references: [id])
+}
+
+model Enquiry {
+  id                   String         @id @default(cuid())
+  salonId              String
+  interestedServiceId  String?
+  interestedBranchId   String?
+  assignedToMembershipId String?
+  createdByMembershipId String?
+  convertedCustomerId  String?
+  convertedAppointmentId String?
+  name                 String
+  phone                String
+  email                String?
+  source               String
+  budget               Decimal?       @db.Decimal(10, 2)
+  priority             String?        @default("MEDIUM")
+  status               EnquiryStatus  @default(NEW)
+  followUpAt           DateTime?
+  notes                String?
+  archivedAt           DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  salon                Salon          @relation(fields: [salonId], references: [id])
+  interestedService    Service?       @relation(fields: [interestedServiceId], references: [id])
+  interestedBranch     Branch?        @relation(fields: [interestedBranchId], references: [id])
+  assignedToMembership UserSalon?     @relation("EnquiryAssignedTo", fields: [assignedToMembershipId], references: [id])
+  createdByMembership  UserSalon?     @relation("EnquiryCreatedBy", fields: [createdByMembershipId], references: [id])
+  convertedCustomer    Customer?      @relation("EnquiryConvertedCustomer", fields: [convertedCustomerId], references: [id])
+  convertedAppointment Appointment?   @relation(fields: [convertedAppointmentId], references: [id])
+  followUps            EnquiryFollowUp[]
+}
+
+model EnquiryFollowUp {
+  id               String    @id @default(cuid())
+  enquiryId        String
+  actorMembershipId String?
+  note             String
+  status           String?
+  dueAt            DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  enquiry          Enquiry   @relation(fields: [enquiryId], references: [id])
+  actorMembership  UserSalon? @relation(fields: [actorMembershipId], references: [id])
+}
+
+model ExpenseCategory {
+  id          String   @id @default(cuid())
+  salonId     String
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  salon       Salon    @relation(fields: [salonId], references: [id])
+  expenses    Expense[]
+
+  @@unique([salonId, name])
+}
+
+model Expense {
+  id                   String        @id @default(cuid())
+  salonId              String
+  branchId             String?
+  categoryId           String?
+  vendorId             String?
+  createdByMembershipId String?
+  approvedByMembershipId String?
+  title                String
+  amount               Decimal       @db.Decimal(10, 2)
+  expenseDate          DateTime      @default(now())
+  paymentMode          PaymentMode?
+  status               ExpenseStatus @default(PENDING)
+  notes                String?
+  receiptUrl           String?
+  attachmentUrl        String?
+  approvalNote         String?
+  paidAt               DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  salon                Salon         @relation(fields: [salonId], references: [id])
+  branch               Branch?       @relation(fields: [branchId], references: [id])
+  category             ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  vendor               Vendor?       @relation(fields: [vendorId], references: [id])
+  createdByMembership  UserSalon?    @relation("ExpenseCreatedBy", fields: [createdByMembershipId], references: [id])
+  approvedByMembership UserSalon?    @relation("ExpenseApprovedBy", fields: [approvedByMembershipId], references: [id])
+}
+
+model AttendanceRecord {
+  id                   String    @id @default(cuid())
+  salonId              String
+  branchId             String?
+  userSalonId          String
+  createdByMembershipId String?
+  checkInAt            DateTime
+  checkOutAt           DateTime?
+  workedMinutes        Int?
+  note                 String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  salon                Salon     @relation(fields: [salonId], references: [id])
+  branch               Branch?   @relation(fields: [branchId], references: [id])
+  userSalon            UserSalon @relation("AttendanceStaff", fields: [userSalonId], references: [id])
+  createdByMembership  UserSalon? @relation("AttendanceRecordedBy", fields: [createdByMembershipId], references: [id])
+}
+
+model LeaveRequest {
+  id                   String      @id @default(cuid())
+  salonId              String
+  userSalonId          String
+  approvedByMembershipId String?
+  startDate            DateTime
+  endDate              DateTime
+  reason               String?
+  note                 String?
+  status               LeaveStatus @default(PENDING)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  salon                Salon       @relation(fields: [salonId], references: [id])
+  userSalon            UserSalon   @relation("LeaveRequestedBy", fields: [userSalonId], references: [id])
+  approvedByMembership UserSalon?  @relation("LeaveApprovedBy", fields: [approvedByMembershipId], references: [id])
+}
+
+model IncentiveRule {
+  id            String   @id @default(cuid())
+  salonId       String
+  createdByMembershipId String?
+  name          String
+  targetType    String
+  minTarget     Decimal? @db.Decimal(10, 2)
+  incentiveAmount Decimal @db.Decimal(10, 2)
+  isActive      Boolean  @default(true)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  salon         Salon    @relation(fields: [salonId], references: [id])
+  createdByMembership UserSalon? @relation(fields: [createdByMembershipId], references: [id])
+}
+
+model PayrollRun {
+  id                   String        @id @default(cuid())
+  salonId              String
+  branchId             String?
+  generatedByMembershipId String?
+  approvedByMembershipId String?
+  periodStart          DateTime
+  periodEnd            DateTime
+  status               PayrollStatus @default(DRAFT)
+  notes                String?
+  totalBaseSalary      Decimal       @default(0) @db.Decimal(12, 2)
+  totalCommission      Decimal       @default(0) @db.Decimal(12, 2)
+  totalIncentive       Decimal       @default(0) @db.Decimal(12, 2)
+  totalAdjustments     Decimal       @default(0) @db.Decimal(12, 2)
+  totalNet             Decimal       @default(0) @db.Decimal(12, 2)
+  paidAt               DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  salon                Salon         @relation(fields: [salonId], references: [id])
+  branch               Branch?       @relation(fields: [branchId], references: [id])
+  generatedByMembership UserSalon?   @relation("PayrollGeneratedBy", fields: [generatedByMembershipId], references: [id])
+  approvedByMembership UserSalon?    @relation("PayrollApprovedBy", fields: [approvedByMembershipId], references: [id])
+  items                PayrollItem[]
+}
+
+model PayrollItem {
+  id                String     @id @default(cuid())
+  salonId           String
+  payrollRunId      String
+  userSalonId       String
+  baseSalary        Decimal    @default(0) @db.Decimal(12, 2)
+  commissionAmount  Decimal    @default(0) @db.Decimal(12, 2)
+  incentiveAmount   Decimal    @default(0) @db.Decimal(12, 2)
+  adjustmentAmount  Decimal    @default(0) @db.Decimal(12, 2)
+  attendanceDeduction Decimal  @default(0) @db.Decimal(12, 2)
+  leaveDeduction    Decimal    @default(0) @db.Decimal(12, 2)
+  netAmount         Decimal    @default(0) @db.Decimal(12, 2)
+  notes             String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  salon             Salon      @relation(fields: [salonId], references: [id])
+  payrollRun        PayrollRun @relation(fields: [payrollRunId], references: [id])
+  userSalon         UserSalon  @relation(fields: [userSalonId], references: [id])
+}
+
+model Notification {
+  id           String    @id @default(cuid())
+  salonId      String
+  userSalonId  String?
+  title        String
+  message      String
+  type         String?
+  linkUrl      String?
+  isRead       Boolean   @default(false)
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+  salon        Salon     @relation(fields: [salonId], references: [id])
+  userSalon    UserSalon? @relation(fields: [userSalonId], references: [id])
+}
+
+model AuditLog {
+  id                String    @id @default(cuid())
+  salonId           String?
+  actorUserId       String?
+  actorMembershipId String?
+  module            String
+  action            String
+  entityType        String?
+  entityId          String?
+  reference         String?
+  summary           String?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  salon             Salon?    @relation(fields: [salonId], references: [id])
+  actorMembership   UserSalon? @relation(fields: [actorMembershipId], references: [id])
+}
+
+model CampaignTemplate {
+  id                   String               @id @default(cuid())
+  salonId              String
+  createdByMembershipId String?
+  name                 String
+  title                String
+  tier                 CampaignTemplateTier @default(FREE)
+  category             String?
+  backgroundColor      String?
+  textColor            String?
+  offerText            String?
+  logoUrl              String?
+  imageUrl             String?
+  layoutJson           Json?
+  isActive             Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  salon                Salon                @relation(fields: [salonId], references: [id])
+  createdByMembership  UserSalon?           @relation("CampaignTemplateCreatedBy", fields: [createdByMembershipId], references: [id])
+  campaigns            Campaign[]
+}
+
+model CampaignConversion {
+  id                   String      @id @default(cuid())
+  salonId              String
+  campaignId           String
+  customerId           String?
+  invoiceId            String?
+  orderId              String?
+  actorMembershipId    String?
+  revenueAmount        Decimal     @default(0) @db.Decimal(12, 2)
+  createdAt            DateTime    @default(now())
+  salon                Salon       @relation(fields: [salonId], references: [id])
+  campaign             Campaign    @relation(fields: [campaignId], references: [id])
+  customer             Customer?   @relation(fields: [customerId], references: [id])
+  invoice              Invoice?    @relation(fields: [invoiceId], references: [id])
+  order                OnlineOrder? @relation(fields: [orderId], references: [id])
+  actorMembership      UserSalon?  @relation("CampaignConversionActor", fields: [actorMembershipId], references: [id])
+}
+
+model WhatsAppSetting {
+  id                 String   @id @default(cuid())
+  salonId            String
+  providerName       String?
+  senderName         String?
+  apiUrl             String?
+  apiKeyPlaceholder  String?
+  automationEnabled  Boolean  @default(false)
+  deliveryStatusEnabled Boolean @default(false)
+  readStatusEnabled  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  salon              Salon    @relation(fields: [salonId], references: [id])
+
+  @@unique([salonId])
+}
+
+model WhatsAppAutomation {
+  id                   String   @id @default(cuid())
+  salonId              String
+  updatedByMembershipId String?
+  eventKey             String
+  templateType         String
+  audienceFilter       String?
+  mediaKind            String?
+  mediaUrl             String?
+  isEnabled            Boolean  @default(true)
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  salon                Salon    @relation(fields: [salonId], references: [id])
+  updatedByMembership  UserSalon? @relation("WhatsAppAutomationUpdatedBy", fields: [updatedByMembershipId], references: [id])
+}
+
+model WhatsAppLog {
+  id                String            @id @default(cuid())
+  salonId           String
+  customerId        String?
+  actorMembershipId String?
+  campaignId        String?
+  phone             String
+  templateType      String?
+  message           String
+  status            WhatsAppLogStatus @default(PENDING)
+  linkUrl           String?
+  metadata          Json?
+  createdAt         DateTime          @default(now())
+  salon             Salon             @relation(fields: [salonId], references: [id])
+  customer          Customer?         @relation(fields: [customerId], references: [id])
+  actorMembership   UserSalon?        @relation("WhatsAppLogActor", fields: [actorMembershipId], references: [id])
+  campaign          Campaign?         @relation(fields: [campaignId], references: [id])
+}
