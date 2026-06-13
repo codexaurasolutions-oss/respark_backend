@@ -273,7 +273,28 @@ const buildDateFilter = (req, field = "createdAt") => {
   });
 
   reportsRouter.get("/gst-returns", async (req, res) => {
-    res.json([]);
+    const branchId = normalizeBranchId(req.query.branchId);
+    const invoices = await prisma.invoice.findMany({
+      where: buildInvoiceWhere(req, branchId),
+      include: { customer: true, items: true },
+      orderBy: { createdAt: "desc" }
+    });
+    res.json(invoices.map(inv => {
+      const totalQty = inv.items.reduce((sum, it) => sum + (it.qty || 0), 0);
+      const taxableAmount = toAmount(inv.subtotal) - toAmount(inv.discount);
+      return {
+        "INVOICE DATE": new Date(inv.createdAt).toISOString().slice(0, 10),
+        "INVOICE NO": inv.invoiceNumber,
+        "GUEST NAME": inv.customer?.name || "Walk-in",
+        "GUEST GSTN": "NA",
+        "HSN/SAC": "-",
+        "AMOUNT": toAmount(inv.subtotal),
+        "QTY": totalQty,
+        "DISCOUNT": toAmount(inv.discount),
+        "TAXABLE AMOUNT": taxableAmount,
+        "INVOICE AMOUNT": toAmount(inv.total)
+      };
+    }));
   });
 
   reportsRouter.get("/gst-outwards", async (req, res) => {
