@@ -32,19 +32,31 @@ const buildDateFilter = (req, field = "createdAt") => {
     const branchId = normalizeBranchId(req.query.branchId);
     const invoices = await prisma.invoice.findMany({
       where: buildInvoiceWhere(req, branchId),
+      include: { customer: true, payments: true, items: { include: { staffUserSalon: { include: { user: true } } } } },
+      orderBy: { createdAt: "desc" }
     });
-    const grouped = {};
-    invoices.forEach(inv => {
-      const month = new Date(inv.createdAt).toISOString().slice(0, 7);
-      if (!grouped[month]) grouped[month] = { month, invoices: 0, grossSales: 0, discounts: 0, netSales: 0, paid: 0, due: 0 };
-      grouped[month].invoices++;
-      grouped[month].grossSales += toAmount(inv.subtotal);
-      grouped[month].discounts += toAmount(inv.discount);
-      grouped[month].netSales += toAmount(inv.total);
-      grouped[month].paid += toAmount(inv.paidAmount);
-      grouped[month].due += Math.max(0, toAmount(inv.total) - toAmount(inv.paidAmount) - toAmount(inv.refundAmount));
-    });
-    res.json(Object.values(grouped).sort((a,b) => b.month.localeCompare(a.month)));
+    res.json(invoices.map(inv => {
+      const staffNames = [...new Set(inv.items.map(it => it.staffUserSalon?.user?.name || it.staffName).filter(Boolean))].join(", ");
+      const paymentModes = inv.payments.map(p => `${p.mode}(${toAmount(p.amount)})`).filter(Boolean).join(", ");
+      const balanceCleared = toAmount(inv.balanceAmount) > 0 ? toAmount(inv.balanceAmount) : "-";
+
+      return {
+        "DATE": new Date(inv.createdAt).toISOString().slice(0, 10),
+        "INVOICE": inv.invoiceNumber,
+        "GUEST NAME": inv.customer?.name || "Walk-in",
+        "GUEST NUMBER": inv.customer?.phone || "-",
+        "STAFF": staffNames || "-",
+        "SUBTOTAL": toAmount(inv.subtotal),
+        "DISCOUNT": toAmount(inv.discount),
+        "INCLUSIVE TAX": "-",
+        "EXCLUSIVE TAX": toAmount(inv.tax),
+        "TOTAL": toAmount(inv.total),
+        "PAYMENT MODE": paymentModes || "Unpaid",
+        "REDEMPTION AMOUNT": "-",
+        "BALANCE CLEARED": balanceCleared,
+        "ACTUAL TOTAL": toAmount(inv.total)
+      };
+    }));
   });
 
   reportsRouter.get("/day-wise", async (req, res) => {
