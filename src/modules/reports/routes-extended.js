@@ -401,21 +401,32 @@ const buildDateFilter = (req, field = "createdAt") => {
   });
   
   reportsRouter.get("/daily-stock", async (req, res) => {
-    const branchId = normalizeBranchId(req.query.branchId);
-    const movs = await prisma.stockMovement.findMany({
-      where: { salonId: req.salonId, ...(branchId ? { branchId } : {}), ...buildDateFilter(req) },
-      include: { product: { include: { category: true } } },
-      orderBy: { createdAt: "desc" }
+    const products = await prisma.product.findMany({
+      where: { salonId: req.salonId, isActive: true },
+      include: { category: true }
     });
-    res.json(movs.map(m => ({
-      product: m.product?.name,
-      category: m.product?.category?.name || "-",
-      openingStock: toAmount(m.stockBefore),
-      received: m.movementType === "STOCK_IN" ? toAmount(m.quantity) : 0,
-      consumed: m.movementType === "STOCK_OUT" ? Math.abs(toAmount(m.quantity)) : 0,
-      sold: m.movementType === "POS_SALE" ? Math.abs(toAmount(m.quantity)) : 0,
-      closing: toAmount(m.stockAfter)
-    })));
+    res.json(products.map(p => {
+      const currentStock = toAmount(p.currentStock);
+      const unitPrice = toAmount(p.sellingPrice);
+      const costPrice = toAmount(p.costPrice);
+      const totalStockPrice = currentStock * costPrice;
+      const totalPrice = currentStock * unitPrice;
+
+      return {
+        "ITEM NAME": p.name,
+        "VARIATION NAME": "-",
+        "CATEGORY NAME": p.category?.name || "-",
+        "SKU": p.sku || "-",
+        "OPENING STOCK": currentStock,
+        "CURRENT STOCK": currentStock,
+        "CURRENT ONFLOOR": 0,
+        "UNIT PRICE": unitPrice,
+        "TOTAL STOCK PRICE": totalStockPrice,
+        "TOTAL ONFLOOR PRICE": 0,
+        "TOTAL PRICE": totalPrice,
+        "STOCK TYPE": p.productType || "Retail"
+      };
+    }));
   });
   
   reportsRouter.get("/stock-transaction", async (req, res) => {
