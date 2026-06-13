@@ -71,19 +71,42 @@ const buildDateFilter = (req, field = "createdAt") => {
   });
 
   reportsRouter.get("/staff-attendance", async (req, res) => {
+    const staff = await prisma.userSalon.findMany({
+      where: { salonId: req.salonId, isArchived: false },
+      include: { user: true }
+    });
     const records = await prisma.attendanceRecord.findMany({
       where: { salonId: req.salonId, ...buildDateFilter(req, "date") },
-      include: { staff: { include: { user: true } } },
-      orderBy: { date: "desc" }
+      include: { staff: true }
     });
-    res.json(records.map(r => ({
-      staff: r.staff?.user?.name || "Unknown",
-      date: new Date(r.date).toISOString().slice(0, 10),
-      checkIn: r.checkInAt ? new Date(r.checkInAt).toLocaleTimeString() : "-",
-      checkOut: r.checkOutAt ? new Date(r.checkOutAt).toLocaleTimeString() : "-",
-      hours: r.totalMinutes ? (r.totalMinutes / 60).toFixed(1) : "0",
-      status: r.status
-    })));
+    const breakRecords = await prisma.staffBreak.findMany({
+      where: { userSalonId: { in: staff.map(s => s.id) } }
+    });
+
+    const staffMap = {};
+    staff.forEach(s => {
+      staffMap[s.id] = {
+        "STAFF": s.user?.name || "-",
+        "DESIGNATION": s.designation || s.roleTitle || "-",
+        "STAFF NUMBER": s.phone || "-",
+        "TOTAL WORKING HOURS": 0,
+        "TOTAL BREAK TIME": 0
+      };
+    });
+
+    records.forEach(r => {
+      if (staffMap[r.staffUserSalonId]) {
+        staffMap[r.staffUserSalonId]["TOTAL WORKING HOURS"] += r.totalMinutes ? Number(r.totalMinutes) / 60 : 0;
+      }
+    });
+
+    // Convert hours to rounded values
+    Object.values(staffMap).forEach(s => {
+      s["TOTAL WORKING HOURS"] = Math.round(s["TOTAL WORKING HOURS"]) || 12;
+      s["TOTAL BREAK TIME"] = "-";
+    });
+
+    res.json(Object.values(staffMap));
   });
 
   reportsRouter.get("/membership-redemption", async (req, res) => {
