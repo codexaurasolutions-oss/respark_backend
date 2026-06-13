@@ -440,13 +440,13 @@ const buildDateFilter = (req, field = "createdAt") => {
       where: { salonId: req.salonId, isActive: true },
       include: { category: true }
     });
-    res.json(products.filter(p => toAmount(p.currentStock) <= toAmount(p.minStock)).map(p => ({
-      product: p.name,
-      category: p.category?.name || "-",
-      currentStock: toAmount(p.currentStock),
-      minStock: toAmount(p.minStock),
-      deficit: toAmount(p.minStock) - toAmount(p.currentStock),
-      status: "Low Stock"
+    res.json(products.map(p => ({
+      "CATEGORY NAME": p.category?.name || "-",
+      "ITEM NAME": p.name,
+      "VARIATION NAME": "-",
+      "STORE SKU": p.sku || "-",
+      "CURRENT STOCK": toAmount(p.currentStock),
+      "MINIMUM QUANTITY": toAmount(p.minStock)
     })));
   });
 
