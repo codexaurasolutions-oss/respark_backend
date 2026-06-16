@@ -95,10 +95,18 @@ describe("phase2 filters", () => {
         status: "CONFIRMED",
         bookingChannel: "PHONE",
         customerId: "customer-1",
-        startAt: expect.objectContaining({
-          gte: new Date("2026-06-01T09:00:00.000Z"),
-          lte: new Date("2026-06-05T18:00:00.000Z")
-        })
+        AND: expect.arrayContaining([
+          expect.objectContaining({
+            startAt: expect.objectContaining({
+              lte: new Date("2026-06-05T18:00:00.000Z")
+            })
+          }),
+          expect.objectContaining({
+            endAt: expect.objectContaining({
+              gte: new Date("2026-06-01T09:00:00.000Z")
+            })
+          })
+        ])
       })
     }));
   });

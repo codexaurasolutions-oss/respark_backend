@@ -29,6 +29,68 @@ export const buildWhatsAppLink = (phone, message) => {
   return `https://wa.me/${encodeURIComponent(normalized)}?text=${encodeURIComponent(message || "")}`;
 };
 
+export const getSalonGenericSettings = async (salonId) => {
+  if (!prisma?.salonSetting?.findFirst) return {};
+  const settingsRow = await prisma.salonSetting.findFirst({
+    where: { salonId, branchId: null },
+    select: { advancedSettings: true }
+  });
+  return settingsRow?.advancedSettings && typeof settingsRow.advancedSettings === "object"
+    ? settingsRow.advancedSettings?.genericSettings || {}
+    : {};
+};
+
+const parseTimeToMinutes = (value, fallback) => {
+  const raw = String(value || fallback || "").trim();
+  if (!raw) return null;
+  const [hoursPart, minutesPart] = raw.split(":");
+  const hours = Number(hoursPart);
+  const minutes = Number(minutesPart);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return (hours * 60) + minutes;
+};
+
+export const ensureDateWithinGenericBookingWindow = (genericSettings = {}, startAtValue, endAtValue = null) => {
+  const startAt = new Date(startAtValue);
+  if (Number.isNaN(startAt.getTime())) {
+    const error = new Error("Invalid booking date/time");
+    error.status = 400;
+    throw error;
+  }
+
+  if (genericSettings.businessOpen === false) {
+    const error = new Error("Salon is currently marked closed for bookings");
+    error.status = 400;
+    throw error;
+  }
+
+  const weeklyOff = Array.isArray(genericSettings.weeklyOff)
+    ? genericSettings.weeklyOff.map((item) => String(item).toLowerCase())
+    : [];
+  const weekdayKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][startAt.getDay()];
+  if (weeklyOff.includes(weekdayKey)) {
+    const error = new Error("Selected day is a weekly off for this salon");
+    error.status = 400;
+    throw error;
+  }
+
+  const businessStartMinutes = parseTimeToMinutes(genericSettings.businessStart, "09:00");
+  const businessEndMinutes = parseTimeToMinutes(genericSettings.businessEnd, "21:00");
+  if (businessStartMinutes == null || businessEndMinutes == null) return;
+
+  const endAt = endAtValue ? new Date(endAtValue) : null;
+  const requestedStartMinutes = (startAt.getHours() * 60) + startAt.getMinutes();
+  const requestedEndMinutes = endAt && !Number.isNaN(endAt.getTime())
+    ? (endAt.getHours() * 60) + endAt.getMinutes()
+    : requestedStartMinutes;
+
+  if (requestedStartMinutes < businessStartMinutes || requestedEndMinutes > businessEndMinutes) {
+    const error = new Error("Selected booking time is outside salon business hours");
+    error.status = 400;
+    throw error;
+  }
+};
+
 const resolveSegmentAudience = async (salonId, audienceMeta = {}) => {
   const segmentId = audienceMeta?.segmentId ? String(audienceMeta.segmentId) : "";
   if (!segmentId) return [];
@@ -310,6 +372,13 @@ export const createPublicAppointment = async ({ slug, body }) => {
   const { salon } = await resolvePublicSalonBySlug(slug);
   await ensureScopedBranch(salon.id, body.branchId);
   await ensurePublicBookingEnabled(salon.id, body.branchId);
+  const genericSettings = await getSalonGenericSettings(salon.id);
+  if (genericSettings.appointmentBookingEnabled === false) {
+    const error = new Error("Online booking is disabled for this salon");
+    error.status = 403;
+    throw error;
+  }
+  ensureDateWithinGenericBookingWindow(genericSettings, body.startAt, body.endAt);
 
   let customer = await prisma.customer.findFirst({
     where: {
@@ -435,6 +504,18 @@ export const createOnlineOrder = async ({ salonId, body, actorName = "PUBLIC_STO
   if (branchId) await ensureScopedBranch(salonId, branchId);
   const products = await validateCartAgainstStock(salonId, body.items);
   const productMap = new Map(products.map((product) => [product.id, product]));
+  const genericSettings = await getSalonGenericSettings(salonId);
+
+  const subtotal = body.items.reduce((sum, item) => {
+    const product = productMap.get(item.productId);
+    return sum + toAmount(product?.sellingPrice) * Number(item.qty);
+  }, 0);
+  const minimumOrderValue = Number(genericSettings.minimumOrderValue || 0);
+  if (minimumOrderValue > 0 && subtotal < minimumOrderValue) {
+    const error = new Error(`Minimum order value is ${minimumOrderValue}`);
+    error.status = 400;
+    throw error;
+  }
 
   return prisma.$transaction(async (tx) => {
     let customer = null;
@@ -465,10 +546,6 @@ export const createOnlineOrder = async ({ salonId, body, actorName = "PUBLIC_STO
 
     const count = await tx.onlineOrder.count({ where: { salonId } });
     const orderNumber = `ORD-${String(count + 1).padStart(5, "0")}`;
-    const subtotal = body.items.reduce((sum, item) => {
-      const product = productMap.get(item.productId);
-      return sum + toAmount(product.sellingPrice) * Number(item.qty);
-    }, 0);
     const total = subtotal;
 
     const order = await tx.onlineOrder.create({

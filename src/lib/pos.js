@@ -118,6 +118,7 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
   const advancedSettings = typeof salonSettings?.advancedSettings === "object" ? salonSettings.advancedSettings : {};
   const allowPriceEdit = advancedSettings?.allowPriceEditOnBill !== false;
   const membershipSettings = typeof advancedSettings?.membershipSettings === "object" ? advancedSettings.membershipSettings : {};
+  const inclusiveTax = advancedSettings?.taxMapping?.inclusiveTax === true;
 
   const itemDrafts = [];
   for (const item of body.items) {
@@ -168,7 +169,9 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       const qty = Number(item.qty || 1);
       const taxPct = toAmount(item.taxPct != null ? item.taxPct : service.taxRate || 0);
       const preTax = unitPrice * qty;
-      const lineTotal = preTax + (preTax * taxPct) / 100;
+      const lineTotal = inclusiveTax && taxPct > 0
+        ? preTax
+        : preTax + (preTax * taxPct) / 100;
       const commissionAmount = service.commissionPct ? (preTax * toAmount(service.commissionPct)) / 100 : 0;
 
       itemDrafts.push({
@@ -206,17 +209,41 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         staffUserSalonId: null,
         serviceName: product.name,
         staffName: item.staffName || null,
+        batchNumber: item.batchNumber || null,
         qty,
         unitPrice,
         taxPct,
-        lineTotal: preTax + (preTax * taxPct) / 100,
+        lineTotal: inclusiveTax && taxPct > 0
+          ? preTax
+          : preTax + (preTax * taxPct) / 100,
         commissionAmount: 0
       });
       continue;
     }
 
     if (itemType === "MEMBERSHIP") {
-      const plan = await ensureMembershipPlan(salonId, item.membershipPlanId);
+      let plan;
+      if (item.isCustom || item.membershipPlanId === "CUSTOM") {
+        plan = await prisma.membershipPlan.create({
+          data: {
+            salonId,
+            name: item.serviceName || "Custom Membership",
+            price: toAmount(item.unitPrice),
+            validityDays: Number(item.validityDays || 30),
+            benefitType: "DISCOUNT_PERCENTAGE",
+            discountValue: 0,
+            isPublicVisible: false,
+            isActive: true
+          }
+        });
+        if (item.customServices && item.customServices.length > 0) {
+          await prisma.membershipPlanService.createMany({
+            data: item.customServices.map(sid => ({ membershipPlanId: plan.id, serviceId: sid }))
+          });
+        }
+      } else {
+        plan = await ensureMembershipPlan(salonId, item.membershipPlanId);
+      }
       const qty = 1;
       const taxPct = toAmount(item.taxPct || 0);
       const preTax = toAmount(plan.price) * qty;
@@ -236,7 +263,27 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
     }
 
     if (itemType === "PACKAGE") {
-      const pack = await ensurePackagePlan(salonId, item.packageId);
+      let pack;
+      if (item.isCustom || item.packageId === "CUSTOM") {
+        pack = await prisma.package.create({
+          data: {
+            salonId,
+            name: item.serviceName || "Custom Package",
+            price: toAmount(item.unitPrice),
+            totalSessions: item.customServices ? item.customServices.length : 1,
+            validityDays: Number(item.validityDays || 30),
+            isPublicVisible: false,
+            isActive: true
+          }
+        });
+        if (item.customServices && item.customServices.length > 0) {
+          await prisma.packageService.createMany({
+            data: item.customServices.map(sid => ({ packageId: pack.id, serviceId: sid }))
+          });
+        }
+      } else {
+        pack = await ensurePackagePlan(salonId, item.packageId);
+      }
       const qty = 1;
       const taxPct = toAmount(item.taxPct || 0);
       const preTax = toAmount(pack.price) * qty;
@@ -279,7 +326,13 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
   }
 
   const subtotal = itemDrafts.reduce((sum, item) => sum + toAmount(item.unitPrice) * Number(item.qty || 1), 0);
-  const lineTax = itemDrafts.reduce((sum, item) => sum + ((toAmount(item.unitPrice) * Number(item.qty || 1)) * toAmount(item.taxPct)) / 100, 0);
+  const lineTax = inclusiveTax
+    ? itemDrafts.reduce((sum, item) => {
+        const preTax = toAmount(item.unitPrice) * Number(item.qty || 1);
+        const taxPct = toAmount(item.taxPct);
+        return sum + (taxPct > 0 ? (preTax * taxPct) / (100 + taxPct) : 0);
+      }, 0)
+    : itemDrafts.reduce((sum, item) => sum + ((toAmount(item.unitPrice) * Number(item.qty || 1)) * toAmount(item.taxPct)) / 100, 0);
   const manualDiscount = toAmount(body.discount);
   const extraTax = toAmount(body.tax);
   let coupon = null;
@@ -370,10 +423,27 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       throw error;
     }
     const subtotalAfterCoupon = Math.max(0, subtotal - manualDiscount - couponDiscount);
-    const maxRedeemAmount = loyaltyRule.maxRedeemPercent != null
+    let redeemPointsPerRupee;
+    try {
+      const notes = JSON.parse(loyaltyRule.notes || "{}");
+      const rPts = Number(notes.redeemPoints || 0);
+      const rAmt = toNumber(notes.redeemAmount || 0);
+      redeemPointsPerRupee = rAmt > 0 ? rPts / rAmt : null;
+    } catch { redeemPointsPerRupee = null; }
+    const pointsPerCurrency = redeemPointsPerRupee || toNumber(loyaltyRule.pointsPerCurrency) || 1;
+    const pointsToCurrency = requestedPoints / pointsPerCurrency;
+    let maxRedeemAmount = loyaltyRule.maxRedeemPercent != null
       ? (subtotalAfterCoupon * toAmount(loyaltyRule.maxRedeemPercent)) / 100
       : subtotalAfterCoupon;
-    loyaltyDiscount = Math.min(requestedPoints, maxRedeemAmount, subtotalAfterCoupon);
+    try {
+      const notes = JSON.parse(loyaltyRule.notes || "{}");
+      const maxPts = Number(notes.maxRedeemPoints || 0);
+      if (maxPts > 0) {
+        const maxFromPts = maxPts / pointsPerCurrency;
+        maxRedeemAmount = Math.min(maxRedeemAmount, maxFromPts);
+      }
+    } catch {}
+    loyaltyDiscount = Math.min(pointsToCurrency, maxRedeemAmount, subtotalAfterCoupon);
   }
 
   let giftCard = null;
@@ -445,6 +515,7 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
             staffUserSalonId: item.staffUserSalonId || null,
             serviceName: item.serviceName,
             staffName: item.staffName,
+            batchNumber: item.batchNumber || null,
             qty: item.qty,
             unitPrice: item.unitPrice,
             taxPct: item.taxPct,
@@ -620,28 +691,67 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       items: itemDrafts
     });
     if (earnedPoints > 0 && loyaltyRule) {
-      runningLoyaltyBalance += earnedPoints;
-      const expiresAt = loyaltyRule.expiryDays
-        ? new Date(Date.now() + Number(loyaltyRule.expiryDays) * 24 * 60 * 60 * 1000)
-        : null;
-      await tx.customer.update({
-        where: { id: body.customerId },
-        data: { loyaltyPoints: runningLoyaltyBalance }
-      });
-      await tx.loyaltyTransaction.create({
-        data: {
-          salonId,
-          branchId: body.branchId || null,
-          customerId: body.customerId,
-          invoiceId: invoice.id,
-          createdByMembershipId: actorUser.membershipId || null,
-          type: "EARN",
-          points: earnedPoints,
-          balanceAfter: runningLoyaltyBalance,
-          expiresAt,
-          note: `Earned from invoice ${invoice.invoiceNumber}`
+      const skipEarnOnRedemption = (() => {
+        try { return JSON.parse(loyaltyRule.notes || "{}").skipEarnOnRedemption === true; } catch { return false; }
+      })();
+      const isRedeeming = Number(body.loyaltyPointsUsed || 0) > 0;
+      if (!(skipEarnOnRedemption && isRedeeming)) {
+        runningLoyaltyBalance += earnedPoints;
+        const expiresAt = loyaltyRule.expiryDays
+          ? new Date(Date.now() + Number(loyaltyRule.expiryDays) * 24 * 60 * 60 * 1000)
+          : null;
+        await tx.customer.update({
+          where: { id: body.customerId },
+          data: { loyaltyPoints: runningLoyaltyBalance }
+        });
+        await tx.loyaltyTransaction.create({
+          data: {
+            salonId,
+            branchId: body.branchId || null,
+            customerId: body.customerId,
+            invoiceId: invoice.id,
+            createdByMembershipId: actorUser.membershipId || null,
+            type: "EARN",
+            points: earnedPoints,
+            balanceAfter: runningLoyaltyBalance,
+            expiresAt,
+            note: `Earned from invoice ${invoice.invoiceNumber}`
+          }
+        });
+      }
+    }
+
+    if (loyaltyRule && Number(loyaltyRule.birthdayPoints || 0) > 0) {
+      const customer = await tx.customer.findUnique({ where: { id: body.customerId }, select: { dateOfBirth: true } });
+      if (customer?.dateOfBirth) {
+        const today = new Date();
+        const dob = new Date(customer.dateOfBirth);
+        if (dob.getUTCDate() === today.getUTCDate() && dob.getUTCMonth() === today.getUTCMonth()) {
+          const bdayPoints = Number(loyaltyRule.birthdayPoints);
+          runningLoyaltyBalance += bdayPoints;
+          const expiresAt = loyaltyRule.expiryDays
+            ? new Date(Date.now() + Number(loyaltyRule.expiryDays) * 24 * 60 * 60 * 1000)
+            : null;
+          await tx.customer.update({
+            where: { id: body.customerId },
+            data: { loyaltyPoints: runningLoyaltyBalance }
+          });
+          await tx.loyaltyTransaction.create({
+            data: {
+              salonId,
+              branchId: body.branchId || null,
+              customerId: body.customerId,
+              invoiceId: invoice.id,
+              createdByMembershipId: actorUser.membershipId || null,
+              type: "BONUS",
+              points: bdayPoints,
+              balanceAfter: runningLoyaltyBalance,
+              expiresAt,
+              note: `Birthday bonus for ${customer.dateOfBirth.toISOString().slice(0, 10)}`
+            }
+          });
         }
-      });
+      }
     }
 
     if (body.appointmentId) {

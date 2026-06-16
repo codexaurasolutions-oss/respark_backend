@@ -8,7 +8,7 @@ import { asyncHandler } from "../../lib/async-handler.js";
 import { signAccessToken, signRefreshToken } from "../../lib/tokens.js";
 import { requireCustomerAuth } from "../../middlewares/rbac.js";
 import { schemas, validate } from "../../middlewares/validate.js";
-import { buildCatalogLink } from "../../lib/phase3.js";
+import { buildCatalogLink, ensureDateWithinGenericBookingWindow, getSalonGenericSettings } from "../../lib/phase3.js";
 
 export const customerRouter = Router();
 
@@ -201,10 +201,19 @@ customerRouter.patch("/appointments/:id/reschedule", requireCustomerAuth, requir
     }
   });
   if (!row) return res.status(404).json({ message: "Appointment not found" });
-  const setting = await prisma.salonSetting.findFirst({ where: { salonId: req.user.salonId, branchId: row.branchId } }) || await prisma.salonSetting.findFirst({ where: { salonId: req.user.salonId, branchId: null } });
+  const [branchSetting, globalSetting, genericSettings] = await Promise.all([
+    prisma.salonSetting.findFirst({ where: { salonId: req.user.salonId, branchId: row.branchId } }),
+    prisma.salonSetting.findFirst({ where: { salonId: req.user.salonId, branchId: null } }),
+    getSalonGenericSettings(req.user.salonId)
+  ]);
+  const setting = branchSetting || globalSetting;
+  if (genericSettings.allowRescheduleFromCatalogue === false) {
+    return res.status(400).json({ message: "Salon booking rules do not allow customer reschedule." });
+  }
   if (setting?.cancellationPolicy && String(setting.cancellationPolicy).toLowerCase().includes("no reschedule")) {
     return res.status(400).json({ message: "Salon booking rules do not allow customer reschedule." });
   }
+  ensureDateWithinGenericBookingWindow(genericSettings, req.body.startAt, req.body.endAt);
 
   for (const item of row.items) {
     const staffMembershipIds = item.assignedStaff.map((assignment) => assignment.userSalonId);
@@ -240,6 +249,10 @@ customerRouter.patch("/appointments/:id/reschedule", requireCustomerAuth, requir
 customerRouter.patch("/appointments/:id/cancel", requireCustomerAuth, requireCustomerPortalEnabled, validate(schemas.customerCancel), asyncHandler(async (req, res) => {
   const row = await prisma.appointment.findFirst({ where: { id: req.params.id, salonId: req.user.salonId, customerId: req.user.customerId } });
   if (!row) return res.status(404).json({ message: "Appointment not found" });
+  const genericSettings = await getSalonGenericSettings(req.user.salonId);
+  if (genericSettings.allowCancellationFromCatalogue === false) {
+    return res.status(400).json({ message: "Salon booking rules do not allow customer cancellation." });
+  }
   const updated = await prisma.appointment.update({ where: { id: row.id }, data: { status: "CANCELLED", notes: req.body.note || row.notes } });
   await prisma.appointmentLog.create({ data: { appointmentId: row.id, action: "CUSTOMER_CANCELLED", details: req.body.note || "Cancelled from customer portal", fromStatus: row.status, toStatus: "CANCELLED" } });
   res.json(updated);

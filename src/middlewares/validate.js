@@ -641,7 +641,11 @@ export const schemas = {
       services: z.array(z.object({
         serviceId: idSchema,
         sessions: z.number().int().positive().optional()
-      })).min(1)
+      })).optional(),
+      products: z.array(z.object({
+        productId: idSchema,
+        quantity: z.number().int().positive().optional()
+      })).optional()
     })
   }),
   packageRenew: z.object({

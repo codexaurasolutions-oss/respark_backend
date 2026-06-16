@@ -2,7 +2,8 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import XLSX from "xlsx";
 import { prisma } from "../../lib/prisma.js";
-import { attachBranchStock } from "../../lib/phase2.js";
+import { attachBranchStock, refreshCustomerInsights } from "../../lib/phase2.js";
+import { getCampaignAudience, getSalonGenericSettings } from "../../lib/phase3.js";
 import { createAuditLog } from "../../lib/phase4.js";
 import { patchRouterForAsync } from "../../lib/async-handler.js";
 import { requireAuth, requireMaintenanceAccess, requireSalonContext, requireSalonPermission } from "../../middlewares/rbac.js";
@@ -20,6 +21,37 @@ const toAmount = (value) => Number(value || 0);
 const normalizeBranchId = (value) => (value ? String(value) : null);
 const withBranchFilter = (salonId, branchId) => ({ salonId, ...(branchId ? { branchId } : {}) });
 const paymentWhere = (salonId, branchId) => ({ salonId, ...(branchId ? { invoice: { is: { branchId } } } : {}) });
+
+const resolveSalonDefaultTaxRate = async (salonId) => {
+  const [salon, settingsRow] = await Promise.all([
+    prisma.salon.findUnique({
+      where: { id: salonId },
+      select: { taxRate: true }
+    }),
+    prisma.salonSetting.findFirst({
+      where: { salonId, branchId: null },
+      select: { advancedSettings: true }
+    })
+  ]);
+
+  const advancedSettings = settingsRow?.advancedSettings && typeof settingsRow.advancedSettings === "object"
+    ? settingsRow.advancedSettings
+    : {};
+  const taxMappingRates = Array.isArray(advancedSettings?.taxMapping?.rates)
+    ? advancedSettings.taxMapping.rates
+    : [];
+  const pnlIncomeTaxes = Array.isArray(advancedSettings?.pnlIncomeTaxes)
+    ? advancedSettings.pnlIncomeTaxes
+    : [];
+
+  const mappedRate = taxMappingRates.find((row) => row?.active !== false && row?.rate != null)?.rate;
+  if (mappedRate != null) return toAmount(mappedRate);
+
+  const pnlRate = pnlIncomeTaxes.find((row) => row?.active !== false && row?.rate != null)?.rate;
+  if (pnlRate != null) return toAmount(pnlRate);
+
+  return salon?.taxRate != null ? toAmount(salon.taxRate) : null;
+};
 
 const getActivePlanForSalon = async (salonId) => {
   const subscription = await prisma.subscription.findFirst({
@@ -65,9 +97,10 @@ const syncGenericSettingsToPublicChannels = async (salonId, payload) => {
   const generic = payload.advancedSettings?.genericSettings;
   if (!generic || typeof generic !== "object") return;
 
-  const [catalogSettings, ecommerceSettings] = await Promise.all([
+  const [catalogSettings, ecommerceSettings, appointmentSetting] = await Promise.all([
     prisma.catalogSetting.findFirst({ where: { salonId, branchId: null } }),
-    prisma.ecommerceSetting.findUnique({ where: { salonId } })
+    prisma.ecommerceSetting.findUnique({ where: { salonId } }),
+    prisma.appointmentSetting.findFirst({ where: { salonId, branchId: null } })
   ]);
 
   const catalogPayload = {
@@ -75,7 +108,11 @@ const syncGenericSettingsToPublicChannels = async (salonId, payload) => {
     whatsappNumber: payload.whatsappNumber || catalogSettings?.whatsappNumber || null,
     branchDisplaySettings: {
       ...(typeof catalogSettings?.branchDisplaySettings === "object" && catalogSettings.branchDisplaySettings ? catalogSettings.branchDisplaySettings : {}),
-      showAllBranchesInCatalogue: pickBoolean(generic.showAllBranchesInCatalogue, false)
+      showAllBranchesInCatalogue: pickBoolean(generic.showAllBranchesInCatalogue, false),
+      applicableFor: String(generic.applicableFor || "both").toLowerCase(),
+      weeklyOff: Array.isArray(generic.weeklyOff) ? generic.weeklyOff : [],
+      businessStart: generic.businessStart || "09:00",
+      businessEnd: generic.businessEnd || "21:00"
     }
   };
 
@@ -113,6 +150,20 @@ const syncGenericSettingsToPublicChannels = async (salonId, payload) => {
   } else {
     await prisma.ecommerceSetting.create({ data: { salonId, ...ecommercePayload } });
   }
+
+  const appointmentPayload = {
+    salonId,
+    branchId: null,
+    onlineBookingEnabled: generic.businessOpen !== false && generic.appointmentBookingEnabled !== false,
+    autoConfirm: appointmentSetting?.autoConfirm ?? true,
+    advancePaymentRequired: appointmentSetting?.advancePaymentRequired ?? false
+  };
+
+  if (appointmentSetting) {
+    await prisma.appointmentSetting.update({ where: { id: appointmentSetting.id }, data: appointmentPayload });
+  } else {
+    await prisma.appointmentSetting.create({ data: appointmentPayload });
+  }
 };
 
 const syncAdvancedSettingsToOperationalDefaults = async (salonId, payload) => {
@@ -132,13 +183,45 @@ const syncAdvancedSettingsToOperationalDefaults = async (salonId, payload) => {
     const existingRule = await prisma.loyaltyRule.findFirst({
       where: { salonId, branchId: null, name: "Settings Default Rule" }
     });
+
+    const earnAmount = toAmount(loyaltySettings.serviceEarning?.amount || 100);
+    const earnPoints = Number(loyaltySettings.serviceEarning?.points || 1);
+    const pointsPerCurrency = earnAmount > 0 ? earnPoints / earnAmount : 1;
+
+    const svcAmt = toAmount(loyaltySettings.serviceEarning?.amount || 100);
+    const svcPts = Number(loyaltySettings.serviceEarning?.points || 1);
+    const prodAmt = toAmount(loyaltySettings.productEarning?.amount || 100);
+    const prodPts = Number(loyaltySettings.productEarning?.points || 1);
+    const pkgAmt = toAmount(loyaltySettings.packageEarning?.amount || 100);
+    const pkgPts = Number(loyaltySettings.packageEarning?.points || 1);
+
+    const serviceMultiplier = loyaltySettings.earnIndividually && svcAmt > 0 ? svcPts : null;
+    const productMultiplier = loyaltySettings.earnIndividually && prodAmt > 0 ? prodPts : null;
+
+    const redeemPts = Number(loyaltySettings.redeemPoints || 100);
+    const redeemAmt = toAmount(loyaltySettings.redeemAmount || 10);
+    const redeemRate = redeemPts > 0 ? redeemPts / redeemAmt : 10;
+
     const rulePayload = {
-      pointsPerCurrency: toAmount(loyaltySettings.pointsPerCurrency ?? 1),
+      pointsPerCurrency,
+      serviceMultiplier,
+      productMultiplier,
       minRedeemPoints: Number(loyaltySettings.minRedeemPoints ?? 100),
       maxRedeemPercent: loyaltySettings.maxRedeemPercent ?? null,
       expiryDays: loyaltySettings.expiryDays ?? null,
       isActive: loyaltySettings.enabled !== false,
-      notes: "Managed from Settings > Loyalty"
+      notes: JSON.stringify({
+        earnIndividually: loyaltySettings.earnIndividually,
+        skipEarnOnRedemption: loyaltySettings.skipEarnOnRedemption,
+        earnOnMembershipApplied: loyaltySettings.earnOnMembershipApplied,
+        serviceEarning: loyaltySettings.serviceEarning,
+        productEarning: loyaltySettings.productEarning,
+        packageEarning: loyaltySettings.packageEarning,
+        redeemIndividually: loyaltySettings.redeemIndividually,
+        redeemPoints: loyaltySettings.redeemPoints,
+        redeemAmount: loyaltySettings.redeemAmount,
+        maxRedeemPoints: loyaltySettings.maxRedeemPoints
+      })
     };
 
     if (existingRule) {
@@ -204,10 +287,16 @@ const syncAdvancedSettingsToOperationalDefaults = async (salonId, payload) => {
   if (taxMapping?.rates?.length) {
     const primaryTax = taxMapping.rates.find((row) => row?.active !== false) || taxMapping.rates[0];
     if (primaryTax) {
-      await prisma.service.updateMany({
-        where: { salonId, isActive: true, taxRate: null },
-        data: { taxRate: toAmount(primaryTax.rate ?? 0) }
-      });
+      const applicableFor = Array.isArray(primaryTax.applicableFor) ? primaryTax.applicableFor : ["SERVICE", "PRODUCT"];
+      if (applicableFor.includes("SERVICE")) {
+        await prisma.service.updateMany({
+          where: { salonId, isActive: true, taxRate: null },
+          data: { taxRate: toAmount(primaryTax.rate ?? 0) }
+        });
+      }
+      if (applicableFor.includes("PRODUCT")) {
+        // Products use tax mapping at checkout, no per-product taxPct field needed
+      }
     }
   }
 
@@ -220,10 +309,6 @@ const syncAdvancedSettingsToOperationalDefaults = async (salonId, payload) => {
         data: { taxRate: nextTaxRate }
       });
       await prisma.service.updateMany({
-        where: { salonId, isActive: true, taxRate: null },
-        data: { taxRate: nextTaxRate }
-      });
-      await prisma.product.updateMany({
         where: { salonId, isActive: true, taxRate: null },
         data: { taxRate: nextTaxRate }
       });
@@ -312,13 +397,29 @@ const syncAdvancedSettingsToOperationalDefaults = async (salonId, payload) => {
     const referralCoupon = await prisma.coupon.findFirst({
       where: { salonId, code: "REFERRAL-DEFAULT" }
     });
-    const discountType = String(referralSettings.referredRewardMode || "fixed").toLowerCase() === "percent" ? "PERCENT" : "FIXED";
-    const discountValue = toAmount(referralSettings.referredRewardValue ?? 0);
+
+    const referrerFixed = toAmount(referralSettings.referrerFixedAmount ?? 0);
+    const referrerPct = toAmount(referralSettings.referrerPercentage ?? 0);
+    const referrerMax = toAmount(referralSettings.referrerMaxBenefitAmount ?? 0);
+    const referredFixed = toAmount(referralSettings.referredFixedAmount ?? 0);
+    const referredPct = toAmount(referralSettings.referredPercentage ?? 0);
+    const referredMax = toAmount(referralSettings.referredMaxBenefitAmount ?? 0);
+
+    const referredDiscountType = referredFixed > 0 ? "FIXED" : "PERCENT";
+    const referredDiscountValue = referredFixed > 0 ? referredFixed : referredPct;
+
+    const referrerDescription = referrerFixed > 0
+      ? `Referrer: ₹${referrerFixed} fixed (max ₹${referrerMax})`
+      : `Referrer: ${referrerPct}% (max ₹${referrerMax})`;
+    const referredDescription = referredFixed > 0
+      ? `Referred guest: ₹${referredFixed} fixed (max ₹${referredMax})`
+      : `Referred guest: ${referredPct}% (max ₹${referredMax})`;
+
     const referralPayload = {
       title: "Referral Welcome Offer",
-      description: `Auto-managed from Settings > Referrals. Referrer reward: ${referralSettings.referrerRewardValue || 0} ${referralSettings.referrerRewardMode || "fixed"}. Max limit: ${referralSettings.maxReferLimit || 0}.`,
-      discountType,
-      discountValue,
+      description: `Auto-managed from Settings > Referrals. ${referrerDescription}. ${referredDescription}. Max limit: ${referralSettings.maxReferLimit || 0}.`,
+      discountType: referredDiscountType,
+      discountValue: referredDiscountValue,
       minBillAmount: 0,
       usageLimit: referralSettings.maxReferLimit ? Number(referralSettings.maxReferLimit) : null,
       customerUsageLimit: 1,
@@ -329,7 +430,10 @@ const syncAdvancedSettingsToOperationalDefaults = async (salonId, payload) => {
       isBirthday: false,
       isFestival: false,
       isArchived: referralSettings.enabled === false,
-      notes: "Managed automatically from Settings > Referrals"
+      notes: JSON.stringify({
+        referrer: { maxBenefit: referrerMax, fixedAmount: referrerFixed, percentage: referrerPct },
+        referred: { maxBenefit: referredMax, fixedAmount: referredFixed, percentage: referredPct }
+      })
     };
 
     if (referralCoupon) {
@@ -365,6 +469,38 @@ const buildCustomerData = (payload, salonId) => ({
   skinNotes: payload.skinNotes || null,
   ...(salonId ? { salonId } : {})
 });
+
+const formatCustomerReferralCode = (customer) => {
+  const assignedCouponCode = customer.coupons?.find((row) => row.code)?.code;
+  if (assignedCouponCode) return assignedCouponCode;
+  return `RF${String(customer.id || "").slice(-6).toUpperCase()}`;
+};
+
+const summarizeCustomerForCrm = (customer) => {
+  const activeMembershipCount = (customer.memberships || []).filter((row) => (
+    row.status === "ACTIVE" && (!row.endsAt || new Date(row.endsAt) >= new Date())
+  )).length;
+  const advanceAmount = (customer.appointments || []).reduce((sum, row) => (
+    sum + toAmount(row.advancePaidAmount)
+  ), 0);
+  const balanceAmount = (customer.invoices || []).reduce((sum, row) => {
+    if (["CANCELLED", "REFUNDED"].includes(row.status)) return sum;
+    return sum + toAmount(row.balanceAmount);
+  }, 0);
+
+  return {
+    ...customer,
+    totalOrders: customer.totalOrders || customer.invoices?.length || 0,
+    onlineVisits: customer.orders?.length || 0,
+    loyalty: customer.loyaltyPoints || 0,
+    referralCode: formatCustomerReferralCode(customer),
+    advanceAmount,
+    balanceAmount,
+    membershipCount: customer.memberships?.length || 0,
+    activeMembershipCount,
+    packageCount: customer.packages?.length || 0
+  };
+};
 const resolveMembershipPermissions = async (salonId, customRoleId, explicitPermissions) => {
   let role = null;
   if (customRoleId) {
@@ -385,7 +521,9 @@ const createLoginUserForSalon = async (salonId, payload) => {
     name, email, password, salonRole, branchId: rawBranchId, customRoleId, permissions, 
     phone, profileNote, avatarUrl, roleTitle, showInCatalog, serviceIds = [],
     joiningDate, designation, uanNumber, reportingToId, workingHours,
-    bankName, bankBranch, accountNumber, ifscCode
+    bankName, bankBranch, accountNumber, ifscCode,
+    firstName, lastName, dateOfBirth, gender, username,
+    enableAppointments, showAllStaffAppointments, workExperience, documents
   } = payload;
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { status: 400, body: { message: "Email already exists" } };
@@ -444,7 +582,16 @@ const createLoginUserForSalon = async (salonId, payload) => {
         bankName: bankName || null,
         bankBranch: bankBranch || null,
         accountNumber: accountNumber || null,
-        ifscCode: ifscCode || null
+        ifscCode: ifscCode || null,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        gender: gender || null,
+        username: username || null,
+        enableAppointments: enableAppointments !== undefined ? Boolean(enableAppointments) : true,
+        showAllStaffAppointments: showAllStaffAppointments !== undefined ? Boolean(showAllStaffAppointments) : false,
+        workExperience: workExperience || null,
+        documents: documents || null
       },
       include: { user: true, branch: true, customRole: true }
     });
@@ -696,6 +843,7 @@ ownerRouter.post("/services", requireSalonPermission("services", "create"), vali
   const categoryId = req.body.categoryId ? String(req.body.categoryId) : null;
   if (branchId) await ensureBranch(req.salonId, branchId);
   if (categoryId) await ensureServiceCategory(req.salonId, categoryId);
+  const inheritedTaxRate = req.body.taxRate != null ? null : await resolveSalonDefaultTaxRate(req.salonId);
   res.status(201).json(await prisma.service.create({
     data: {
       ...req.body,
@@ -704,7 +852,7 @@ ownerRouter.post("/services", requireSalonPermission("services", "create"), vali
       gender: req.body.gender || null,
       price: toAmount(req.body.price),
       durationMin: Number(req.body.durationMin),
-      taxRate: req.body.taxRate != null ? toAmount(req.body.taxRate) : null,
+      taxRate: req.body.taxRate != null ? toAmount(req.body.taxRate) : inheritedTaxRate,
       commissionPct: req.body.commissionPct != null ? toAmount(req.body.commissionPct) : null,
       salonId: req.salonId
     },
@@ -839,7 +987,32 @@ ownerRouter.get("/customers", requireSalonPermission("customers", "view"), async
     if (filter === "anniversary_month") return row.anniversary ? new Date(row.anniversary).getMonth() === now.getMonth() : false;
     return true;
   });
-  res.json(filteredRows);
+  const detailedRows = await prisma.customer.findMany({
+    where: { id: { in: filteredRows.map((row) => row.id) } },
+    include: {
+      preferredStaff: { include: { user: true } },
+      invoices: {
+        select: { id: true, balanceAmount: true, status: true, createdAt: true }
+      },
+      appointments: {
+        select: { id: true, advancePaidAmount: true, status: true, startAt: true }
+      },
+      memberships: {
+        select: { id: true, status: true, endsAt: true }
+      },
+      packages: {
+        select: { id: true, status: true, endsAt: true }
+      },
+      orders: {
+        select: { id: true, createdAt: true }
+      },
+      coupons: {
+        select: { code: true, title: true }
+      }
+    }
+  });
+  const summaryMap = new Map(detailedRows.map((row) => [row.id, summarizeCustomerForCrm(row)]));
+  res.json(filteredRows.map((row) => summaryMap.get(row.id) || summarizeCustomerForCrm(row)));
 });
 ownerRouter.post("/customers", requireSalonPermission("customers", "create"), validate(schemas.customer), async (req, res) => {
   const plan = await getActivePlanForSalon(req.salonId);
@@ -869,12 +1042,111 @@ ownerRouter.patch("/customers/:id", requireSalonPermission("customers", "edit"),
     data: buildCustomerData(req.body)
   }));
 });
+ownerRouter.delete("/customers/:id", requireSalonPermission("customers", "edit"), async (req, res) => {
+  const customer = await prisma.customer.findFirst({
+    where: { id: req.params.id, salonId: req.salonId },
+    include: {
+      _count: {
+        select: {
+          invoices: true,
+          appointments: true,
+          memberships: true,
+          packages: true,
+          orders: true,
+          timelineEntries: true,
+          coupons: true,
+          notifications: true,
+          feedback: true,
+          loyaltyTransactions: true,
+          couponRedemptions: true,
+          giftCardsIssued: true,
+          giftCardRedemptions: true,
+          enquiries: true,
+          campaignConversions: true,
+          whatsappLogs: true
+        }
+      }
+    }
+  });
+  if (!customer) return res.status(404).json({ message: "Customer not found" });
+  const relatedRecords = Object.values(customer._count || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+  if (relatedRecords > 0) {
+    return res.status(400).json({
+      message: "This customer already has business history. Merge them into another profile instead of deleting."
+    });
+  }
+  await prisma.customer.delete({ where: { id: customer.id } });
+  res.json({ ok: true });
+});
+ownerRouter.post("/customers/merge", requireSalonPermission("customers", "edit"), async (req, res) => {
+  const sourceCustomerId = String(req.body.sourceCustomerId || "").trim();
+  const targetCustomerId = String(req.body.targetCustomerId || "").trim();
+  if (!sourceCustomerId || !targetCustomerId) return res.status(400).json({ message: "sourceCustomerId and targetCustomerId are required" });
+  if (sourceCustomerId === targetCustomerId) return res.status(400).json({ message: "Source and target customer must be different" });
+
+  const [sourceCustomer, targetCustomer] = await Promise.all([
+    prisma.customer.findFirst({ where: { id: sourceCustomerId, salonId: req.salonId } }),
+    prisma.customer.findFirst({ where: { id: targetCustomerId, salonId: req.salonId } })
+  ]);
+  if (!sourceCustomer || !targetCustomer) return res.status(404).json({ message: "Customer not found" });
+
+  const mergedCustomer = await prisma.$transaction(async (tx) => {
+    await tx.invoice.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.appointment.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.customerMembership.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.customerPackage.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.customerTimeline.updateMany({ where: { customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.onlineOrder.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.customerCoupon.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.customerNotification.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.customerFeedback.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.loyaltyTransaction.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.couponRedemption.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.giftCard.updateMany({ where: { salonId: req.salonId, issuedToCustomerId: sourceCustomer.id }, data: { issuedToCustomerId: targetCustomer.id } });
+    await tx.giftCardRedemption.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.enquiry.updateMany({ where: { salonId: req.salonId, convertedCustomerId: sourceCustomer.id }, data: { convertedCustomerId: targetCustomer.id } });
+    await tx.campaignConversion.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+    await tx.whatsAppLog.updateMany({ where: { salonId: req.salonId, customerId: sourceCustomer.id }, data: { customerId: targetCustomer.id } });
+
+    const updatedTarget = await tx.customer.update({
+      where: { id: targetCustomer.id },
+      data: {
+        name: targetCustomer.name || sourceCustomer.name,
+        email: targetCustomer.email || sourceCustomer.email,
+        gender: targetCustomer.gender || sourceCustomer.gender,
+        dateOfBirth: targetCustomer.dateOfBirth || sourceCustomer.dateOfBirth,
+        anniversary: targetCustomer.anniversary || sourceCustomer.anniversary,
+        source: targetCustomer.source || sourceCustomer.source,
+        notes: [targetCustomer.notes, sourceCustomer.notes].filter(Boolean).join("\n\n") || null,
+        preferences: targetCustomer.preferences || sourceCustomer.preferences,
+        preferredStaffId: targetCustomer.preferredStaffId || sourceCustomer.preferredStaffId,
+        allergies: targetCustomer.allergies || sourceCustomer.allergies,
+        skinNotes: targetCustomer.skinNotes || sourceCustomer.skinNotes,
+        tags: [...new Set([...(Array.isArray(targetCustomer.tags) ? targetCustomer.tags : []), ...(Array.isArray(sourceCustomer.tags) ? sourceCustomer.tags : [])])]
+      }
+    });
+
+    await refreshCustomerInsights(tx, updatedTarget.id);
+    await tx.customer.delete({ where: { id: sourceCustomer.id } });
+    return updatedTarget;
+  });
+
+  res.json(mergedCustomer);
+});
 ownerRouter.get("/customers/:id", requireSalonPermission("customers", "view"), async (req, res) => {
   const customer = await prisma.customer.findFirst({
     where: { id: req.params.id, salonId: req.salonId },
     include: {
       invoices: {
         include: { items: true, payments: true, branch: true },
+        orderBy: { createdAt: "desc" }
+      },
+      memberships: {
+        include: { membershipPlan: true },
+        orderBy: { createdAt: "desc" }
+      },
+      packages: {
+        include: { package: { include: { services: { include: { service: true } } } }, usageLogs: { orderBy: { createdAt: "desc" }, take: 10 } },
         orderBy: { createdAt: "desc" }
       }
     }
@@ -885,16 +1157,18 @@ ownerRouter.get("/customers/:id", requireSalonPermission("customers", "view"), a
 
 ownerRouter.get("/users", requireSalonPermission("staff", "view"), async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
+  const showArchived = req.query.archived === "true";
   res.json(await prisma.userSalon.findMany({
-    where: { salonId: req.salonId, isArchived: false, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
+    where: { salonId: req.salonId, ...(showArchived ? {} : { isArchived: false }), ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
     include: { user: true, branch: true, customRole: true, serviceAssignments: { include: { service: { include: { category: true } } } } },
     orderBy: { id: "desc" }
   }));
 });
 ownerRouter.get("/staff-users", requireSalonPermission("staff", "view"), async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
+  const showArchived = req.query.archived === "true";
   res.json(await prisma.userSalon.findMany({
-    where: { salonId: req.salonId, isArchived: false, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
+    where: { salonId: req.salonId, ...(showArchived ? {} : { isArchived: false }), ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
     include: { user: true, branch: true, customRole: true, serviceAssignments: { include: { service: { include: { category: true } } } } },
     orderBy: { id: "desc" }
   }));
@@ -955,6 +1229,9 @@ ownerRouter.patch("/users/:id", requireSalonPermission("staff", "edit"), validat
     }
   }
   const updated = await prisma.$transaction(async (tx) => {
+    if (req.body.name) {
+      await tx.user.update({ where: { id: row.userId }, data: { name: req.body.name } });
+    }
     const membership = await tx.userSalon.update({
       where: { id: req.params.id },
       data: {
@@ -976,7 +1253,16 @@ ownerRouter.patch("/users/:id", requireSalonPermission("staff", "edit"), validat
         bankName: req.body.bankName !== undefined ? req.body.bankName : row.bankName,
         bankBranch: req.body.bankBranch !== undefined ? req.body.bankBranch : row.bankBranch,
         accountNumber: req.body.accountNumber !== undefined ? req.body.accountNumber : row.accountNumber,
-        ifscCode: req.body.ifscCode !== undefined ? req.body.ifscCode : row.ifscCode
+        ifscCode: req.body.ifscCode !== undefined ? req.body.ifscCode : row.ifscCode,
+        firstName: req.body.firstName !== undefined ? req.body.firstName : row.firstName,
+        lastName: req.body.lastName !== undefined ? req.body.lastName : row.lastName,
+        dateOfBirth: req.body.dateOfBirth !== undefined ? (req.body.dateOfBirth ? new Date(req.body.dateOfBirth) : null) : row.dateOfBirth,
+        gender: req.body.gender !== undefined ? req.body.gender : row.gender,
+        username: req.body.username !== undefined ? req.body.username : row.username,
+        enableAppointments: req.body.enableAppointments !== undefined ? Boolean(req.body.enableAppointments) : row.enableAppointments,
+        showAllStaffAppointments: req.body.showAllStaffAppointments !== undefined ? Boolean(req.body.showAllStaffAppointments) : row.showAllStaffAppointments,
+        workExperience: req.body.workExperience !== undefined ? req.body.workExperience : row.workExperience,
+        documents: req.body.documents !== undefined ? req.body.documents : row.documents
       },
       include: { user: true, branch: true, customRole: true }
     });
@@ -1025,6 +1311,11 @@ ownerRouter.patch("/users/:id/archive", requireSalonPermission("staff", "delete"
   const row = await prisma.userSalon.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
   if (!row) return res.status(404).json({ message: "User mapping not found" });
   res.json(await prisma.userSalon.update({ where: { id: req.params.id }, data: { isArchived: true } }));
+});
+ownerRouter.patch("/users/:id/restore", requireSalonPermission("staff", "delete"), async (req, res) => {
+  const row = await prisma.userSalon.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+  if (!row) return res.status(404).json({ message: "User mapping not found" });
+  res.json(await prisma.userSalon.update({ where: { id: req.params.id }, data: { isArchived: false } }));
 });
 
 ownerRouter.get("/support-tickets", requireSalonPermission("support", "view"), async (req, res) => {
@@ -1161,6 +1452,32 @@ ownerRouter.post("/settings", requireSalonPermission("settings", "edit"), valida
   res.status(201).json(row);
 });
 
+ownerRouter.post("/settings/crm-segment-preview", requireSalonPermission("settings", "view"), async (req, res) => {
+  const segments = Array.isArray(req.body?.segments) ? req.body.segments : [];
+  const preview = {};
+
+  for (const segment of segments) {
+    const segmentId = String(segment?.id || "");
+    if (!segmentId) continue;
+    if (segment?.active === false) {
+      preview[segmentId] = 0;
+      continue;
+    }
+
+    const filterType = String(segment?.filterType || "ALL_CUSTOMERS");
+    const audience = await getCampaignAudience(
+      req.salonId,
+      filterType,
+      filterType === "SERVICE_BASED_CUSTOMERS"
+        ? { serviceId: segment?.serviceId || "" }
+        : {}
+    );
+    preview[segmentId] = audience.length;
+  }
+
+  res.json({ preview });
+});
+
 ownerRouter.get("/website/config", requireSalonPermission("settings", "view"), async (req, res) => {
   let config = await prisma.websiteConfig.findUnique({
     where: { salonId: req.salonId }
@@ -1183,6 +1500,7 @@ ownerRouter.post("/website/config", requireSalonPermission("settings", "edit"), 
 
 ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), async (req, res) => {
   const range = req.query.range || "7D";
+  const filter = String(req.query.filter || "overall").toLowerCase();
 
   let days = 7;
   if (range === "1D")  days = 1;
@@ -1207,9 +1525,24 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
     }
   });
 
+  const matchesFilter = (item) => {
+    const type = String(item.itemType || "SERVICE").toUpperCase();
+    if (filter === "service") return type === "SERVICE";
+    if (filter === "product") return type === "PRODUCT";
+    if (filter === "stylist") return Boolean(item.staffName);
+    return true;
+  };
+
+  const filteredInvoices = invoices
+    .map((invoice) => ({
+      ...invoice,
+      items: (invoice.items || []).filter(matchesFilter)
+    }))
+    .filter((invoice) => invoice.items.length > 0);
+
   let serviceRev = 0, productRev = 0, packageRev = 0, membershipRev = 0;
 
-  invoices.forEach(inv => {
+  filteredInvoices.forEach(inv => {
     inv.items.forEach(item => {
       const type  = item.itemType || "SERVICE";  // fixed: itemType not type
       const total = Number(item.lineTotal || 0); // fixed: lineTotal not total
@@ -1241,7 +1574,7 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
     dateMap[dateStr] = { date: dateStr, total: 0, service: 0, product: 0, package: 0, membership: 0 };
   }
 
-  invoices.forEach(inv => {
+  filteredInvoices.forEach(inv => {
     const dStr = inv.createdAt.toISOString().slice(0, 10);
     if (dateMap[dStr]) {
       inv.items.forEach(item => {
@@ -1258,7 +1591,7 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
 
   // top services
   const serviceMap = {};
-  invoices.forEach(inv => {
+  filteredInvoices.forEach(inv => {
     inv.items.filter(i => (i.itemType || "SERVICE") === "SERVICE").forEach(item => {
       const name = item.serviceName || "Unknown";
       serviceMap[name] = (serviceMap[name] || 0) + Number(item.lineTotal || 0);
@@ -1271,7 +1604,7 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
 
   // top staff
   const staffMap = {};
-  invoices.forEach(inv => {
+  filteredInvoices.forEach(inv => {
     inv.items.forEach(item => {
       if (!item.staffName) return;
       staffMap[item.staffName] = (staffMap[item.staffName] || 0) + Number(item.lineTotal || 0);
@@ -1283,14 +1616,15 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
     .slice(0, 5);
 
   res.json({
+    filter,
     revenueSplit,
     trendLine:   Object.values(dateMap),
     topServices,
     topStaff,
     summary: {
-      totalInvoices: invoices.length,
+      totalInvoices: filteredInvoices.length,
       totalRevenue:  totalRev,
-      avgBillValue:  invoices.length ? Math.round(totalRev / invoices.length) : 0,
+      avgBillValue:  filteredInvoices.length ? Math.round(totalRev / filteredInvoices.length) : 0,
     }
   });
 });

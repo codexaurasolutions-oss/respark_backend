@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "../../../lib/prisma.js";
 import { attemptCustomerTemplateEmail } from "../../../lib/emailNotifications.js";
+import { getSalonGenericSettings } from "../../../lib/phase3.js";
 import { checkStaffAvailability, ensureScopedBranch, ensureScopedCustomer, ensureScopedService, ensureScopedStaffMembership, getSalonSetting, logCustomerTimeline, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
 import { attachSalonSettings, requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
@@ -30,6 +31,8 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     const customerId = req.query.customerId ? String(req.query.customerId) : null;
     const from = req.query.from ? new Date(String(req.query.from)) : null;
     const to = req.query.to ? new Date(String(req.query.to)) : null;
+    const genericSettings = await getSalonGenericSettings(req.salonId);
+    const hideCancelledAppointments = genericSettings.hideCancelledAppointments === true && !status;
     const rangeWhere = (from || to)
       ? {
           AND: [
@@ -41,7 +44,7 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     res.json(await prisma.appointment.findMany({
       where: {
         ...buildAppointmentScope(req, branchId),
-        ...(status ? { status } : {}),
+        ...(status ? { status } : hideCancelledAppointments ? { status: { not: "CANCELLED" } } : {}),
         ...(bookingChannel ? { bookingChannel } : {}),
         ...(customerId ? { customerId } : {}),
         ...rangeWhere
@@ -60,9 +63,12 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     const branchId = normalizeBranchId(req.query.branchId);
     const from = req.query.from ? new Date(String(req.query.from)) : new Date();
     const to = req.query.to ? new Date(String(req.query.to)) : new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const genericSettings = await getSalonGenericSettings(req.salonId);
+    const hideCancelledAppointments = genericSettings.hideCancelledAppointments === true;
     res.json(await prisma.appointment.findMany({
       where: {
         ...buildAppointmentScope(req, branchId),
+        ...(hideCancelledAppointments ? { status: { not: "CANCELLED" } } : {}),
         AND: [
           { startAt: { lte: to } },
           { endAt: { gte: from } }

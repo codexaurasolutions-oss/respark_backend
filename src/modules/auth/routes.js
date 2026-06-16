@@ -61,7 +61,8 @@ authRouter.post("/login", validate(schemas.login), async (req, res) => {
               status: true,
               featureFlags: true
             }
-          }
+          },
+          customRole: true
         }
       }
     }
@@ -134,7 +135,7 @@ authRouter.post("/login", validate(schemas.login), async (req, res) => {
   const mergedPermissions = membership
     ? membership.salonRole === "SALON_OWNER"
       ? { ...defaultOwnerPermissions, ...(membership.permissions || {}) }
-      : (membership.permissions || {})
+      : { ...(membership.customRole?.permissions || {}), ...(membership.permissions || {}) }
     : null;
 
   res.json({

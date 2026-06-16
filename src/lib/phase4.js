@@ -66,6 +66,10 @@ export const createStaffNotification = async ({
           smsEnabled: settings.smsEnabled !== false,
           whatsappEnabled: settings.whatsappEnabled !== false,
           pushEnabled: settings.pushEnabled === true
+        },
+        notificationDispatch: {
+          digestHour: settings.digestHour || null,
+          alertEmail: settings.alertEmail || null
         }
       }
     }
@@ -90,7 +94,19 @@ export const createCustomerNotification = async ({
       customerId,
       title,
       message,
-      linkUrl
+      linkUrl,
+      metadata: {
+        notificationChannels: {
+          emailEnabled: settings.emailEnabled !== false,
+          smsEnabled: settings.smsEnabled !== false,
+          whatsappEnabled: settings.whatsappEnabled !== false,
+          pushEnabled: settings.pushEnabled === true
+        },
+        notificationDispatch: {
+          digestHour: settings.digestHour || null,
+          alertEmail: settings.alertEmail || null
+        }
+      }
     }
   });
 };

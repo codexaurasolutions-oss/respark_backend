@@ -17,8 +17,8 @@ publicRouter.get("/settings", asyncHandler(async (req, res) => {
       supportEmail: "support@skillify.local",
       defaultCurrency: "INR",
       currencyOptions: ["INR", "USD", "AED"],
-      defaultCountry: "Pakistan",
-      defaultCity: "Lahore",
+      defaultCountry: "India",
+      defaultCity: "Mumbai",
       termsUrl: "/terms",
       privacyUrl: "/privacy",
       demoBookingUrl: "",
@@ -48,8 +48,15 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
   const genericSettings = typeof salonSettings?.advancedSettings === "object"
     ? salonSettings.advancedSettings?.genericSettings || {}
     : {};
+  const normalizedGenericSettings = {
+    ...genericSettings,
+    defaultCurrency: genericSettings.defaultCurrency || genericSettings.currency || salon.currency || "INR"
+  };
   const legalContent = typeof salonSettings?.advancedSettings === "object"
     ? salonSettings.advancedSettings?.legalContent || {}
+    : {};
+  const footerContent = typeof salonSettings?.advancedSettings === "object"
+    ? salonSettings.advancedSettings?.footerContent || {}
     : {};
   const showServices = catalogSettings?.showServices !== false;
   const showProducts = catalogSettings?.showProducts !== false && ecommerceSettings?.storeEnabled === true;
@@ -63,8 +70,9 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
     services,
     products,
     websiteConfig: salon.websiteConfig || { heroTitle: "", heroSubtitle: "", heroImage: "" },
-    genericSettings,
+    genericSettings: normalizedGenericSettings,
     legalContent,
+    footerContent,
     catalogSettings,
     ecommerceSettings,
     visibility: {

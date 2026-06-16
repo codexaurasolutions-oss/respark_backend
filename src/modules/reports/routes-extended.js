@@ -89,7 +89,7 @@ const buildDateFilter = (req, field = "createdAt") => {
     });
     const records = await prisma.attendanceRecord.findMany({
       where: { salonId: req.salonId, ...buildDateFilter(req, "date") },
-      include: { staff: true }
+      include: { userSalon: { include: { user: true } } }
     });
     const breakRecords = await prisma.staffBreak.findMany({
       where: { userSalonId: { in: staff.map(s => s.id) } }
@@ -107,8 +107,8 @@ const buildDateFilter = (req, field = "createdAt") => {
     });
 
     records.forEach(r => {
-      if (staffMap[r.staffUserSalonId]) {
-        staffMap[r.staffUserSalonId]["TOTAL WORKING HOURS"] += r.totalMinutes ? Number(r.totalMinutes) / 60 : 0;
+      if (staffMap[r.userSalonId]) {
+        staffMap[r.userSalonId]["TOTAL WORKING HOURS"] += r.workedMinutes ? Number(r.workedMinutes) / 60 : 0;
       }
     });
 

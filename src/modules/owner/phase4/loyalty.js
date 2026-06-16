@@ -52,6 +52,23 @@ export const registerLoyaltyRoutes = (ownerRouter) => {
     res.status(201).json(row);
   });
 
+  ownerRouter.delete("/loyalty/rules/:id", requireFeatureEnabled("loyalty"), requireSalonPermission("loyalty", "edit"), async (req, res) => {
+    const row = await prisma.loyaltyRule.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!row) return res.status(404).json({ message: "Loyalty rule not found" });
+    await prisma.loyaltyRule.delete({ where: { id: row.id } });
+    await createAuditLog({
+      salonId: req.salonId,
+      actorUserId: req.user.userId,
+      actorMembershipId: req.user.membershipId,
+      module: "LOYALTY",
+      action: "RULE_DELETED",
+      entityType: "LoyaltyRule",
+      entityId: row.id,
+      summary: `Loyalty rule ${row.name} deleted`
+    });
+    res.json({ message: "Loyalty rule deleted" });
+  });
+
   ownerRouter.patch("/loyalty/rules/:id", requireFeatureEnabled("loyalty"), requireSalonPermission("loyalty", "edit"), validate(schemas.loyaltyRule), async (req, res) => {
     const row = await prisma.loyaltyRule.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!row) return res.status(404).json({ message: "Loyalty rule not found" });

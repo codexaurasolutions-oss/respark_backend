@@ -273,13 +273,13 @@ export const registerMembershipRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/packages", requireSalonPermission("packages", "view"), async (req, res) => {
-    res.json(await prisma.package.findMany({ where: { salonId: req.salonId, isActive: true }, include: { services: true }, orderBy: { createdAt: "desc" } }));
+    res.json(await prisma.package.findMany({ where: { salonId: req.salonId, isActive: true }, include: { services: { include: { service: true } }, products: { include: { product: true } } }, orderBy: { createdAt: "desc" } }));
   });
 
   ownerRouter.get("/packages/:id", requireSalonPermission("packages", "view"), async (req, res) => {
     const pack = await prisma.package.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
-      include: { services: true }
+      include: { services: { include: { service: true } }, products: { include: { product: true } } }
     });
     if (!pack) return res.status(404).json({ message: "Package not found" });
     res.json(pack);
@@ -299,11 +299,19 @@ export const registerMembershipRoutes = (ownerRouter) => {
           isActive: req.body.isActive ?? true
         }
       });
-      await tx.packageService.createMany({
-        data: req.body.services.map((item) => ({ packageId: pack.id, serviceId: item.serviceId, sessions: item.sessions || 1 })),
-        skipDuplicates: true
-      });
-      return tx.package.findUnique({ where: { id: pack.id }, include: { services: true } });
+      if (req.body.services?.length) {
+        await tx.packageService.createMany({
+          data: req.body.services.map((item) => ({ packageId: pack.id, serviceId: item.serviceId, sessions: item.sessions || 1 })),
+          skipDuplicates: true
+        });
+      }
+      if (req.body.products?.length) {
+        await tx.packageProduct.createMany({
+          data: req.body.products.map((item) => ({ packageId: pack.id, productId: item.productId, quantity: item.quantity || 1 })),
+          skipDuplicates: true
+        });
+      }
+      return tx.package.findUnique({ where: { id: pack.id }, include: { services: true, products: true } });
     });
     res.status(201).json(created);
   });
@@ -325,11 +333,20 @@ export const registerMembershipRoutes = (ownerRouter) => {
         }
       });
       await tx.packageService.deleteMany({ where: { packageId: pack.id } });
-      await tx.packageService.createMany({
-        data: req.body.services.map((item) => ({ packageId: pack.id, serviceId: item.serviceId, sessions: item.sessions || 1 })),
-        skipDuplicates: true
-      });
-      return tx.package.findUnique({ where: { id: pack.id }, include: { services: true } });
+      await tx.packageProduct.deleteMany({ where: { packageId: pack.id } });
+      if (req.body.services?.length) {
+        await tx.packageService.createMany({
+          data: req.body.services.map((item) => ({ packageId: pack.id, serviceId: item.serviceId, sessions: item.sessions || 1 })),
+          skipDuplicates: true
+        });
+      }
+      if (req.body.products?.length) {
+        await tx.packageProduct.createMany({
+          data: req.body.products.map((item) => ({ packageId: pack.id, productId: item.productId, quantity: item.quantity || 1 })),
+          skipDuplicates: true
+        });
+      }
+      return tx.package.findUnique({ where: { id: pack.id }, include: { services: true, products: true } });
     });
     res.json(updated);
   });

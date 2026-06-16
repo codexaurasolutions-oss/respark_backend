@@ -1,4 +1,5 @@
 import { prisma } from "../../../lib/prisma.js";
+import { randomUUID } from "node:crypto";
 import { calculatePayrollItem, createAuditLog, createStaffNotification } from "../../../lib/phase4.js";
 import { buildCsv } from "../../../lib/phase2.js";
 import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
@@ -8,6 +9,51 @@ const toDate = (value) => (value ? new Date(value) : null);
 const normalizePaymentModeQuery = (value) => {
   const normalized = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
   return ["CASH", "CARD", "UPI", "BANK_TRANSFER", "WALLET", "ONLINE"].includes(normalized) ? normalized : null;
+};
+const EXPENSE_ACCOUNT_MODES = ["CASH", "CARD", "UPI", "BANK_TRANSFER", "WALLET", "ONLINE"];
+const normalizeAccountMode = (value) => {
+  const normalized = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  return EXPENSE_ACCOUNT_MODES.includes(normalized) ? normalized : null;
+};
+const readExpenseAccountConfig = async (salonId) => {
+  const row = await prisma.salonSetting.findFirst({
+    where: { salonId, branchId: null },
+    select: { id: true, advancedSettings: true }
+  });
+  const advancedSettings = row?.advancedSettings && typeof row.advancedSettings === "object" ? row.advancedSettings : {};
+  const expenseAccounts = advancedSettings?.expenseAccounts && typeof advancedSettings.expenseAccounts === "object"
+    ? advancedSettings.expenseAccounts
+    : {};
+  const injections = Array.isArray(expenseAccounts.injections) ? expenseAccounts.injections : [];
+  return { rowId: row?.id || null, advancedSettings, injections };
+};
+const writeExpenseAccountConfig = async (salonId, advancedSettings, injections) => {
+  const current = await prisma.salonSetting.findFirst({
+    where: { salonId, branchId: null },
+    select: { id: true }
+  });
+  const nextAdvancedSettings = {
+    ...(advancedSettings && typeof advancedSettings === "object" ? advancedSettings : {}),
+    expenseAccounts: {
+      ...((advancedSettings?.expenseAccounts && typeof advancedSettings.expenseAccounts === "object") ? advancedSettings.expenseAccounts : {}),
+      injections
+    }
+  };
+
+  if (current?.id) {
+    return prisma.salonSetting.update({
+      where: { id: current.id },
+      data: { advancedSettings: nextAdvancedSettings }
+    });
+  }
+
+  return prisma.salonSetting.create({
+    data: {
+      salonId,
+      branchId: null,
+      advancedSettings: nextAdvancedSettings
+    }
+  });
 };
 
 export const registerOperationsRoutes = (ownerRouter) => {
@@ -58,6 +104,16 @@ export const registerOperationsRoutes = (ownerRouter) => {
         attachmentUrl: req.body.attachmentUrl || null
       }
     });
+    await createAuditLog({
+      salonId: req.salonId,
+      actorUserId: req.user.userId,
+      actorMembershipId: req.user.membershipId,
+      module: "EXPENSES",
+      action: row.status === "APPROVED" ? "CREATED_APPROVED" : "CREATED_PENDING",
+      entityType: "Expense",
+      entityId: row.id,
+      summary: `${row.title} expense created with status ${row.status}`
+    });
     res.status(201).json(row);
   });
   ownerRouter.get("/expenses/reports", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "view"), async (req, res) => {
@@ -67,6 +123,39 @@ export const registerOperationsRoutes = (ownerRouter) => {
       approved: rows.filter((row) => row.status === "APPROVED" || row.status === "PAID"),
       rows
     });
+  });
+  ownerRouter.get("/expenses/accounts", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "view"), async (req, res) => {
+    const { injections } = await readExpenseAccountConfig(req.salonId);
+    res.json({ injections });
+  });
+  ownerRouter.post("/expenses/accounts/injections", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "edit"), async (req, res) => {
+    const accountMode = normalizeAccountMode(req.body.accountMode);
+    const amount = Number(req.body.amount || 0);
+    if (!accountMode) return res.status(400).json({ message: "Valid account mode is required" });
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: "Valid positive amount is required" });
+
+    const { advancedSettings, injections } = await readExpenseAccountConfig(req.salonId);
+    const nextInjection = {
+      id: randomUUID(),
+      accountMode,
+      amount,
+      note: req.body.note ? String(req.body.note).trim() : "Owner balance injection",
+      date: req.body.date || new Date().toISOString().slice(0, 10),
+      createdAt: new Date().toISOString(),
+      createdByMembershipId: req.user.membershipId || null
+    };
+    await writeExpenseAccountConfig(req.salonId, advancedSettings, [...injections, nextInjection]);
+    await createAuditLog({
+      salonId: req.salonId,
+      actorUserId: req.user.userId,
+      actorMembershipId: req.user.membershipId,
+      module: "EXPENSES",
+      action: "ACCOUNT_INJECTION_ADDED",
+      entityType: "SalonSetting",
+      entityId: nextInjection.id,
+      summary: `${accountMode} account balance injected`
+    });
+    res.status(201).json(nextInjection);
   });
   ownerRouter.get("/expenses/:id", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "view"), async (req, res) => {
     const row = await prisma.expense.findFirst({ where: { id: req.params.id, salonId: req.salonId }, include: { branch: true, category: true, vendor: true } });
@@ -106,7 +195,21 @@ export const registerOperationsRoutes = (ownerRouter) => {
   ownerRouter.patch("/expenses/:id/reject", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "approve"), validate(schemas.expenseApproval), async (req, res) => {
     const row = await prisma.expense.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!row) return res.status(404).json({ message: "Expense not found" });
-    res.json(await prisma.expense.update({ where: { id: row.id }, data: { status: "REJECTED", approvalNote: req.body.approvalNote || null, approvedByMembershipId: req.user.membershipId || null } }));
+    const updated = await prisma.expense.update({
+      where: { id: row.id },
+      data: { status: "REJECTED", approvalNote: req.body.approvalNote || null, approvedByMembershipId: req.user.membershipId || null }
+    });
+    await createAuditLog({
+      salonId: req.salonId,
+      actorUserId: req.user.userId,
+      actorMembershipId: req.user.membershipId,
+      module: "EXPENSES",
+      action: "REJECTED",
+      entityType: "Expense",
+      entityId: updated.id,
+      summary: `Expense ${updated.title} rejected`
+    });
+    res.json(updated);
   });
   ownerRouter.get("/attendance", requireFeatureEnabled("attendance"), requireSalonPermission("attendance", "view"), async (req, res) => {
     const q = String(req.query.q || "").trim();
@@ -413,6 +516,7 @@ export const registerOperationsRoutes = (ownerRouter) => {
           ]
         } : {})
       },
+      include: { actorMembership: { include: { user: true } } },
       orderBy: { createdAt: "desc" }
     }));
   });
