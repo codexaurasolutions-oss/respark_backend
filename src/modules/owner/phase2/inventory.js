@@ -72,7 +72,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
     res.json(await attachBranchStock(prisma, rows, branchId));
   });
 
-  ownerRouter.post("/inventory/products", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "create"), validate(schemas.product), async (req, res) => {
+  ownerRouter.post("/inventory/products", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "create"), async (req, res) => {
     res.status(201).json(await prisma.product.create({
       data: {
         salonId: req.salonId,
@@ -82,34 +82,52 @@ export const registerInventoryRoutes = (ownerRouter) => {
         imageUrl: req.body.imageUrl || null,
         sku: req.body.sku || null,
         barcode: req.body.barcode || null,
-        productType: req.body.productType,
-        costPrice: req.body.costPrice,
-        sellingPrice: req.body.sellingPrice,
+        productType: req.body.productType || "RETAIL",
+        costPrice: req.body.costPrice || 0,
+        sellingPrice: req.body.sellingPrice || 0,
+        salePrice: req.body.salePrice || null,
         minStock: req.body.minStock || 0,
         expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
-        allowNegativeStock: Boolean(req.body.allowNegativeStock)
+        allowNegativeStock: Boolean(req.body.allowNegativeStock),
+        position: req.body.position || 0,
+        targetGroup: req.body.targetGroup || "BOTH",
+        hideFromCatalogue: Boolean(req.body.hideFromCatalogue),
+        nonDiscountable: Boolean(req.body.nonDiscountable),
+        description: req.body.description || null,
+        videoLink: req.body.videoLink || null,
+        benefits: req.body.benefits || null,
+        variations: req.body.variations || null
       }
     }));
   });
 
-  ownerRouter.patch("/inventory/products/:id", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "edit"), validate(schemas.product), async (req, res) => {
+  ownerRouter.patch("/inventory/products/:id", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "edit"), async (req, res) => {
     const product = await prisma.product.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json(await prisma.product.update({
       where: { id: product.id },
       data: {
-        branchId: req.body.branchId || null,
-        categoryId: req.body.categoryId || null,
-        name: req.body.name,
-        imageUrl: req.body.imageUrl || null,
-        sku: req.body.sku || null,
-        barcode: req.body.barcode || null,
-        productType: req.body.productType,
-        costPrice: req.body.costPrice,
-        sellingPrice: req.body.sellingPrice,
-        minStock: req.body.minStock || 0,
-        expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
-        allowNegativeStock: Boolean(req.body.allowNegativeStock)
+        branchId: req.body.branchId !== undefined ? req.body.branchId : product.branchId,
+        categoryId: req.body.categoryId !== undefined ? req.body.categoryId : product.categoryId,
+        name: req.body.name || product.name,
+        imageUrl: req.body.imageUrl !== undefined ? req.body.imageUrl : product.imageUrl,
+        sku: req.body.sku !== undefined ? req.body.sku : product.sku,
+        barcode: req.body.barcode !== undefined ? req.body.barcode : product.barcode,
+        productType: req.body.productType || product.productType,
+        costPrice: req.body.costPrice !== undefined ? req.body.costPrice : product.costPrice,
+        sellingPrice: req.body.sellingPrice !== undefined ? req.body.sellingPrice : product.sellingPrice,
+        salePrice: req.body.salePrice !== undefined ? req.body.salePrice : product.salePrice,
+        minStock: req.body.minStock !== undefined ? req.body.minStock : product.minStock,
+        expiryDate: req.body.expiryDate !== undefined ? (req.body.expiryDate ? new Date(req.body.expiryDate) : null) : product.expiryDate,
+        allowNegativeStock: req.body.allowNegativeStock !== undefined ? Boolean(req.body.allowNegativeStock) : product.allowNegativeStock,
+        position: req.body.position !== undefined ? req.body.position : product.position,
+        targetGroup: req.body.targetGroup || product.targetGroup,
+        hideFromCatalogue: req.body.hideFromCatalogue !== undefined ? Boolean(req.body.hideFromCatalogue) : product.hideFromCatalogue,
+        nonDiscountable: req.body.nonDiscountable !== undefined ? Boolean(req.body.nonDiscountable) : product.nonDiscountable,
+        description: req.body.description !== undefined ? req.body.description : product.description,
+        videoLink: req.body.videoLink !== undefined ? req.body.videoLink : product.videoLink,
+        benefits: req.body.benefits !== undefined ? req.body.benefits : product.benefits,
+        variations: req.body.variations !== undefined ? req.body.variations : product.variations
       }
     }));
   });
