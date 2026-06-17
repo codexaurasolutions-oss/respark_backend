@@ -497,11 +497,6 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
     : [];
   const allPayments = [...autoPayments, ...(body.payments || [])];
   const initialPaidAmount = allPayments.reduce((sum, payment) => sum + toAmount(payment.amount), 0);
-  if (initialPaidAmount > total) {
-    const error = new Error("Split payment total exceeds invoice total");
-    error.status = 400;
-    throw error;
-  }
 
   return prisma.$transaction(async (tx) => {
     const invoiceNumber = await createInvoiceNumber(tx, salonId, body.branchId || null);
