@@ -1474,8 +1474,8 @@ ownerRouter.post("/settings", requireSalonPermission("settings", "edit"), async 
       ? await prisma.salonSetting.update({ where: { id: existing.id }, data: payload })
       : await prisma.salonSetting.create({ data: { salonId: req.salonId, ...payload, branchId } });
     if (!branchId) {
-      await syncGenericSettingsToPublicChannels(req.salonId, payload);
-      await syncAdvancedSettingsToOperationalDefaults(req.salonId, payload);
+      try { await syncGenericSettingsToPublicChannels(req.salonId, payload); } catch (e) { console.error("syncGenericSettings error:", e.message); }
+      try { await syncAdvancedSettingsToOperationalDefaults(req.salonId, payload); } catch (e) { console.error("syncAdvancedSettings error:", e.message); }
     }
     await createAuditLog({
       salonId: req.salonId, actorUserId: req.user.userId, actorMembershipId: req.user.membershipId,
@@ -1491,29 +1491,23 @@ ownerRouter.post("/settings", requireSalonPermission("settings", "edit"), async 
 });
 
 ownerRouter.post("/settings/crm-segment-preview", requireSalonPermission("settings", "view"), async (req, res) => {
-  const segments = Array.isArray(req.body?.segments) ? req.body.segments : [];
-  const preview = {};
-
-  for (const segment of segments) {
-    const segmentId = String(segment?.id || "");
-    if (!segmentId) continue;
-    if (segment?.active === false) {
-      preview[segmentId] = 0;
-      continue;
+  try {
+    const segments = Array.isArray(req.body?.segments) ? req.body.segments : [];
+    const preview = {};
+    for (const segment of segments) {
+      const segmentId = String(segment?.id || "");
+      if (!segmentId) continue;
+      if (segment?.active === false) { preview[segmentId] = 0; continue; }
+      const filterType = String(segment?.filterType || "ALL_CUSTOMERS");
+      try {
+        const audience = await getCampaignAudience(req.salonId, filterType, filterType === "SERVICE_BASED_CUSTOMERS" ? { serviceId: segment?.serviceId || "" } : {});
+        preview[segmentId] = audience.length;
+      } catch { preview[segmentId] = 0; }
     }
-
-    const filterType = String(segment?.filterType || "ALL_CUSTOMERS");
-    const audience = await getCampaignAudience(
-      req.salonId,
-      filterType,
-      filterType === "SERVICE_BASED_CUSTOMERS"
-        ? { serviceId: segment?.serviceId || "" }
-        : {}
-    );
-    preview[segmentId] = audience.length;
+    res.json({ preview });
+  } catch (err) {
+    res.json({ preview: {} });
   }
-
-  res.json({ preview });
 });
 
 ownerRouter.get("/website/config", requireSalonPermission("settings", "view"), async (req, res) => {
