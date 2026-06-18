@@ -134,6 +134,67 @@ export const recordLoyaltyTransaction = async ({
   });
 };
 
+export const reverseInvoiceLoyalty = async (tx, invoice, actorUser = null) => {
+  if (!invoice || !invoice.customerId) return;
+
+  const customer = await tx.customer.findUnique({
+    where: { id: invoice.customerId },
+    select: { loyaltyPoints: true }
+  });
+  const currentBalance = Number(customer?.loyaltyPoints || 0);
+  let runningBalance = currentBalance;
+
+  const earnedTransactions = await tx.loyaltyTransaction.findMany({
+    where: { invoiceId: invoice.id, type: "EARN" }
+  });
+  const redeemedTransactions = await tx.loyaltyTransaction.findMany({
+    where: { invoiceId: invoice.id, type: "REDEEM" }
+  });
+
+  // Return redeemed points
+  for (const t of redeemedTransactions) {
+    runningBalance += Math.abs(Number(t.points || 0));
+    await tx.customer.update({ where: { id: invoice.customerId }, data: { loyaltyPoints: runningBalance } });
+    await tx.loyaltyTransaction.create({
+      data: {
+        salonId: invoice.salonId,
+        branchId: invoice.branchId,
+        customerId: invoice.customerId,
+        invoiceId: invoice.id,
+        createdByMembershipId: actorUser?.membershipId || null,
+        type: "ADJUST",
+        points: Math.abs(Number(t.points || 0)),
+        balanceAfter: runningBalance,
+        note: "Refund/Cancel reversal of redeemed points",
+        metadata: { reversalOf: t.id, reason: "refund_or_cancel" }
+      }
+    });
+  }
+
+  // Deduct earned points (clamp at 0 if not enough)
+  for (const t of earnedTransactions) {
+    const earnedPoints = Math.abs(Number(t.points || 0));
+    const deductPoints = Math.min(earnedPoints, runningBalance);
+    if (deductPoints <= 0) continue;
+    runningBalance -= deductPoints;
+    await tx.customer.update({ where: { id: invoice.customerId }, data: { loyaltyPoints: runningBalance } });
+    await tx.loyaltyTransaction.create({
+      data: {
+        salonId: invoice.salonId,
+        branchId: invoice.branchId,
+        customerId: invoice.customerId,
+        invoiceId: invoice.id,
+        createdByMembershipId: actorUser?.membershipId || null,
+        type: "ADJUST",
+        points: -deductPoints,
+        balanceAfter: runningBalance,
+        note: "Refund/Cancel reversal of earned points",
+        metadata: { reversalOf: t.id, reason: "refund_or_cancel", originalPoints: earnedPoints }
+      }
+    });
+  }
+};
+
 export const calculateLoyaltyEarnPoints = ({ rule, invoiceSubtotal = 0, items = [] }) => {
   if (!rule) return 0;
   const baseRate = toNumber(rule.pointsPerCurrency || 0);
