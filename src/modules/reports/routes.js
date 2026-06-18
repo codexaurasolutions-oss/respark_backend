@@ -1,8 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma.js";
 import { attachBranchStock, buildCsv, isOwnScopedStaff, normalizeBranchId, toAmount } from "../../lib/phase2.js";
-import { requireAuth, requireFeatureEnabled, requireSalonContext, requireSalonPermission, attachSalonSettings } from "../../middlewares/rbac.js";
-import { registerExtendedReports } from "./routes-extended.js";
+import { requireAuth, requireFeatureEnabled, requireSalonContext, requireSalonPermission } from "../../middlewares/rbac.js";
 
 export const reportsRouter = Router();
 reportsRouter.use(requireAuth, requireSalonContext, requireFeatureEnabled("reports"), requireSalonPermission("reports", "view"));
@@ -27,60 +26,24 @@ const buildSpreadsheetHtml = (headers, rows) => `<!DOCTYPE html>
   </body>
 </html>`;
 
-const buildInvoiceWhere = (req, branchId) => {
-  const where = {
-    salonId: req.salonId,
-    ...(branchId ? { branchId } : {}),
-    ...(isOwnScopedStaff(req, "reports") ? { items: { some: { staffUserSalonId: req.user.membershipId } } } : {})
-  };
-  if (req.query.start || req.query.end) {
-    where.createdAt = {};
-    if (req.query.start) where.createdAt.gte = new Date(req.query.start);
-    if (req.query.end) {
-      const end = new Date(req.query.end);
-      end.setUTCHours(23, 59, 59, 999);
-      where.createdAt.lte = end;
-    }
-  }
-  return where;
-};
+const buildInvoiceWhere = (req, branchId) => ({
+  salonId: req.salonId,
+  ...(branchId ? { branchId } : {}),
+  ...(isOwnScopedStaff(req, "reports") ? { items: { some: { staffUserSalonId: req.user.membershipId } } } : {})
+});
 
-const buildPaymentWhere = (req, branchId) => {
-  const where = {
-    salonId: req.salonId,
-    invoice: { is: buildInvoiceWhere(req, branchId) }
-  };
-  if (req.query.start || req.query.end) {
-    where.createdAt = {};
-    if (req.query.start) where.createdAt.gte = new Date(req.query.start);
-    if (req.query.end) {
-      const end = new Date(req.query.end);
-      end.setUTCHours(23, 59, 59, 999);
-      where.createdAt.lte = end;
-    }
-  }
-  return where;
-};
+const buildPaymentWhere = (req, branchId) => ({
+  salonId: req.salonId,
+  invoice: { is: buildInvoiceWhere(req, branchId) }
+});
 
-const buildAppointmentWhere = (req, branchId) => {
-  const where = {
-    salonId: req.salonId,
-    ...(branchId ? { branchId } : {}),
-    ...(isOwnScopedStaff(req, "reports")
-      ? { items: { some: { assignedStaff: { some: { userSalonId: req.user.membershipId } } } } }
-      : {})
-  };
-  if (req.query.start || req.query.end) {
-    where.startAt = {};
-    if (req.query.start) where.startAt.gte = new Date(req.query.start);
-    if (req.query.end) {
-      const end = new Date(req.query.end);
-      end.setUTCHours(23, 59, 59, 999);
-      where.startAt.lte = end;
-    }
-  }
-  return where;
-};
+const buildAppointmentWhere = (req, branchId) => ({
+  salonId: req.salonId,
+  ...(branchId ? { branchId } : {}),
+  ...(isOwnScopedStaff(req, "reports")
+    ? { items: { some: { assignedStaff: { some: { userSalonId: req.user.membershipId } } } } }
+    : {})
+});
 
 reportsRouter.get("/sales-summary", async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
@@ -192,20 +155,12 @@ reportsRouter.get("/product-sales", async (req, res) => {
       invoice: { is: buildInvoiceWhere(req, branchId) },
       ...(isOwnScopedStaff(req, "reports") ? { staffUserSalonId: req.user.membershipId } : {})
     },
-    include: { product: { include: { category: true } }, invoice: true }
+    include: { product: true, invoice: true }
   });
   const grouped = {};
   rows.forEach((row) => {
     const key = row.productId || row.serviceName;
-    if (!grouped[key]) {
-      grouped[key] = { 
-        productId: row.productId, 
-        name: row.product?.name || row.serviceName, 
-        category: row.product?.category?.name || "-",
-        qty: 0, 
-        sales: 0 
-      };
-    }
+    if (!grouped[key]) grouped[key] = { productId: row.productId, name: row.product?.name || row.serviceName, qty: 0, sales: 0 };
     grouped[key].qty += Number(row.qty || 0);
     grouped[key].sales += toAmount(row.lineTotal);
   });
@@ -219,49 +174,16 @@ reportsRouter.get("/service-sales", async (req, res) => {
       itemType: "SERVICE",
       invoice: { is: buildInvoiceWhere(req, branchId) },
       ...(isOwnScopedStaff(req, "reports") ? { staffUserSalonId: req.user.membershipId } : {})
-    },
-    include: {
-      invoice: { include: { customer: true } },
-      staffUserSalon: { include: { user: true } }
-    },
-    orderBy: { invoice: { createdAt: "desc" } }
+    }
   });
-
-  // Fetch services manually to get category
-  const services = await prisma.service.findMany({
-    where: { salonId: req.salonId },
-    include: { category: true }
+  const grouped = {};
+  rows.forEach((row) => {
+    const key = row.serviceId || row.serviceName;
+    if (!grouped[key]) grouped[key] = { serviceId: row.serviceId, name: row.serviceName, qty: 0, sales: 0 };
+    grouped[key].qty += Number(row.qty || 0);
+    grouped[key].sales += toAmount(row.lineTotal);
   });
-  const serviceMap = {};
-  services.forEach(s => serviceMap[s.id] = s);
-
-
-  const formatted = rows.map(row => {
-    const dateObj = new Date(row.createdAt || row.invoice?.createdAt || Date.now());
-    const serviceObj = row.serviceId ? serviceMap[row.serviceId] : null;
-
-    return {
-      "Date": dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-      "Time": dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-      "Guest Name": row.invoice?.customer?.name || "Walk-in",
-      "Guest Number": row.invoice?.customer?.phone || "-",
-      "Staff": row.staffUserSalon?.user?.name || row.staffName || "-",
-      "Invoice No": row.invoice?.invoiceNumber || "-",
-      "Service": serviceObj?.name || row.serviceName || "-",
-      "Category": serviceObj?.category?.name || "-",
-      "Duration": serviceObj?.durationMin || "-",
-      "Qty": row.qty || 1,
-      "Unit Price": toAmount(row.unitPrice || 0),
-      "Discount": toAmount(row.invoice?.discount || 0),
-      "Complimentary": toAmount(row.invoice?.total || 0) === 0 ? "Yes" : "-",
-      "Redemption Amount": "-",
-      "Redemption Sources": "-",
-      "Tax": toAmount(row.taxAmount || 0),
-      "Subtotal": toAmount(row.lineTotal || 0) - toAmount(row.taxAmount || 0),
-      "Total": toAmount(row.lineTotal || 0)
-    };
-  });
-  res.json(formatted);
+  res.json(Object.values(grouped).sort((a, b) => b.sales - a.sales));
 });
 
 reportsRouter.get("/memberships", async (req, res) => {
@@ -320,8 +242,8 @@ reportsRouter.get("/low-stock", async (req, res) => {
 });
 
 reportsRouter.get("/customers", async (req, res) => {
-  const branchId = normalizeBranchId(req.query.branchId);
-  const whereFilter = isOwnScopedStaff(req, "reports")
+  res.json(await prisma.customer.findMany({
+    where: isOwnScopedStaff(req, "reports")
       ? {
           salonId: req.salonId,
           OR: [
@@ -329,67 +251,15 @@ reportsRouter.get("/customers", async (req, res) => {
             { invoices: { some: { items: { some: { staffUserSalonId: req.user.membershipId } } } } }
           ]
         }
-      : { salonId: req.salonId };
-      
-  const customers = await prisma.customer.findMany({
-    where: whereFilter,
+      : { salonId: req.salonId },
     include: {
-      invoices: { 
-        where: buildInvoiceWhere(req, branchId),
-        include: { payments: true } 
-      }
+      memberships: { include: { membershipPlan: true } },
+      packages: { include: { package: true } },
+      appointments: true,
+      invoices: true
     },
     orderBy: { totalSpend: "desc" }
-  });
-
-  const formatted = customers.map(c => {
-    let taxes = 0;
-    let giftCard = 0;
-    let coupon = 0;
-    let referral = 0;
-    let loyalty = 0;
-    let balancePending = 0;
-    let advanceUtilized = 0;
-    let packageRedemption = 0;
-    let balanceCleared = 0;
-    let membershipRedemption = 0;
-    let online = 0;
-    let offline = 0;
-    let total = 0;
-
-    c.invoices.forEach(inv => {
-      taxes += toAmount(inv.tax);
-      total += toAmount(inv.total);
-      balancePending += Math.max(0, toAmount(inv.total) - toAmount(inv.paidAmount));
-      
-      inv.payments.forEach(p => {
-         const amt = toAmount(p.amount);
-         const m = (p.mode || "").toLowerCase();
-         if (["cash", "offline", "cash offline"].includes(m)) offline += amt;
-         else online += amt;
-      });
-    });
-
-    return {
-      "GUEST NAME": c.name || "-",
-      "GUEST NUMBER": c.phone || "-",
-      "COUNT": c.totalVisits || 0,
-      "TAXES": taxes || 0,
-      "GIFT CARD": giftCard || "-",
-      "COUPON": coupon || "-",
-      "REFERRAL": referral || "-",
-      "LOYALTY": loyalty || "-",
-      "BALANCE PENDING": balancePending || "-",
-      "ADVANCE UTILIZED": advanceUtilized || "-",
-      "PACKAGE REDEMPTION": packageRedemption || "-",
-      "BALANCE CLEARED": balanceCleared || "-",
-      "MEMBERSHIP REDEMPTION": membershipRedemption || "-",
-      "ONLINE": online || "-",
-      "OFFLINE": offline || "-",
-      "TOTAL": total || 0
-    };
-  });
-  res.json(formatted);
+  }));
 });
 
 reportsRouter.get("/branch-sales", async (req, res) => {
@@ -416,10 +286,7 @@ reportsRouter.get("/cancelled-invoices", async (req, res) => {
   }));
 });
 
-registerExtendedReports(reportsRouter, prisma, buildInvoiceWhere);
-
-reportsRouter.get("/export.csv", attachSalonSettings, async (req, res) => {
-  if (req.advancedSettings?.allowReportDownloading === false) return res.status(403).json({ message: "Report downloading is restricted by salon settings" });
+reportsRouter.get("/export.csv", async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
   const invoices = await prisma.invoice.findMany({
     where: buildInvoiceWhere(req, branchId),
@@ -446,8 +313,7 @@ reportsRouter.get("/export.csv", attachSalonSettings, async (req, res) => {
   res.send(csv);
 });
 
-reportsRouter.get("/export.xls", attachSalonSettings, async (req, res) => {
-  if (req.advancedSettings?.allowReportDownloading === false) return res.status(403).json({ message: "Report downloading is restricted by salon settings" });
+reportsRouter.get("/export.xls", async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
   const invoices = await prisma.invoice.findMany({
     where: buildInvoiceWhere(req, branchId),

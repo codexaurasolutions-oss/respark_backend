@@ -262,7 +262,10 @@ ownerRouter.get("/service-categories", requireSalonPermission("services", "view"
 ownerRouter.post("/service-categories", requireSalonPermission("services", "create"), async (req, res) => {
   const { name, parentId } = req.body;
   if (!name || name.length < 2) return res.status(400).json({ message: "Name must be at least 2 characters" });
-  const data = { salonId: req.salonId, name };
+  const where = { salonId: req.salonId, name: name.trim(), isActive: true, parentId: parentId || null };
+  const existing = await prisma.serviceCategory.findFirst({ where });
+  if (existing) return res.status(409).json({ message: "Category with this name already exists" });
+  const data = { salonId: req.salonId, name: name.trim() };
   if (parentId) data.parentId = parentId;
   res.status(201).json(await prisma.serviceCategory.create({ data, include: { children: true } }));
 });

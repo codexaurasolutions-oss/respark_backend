@@ -60,7 +60,7 @@ describe("public single-salon routes", () => {
     const response = await request(buildApp()).post("/public/demo-leads").send({
       name: "QA Lead",
       email: "qa@example.com",
-      phone: "+919876543210",
+      phone: "+923001234567",
       company: "QA Salon",
       message: "Need demo"
     });

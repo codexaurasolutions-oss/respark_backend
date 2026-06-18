@@ -1,15 +1,6 @@
 import { prisma } from "./prisma.js";
 
 const toNumber = (value) => Number(value || 0);
-const asObject = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
-
-const getNotificationSettings = async (salonId) => {
-  const row = await prisma.salonSetting.findFirst({
-    where: { salonId, branchId: null },
-    select: { advancedSettings: true }
-  });
-  return asObject(asObject(row?.advancedSettings).notificationSettings);
-};
 
 export const createAuditLog = async ({
   salonId = null,
@@ -45,36 +36,17 @@ export const createStaffNotification = async ({
   type = null,
   linkUrl = null,
   metadata = null
-}) => {
-  const settings = await getNotificationSettings(salonId);
-  const channelsEnabled = [settings.emailEnabled, settings.smsEnabled, settings.whatsappEnabled, settings.pushEnabled]
-    .some((value) => value !== false);
-  if (!channelsEnabled) return null;
-
-  return prisma.notification.create({
-    data: {
-      salonId,
-      userSalonId,
-      title,
-      message,
-      type,
-      linkUrl,
-      metadata: {
-        ...(asObject(metadata)),
-        notificationChannels: {
-          emailEnabled: settings.emailEnabled !== false,
-          smsEnabled: settings.smsEnabled !== false,
-          whatsappEnabled: settings.whatsappEnabled !== false,
-          pushEnabled: settings.pushEnabled === true
-        },
-        notificationDispatch: {
-          digestHour: settings.digestHour || null,
-          alertEmail: settings.alertEmail || null
-        }
-      }
-    }
-  });
-};
+}) => prisma.notification.create({
+  data: {
+    salonId,
+    userSalonId,
+    title,
+    message,
+    type,
+    linkUrl,
+    metadata
+  }
+});
 
 export const createCustomerNotification = async ({
   salonId,
@@ -82,34 +54,15 @@ export const createCustomerNotification = async ({
   title,
   message,
   linkUrl = null
-}) => {
-  const settings = await getNotificationSettings(salonId);
-  const channelsEnabled = [settings.emailEnabled, settings.smsEnabled, settings.whatsappEnabled, settings.pushEnabled]
-    .some((value) => value !== false);
-  if (!channelsEnabled) return null;
-
-  return prisma.customerNotification.create({
-    data: {
-      salonId,
-      customerId,
-      title,
-      message,
-      linkUrl,
-      metadata: {
-        notificationChannels: {
-          emailEnabled: settings.emailEnabled !== false,
-          smsEnabled: settings.smsEnabled !== false,
-          whatsappEnabled: settings.whatsappEnabled !== false,
-          pushEnabled: settings.pushEnabled === true
-        },
-        notificationDispatch: {
-          digestHour: settings.digestHour || null,
-          alertEmail: settings.alertEmail || null
-        }
-      }
-    }
-  });
-};
+}) => prisma.customerNotification.create({
+  data: {
+    salonId,
+    customerId,
+    title,
+    message,
+    linkUrl
+  }
+});
 
 export const getActiveLoyaltyRule = async (salonId, branchId = null) => {
   const exact = branchId
@@ -179,67 +132,6 @@ export const recordLoyaltyTransaction = async ({
       }
     });
   });
-};
-
-export const reverseInvoiceLoyalty = async (tx, invoice, actorUser = null) => {
-  if (!invoice || !invoice.customerId) return;
-
-  const customer = await tx.customer.findUnique({
-    where: { id: invoice.customerId },
-    select: { loyaltyPoints: true }
-  });
-  const currentBalance = Number(customer?.loyaltyPoints || 0);
-  let runningBalance = currentBalance;
-
-  const earnedTransactions = await tx.loyaltyTransaction.findMany({
-    where: { invoiceId: invoice.id, type: "EARN" }
-  });
-  const redeemedTransactions = await tx.loyaltyTransaction.findMany({
-    where: { invoiceId: invoice.id, type: "REDEEM" }
-  });
-
-  // Return redeemed points
-  for (const t of redeemedTransactions) {
-    runningBalance += Math.abs(Number(t.points || 0));
-    await tx.customer.update({ where: { id: invoice.customerId }, data: { loyaltyPoints: runningBalance } });
-    await tx.loyaltyTransaction.create({
-      data: {
-        salonId: invoice.salonId,
-        branchId: invoice.branchId,
-        customerId: invoice.customerId,
-        invoiceId: invoice.id,
-        createdByMembershipId: actorUser?.membershipId || null,
-        type: "ADJUST",
-        points: Math.abs(Number(t.points || 0)),
-        balanceAfter: runningBalance,
-        note: "Refund/Cancel reversal of redeemed points",
-        metadata: { reversalOf: t.id, reason: "refund_or_cancel" }
-      }
-    });
-  }
-
-  // Deduct earned points (clamp at 0 if not enough)
-  for (const t of earnedTransactions) {
-    const earnedPoints = Math.abs(Number(t.points || 0));
-    const deductPoints = Math.min(earnedPoints, runningBalance);
-    if (deductPoints <= 0) continue;
-    runningBalance -= deductPoints;
-    await tx.customer.update({ where: { id: invoice.customerId }, data: { loyaltyPoints: runningBalance } });
-    await tx.loyaltyTransaction.create({
-      data: {
-        salonId: invoice.salonId,
-        branchId: invoice.branchId,
-        customerId: invoice.customerId,
-        invoiceId: invoice.id,
-        createdByMembershipId: actorUser?.membershipId || null,
-        type: "ADJUST",
-        points: -deductPoints,
-        balanceAfter: runningBalance,
-        note: "Refund/Cancel reversal of earned points",
-        metadata: { reversalOf: t.id, reason: "refund_or_cancel", originalPoints: earnedPoints }
-      }
-    });
-  }
 };
 
 export const calculateLoyaltyEarnPoints = ({ rule, invoiceSubtotal = 0, items = [] }) => {

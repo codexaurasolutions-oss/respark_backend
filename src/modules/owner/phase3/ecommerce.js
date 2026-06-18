@@ -1,5 +1,4 @@
 import { prisma } from "../../../lib/prisma.js";
-import { attemptCustomerTemplateEmail } from "../../../lib/emailNotifications.js";
 import { convertOrderToInvoice, createOnlineOrder, reverseOrderStock } from "../../../lib/phase3.js";
 import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
@@ -60,46 +59,14 @@ export const registerEcommerceRoutes = (ownerRouter) => {
 
   ownerRouter.get("/orders", requireFeatureEnabled("onlineOrders"), requireSalonPermission("orders", "view"), async (req, res) => {
     const status = req.query.status ? String(req.query.status) : null;
-    const startDate = req.query.startDate;
-    const endDate = req.query.endDate;
-    const dateFilter = {};
-    if (startDate) dateFilter.gte = new Date(startDate);
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      dateFilter.lte = end;
-    }
-    
     res.json(await prisma.onlineOrder.findMany({
-      where: { 
-        salonId: req.salonId, 
-        ...(status ? { status } : {}),
-        ...(Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {})
-      },
+      where: { salonId: req.salonId, ...(status ? { status } : {}) },
       include: includeOrder,
       orderBy: { createdAt: "desc" }
     }));
   });
-  
   ownerRouter.get("/orders/reports/summary", requireFeatureEnabled("onlineOrders"), requireSalonPermission("orders", "view"), async (req, res) => {
-    const startDate = req.query.startDate;
-    const endDate = req.query.endDate;
-    const dateFilter = {};
-    if (startDate) dateFilter.gte = new Date(startDate);
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      dateFilter.lte = end;
-    }
-
-    const rows = await prisma.onlineOrder.findMany({ 
-      where: { 
-        salonId: req.salonId,
-        ...(Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {})
-      }, 
-      include: { items: true } 
-    });
-    
+    const rows = await prisma.onlineOrder.findMany({ where: { salonId: req.salonId }, include: { items: true } });
     res.json({
       totalOrders: rows.length,
       newOrders: rows.filter((row) => row.status === "NEW").length,
@@ -149,12 +116,6 @@ export const registerEcommerceRoutes = (ownerRouter) => {
       }
       return tx.onlineOrder.findUnique({ where: { id: row.id }, include: includeOrder });
     });
-    await attemptCustomerTemplateEmail({
-      salonId: req.salonId,
-      toEmail: updated.customer?.email || "",
-      templateType: "order_status_update",
-      context: { orderId: updated.id, customerId: updated.customerId }
-    });
     res.json(updated);
   });
   ownerRouter.patch("/orders/:id/cancel", requireFeatureEnabled("onlineOrders"), requireSalonPermission("orders", "edit"), validate(schemas.appointmentNote), async (req, res) => {
@@ -186,13 +147,6 @@ export const registerEcommerceRoutes = (ownerRouter) => {
       }
       return tx.onlineOrder.findUnique({ where: { id: row.id }, include: includeOrder });
     });
-    await attemptCustomerTemplateEmail({
-      salonId: req.salonId,
-      toEmail: updated.customer?.email || "",
-      templateType: "order_status_update",
-      context: { orderId: updated.id, customerId: updated.customerId },
-      extraVariables: { order_status: "CANCELLED" }
-    });
     res.json(updated);
   });
   ownerRouter.post("/orders/:id/convert-to-invoice", requireFeatureEnabled("onlineOrders"), requireSalonPermission("orders", "edit"), async (req, res) => {
@@ -200,13 +154,6 @@ export const registerEcommerceRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/orders", requireFeatureEnabled("onlineOrders"), requireSalonPermission("orders", "create"), validate(schemas.createOrder), async (req, res) => {
-    const order = await createOnlineOrder({ salonId: req.salonId, body: req.body, actorName: req.user.name, source: "OWNER_PANEL" });
-    await attemptCustomerTemplateEmail({
-      salonId: req.salonId,
-      toEmail: order.customer?.email || req.body.customerEmail || "",
-      templateType: "order_confirmation",
-      context: { orderId: order.id, customerId: order.customerId }
-    });
-    res.status(201).json(order);
+    res.status(201).json(await createOnlineOrder({ salonId: req.salonId, body: req.body, actorName: req.user.name, source: "OWNER_PANEL" }));
   });
 };

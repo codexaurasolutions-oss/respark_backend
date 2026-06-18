@@ -50,10 +50,9 @@ export const runAppointmentReminderSweep = async () => {
     for (const appointment of appointments) {
       if (appointment.logs?.length) continue;
       const salonSetting = await prisma.salonSetting.findFirst({
-        where: { salonId: appointment.salonId, branchId: null },
-        select: { advancedSettings: true }
+        where: { salonId: appointment.salonId, branchId: null }
       });
-      const config = getReminderConfig(salonSetting?.advancedSettings);
+      const config = getReminderConfig(null);
       const reminderAt = computeReminderAt(appointment.startAt, config);
       if (now < reminderAt) continue;
 

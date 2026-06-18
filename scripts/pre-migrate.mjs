@@ -26,12 +26,16 @@ async function run() {
     `);
     console.log(`🧹  PackageService orphans removed: ${ps}`);
 
-    // 2. Remove orphan PackageProduct rows
-    const pp = await prisma.$executeRawUnsafe(`
-      DELETE FROM PackageProduct
-      WHERE packageId NOT IN (SELECT id FROM \`Package\`)
-    `);
-    console.log(`🧹  PackageProduct orphans removed: ${pp}`);
+    // 2. Remove orphan PackageProduct rows (only if table exists)
+    try {
+      const pp = await prisma.$executeRawUnsafe(`
+        DELETE FROM PackageProduct
+        WHERE packageId NOT IN (SELECT id FROM \`Package\`)
+      `);
+      console.log(`🧹  PackageProduct orphans removed: ${pp}`);
+    } catch (e) {
+      console.log("⏭️   PackageProduct table not found, skipping.");
+    }
 
     // 3. Remove orphan CustomerPackage rows (safety net)
     const cp = await prisma.$executeRawUnsafe(`

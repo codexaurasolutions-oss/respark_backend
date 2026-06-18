@@ -133,8 +133,8 @@ describe("phase4 filtered endpoints", () => {
         status: "APPROVED",
         branchId: "branch-1",
         OR: expect.arrayContaining([
-          expect.objectContaining({ title: { contains: "rent" } }),
-          expect.objectContaining({ notes: { contains: "rent" } })
+          expect.objectContaining({ title: { contains: "rent", mode: "insensitive" } }),
+          expect.objectContaining({ notes: { contains: "rent", mode: "insensitive" } })
         ])
       })
     }));
@@ -145,7 +145,7 @@ describe("phase4 filtered endpoints", () => {
       where: expect.objectContaining({
         salonId: "salon-1",
         branchId: "branch-1",
-        userSalon: { is: { user: { is: { name: { contains: "ayesha" } } } } }
+        userSalon: { is: { user: { is: { name: { contains: "ayesha", mode: "insensitive" } } } } }
       })
     }));
 
@@ -155,7 +155,7 @@ describe("phase4 filtered endpoints", () => {
       where: expect.objectContaining({
         salonId: "salon-1",
         status: "APPROVED",
-        userSalon: { is: { user: { is: { name: { contains: "amna" } } } } }
+        userSalon: { is: { user: { is: { name: { contains: "amna", mode: "insensitive" } } } } }
       })
     }));
 
@@ -165,8 +165,8 @@ describe("phase4 filtered endpoints", () => {
       where: expect.objectContaining({
         salonId: "salon-1",
         OR: expect.arrayContaining([
-          expect.objectContaining({ name: { contains: "sales" } }),
-          expect.objectContaining({ targetType: { contains: "sales" } })
+          expect.objectContaining({ name: { contains: "sales", mode: "insensitive" } }),
+          expect.objectContaining({ targetType: { contains: "sales", mode: "insensitive" } })
         ])
       })
     }));

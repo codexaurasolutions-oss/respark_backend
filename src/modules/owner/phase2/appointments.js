@@ -1,9 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "../../../lib/prisma.js";
-import { attemptCustomerTemplateEmail } from "../../../lib/emailNotifications.js";
-import { getSalonGenericSettings } from "../../../lib/phase3.js";
 import { checkStaffAvailability, ensureScopedBranch, ensureScopedCustomer, ensureScopedService, ensureScopedStaffMembership, getSalonSetting, logCustomerTimeline, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
-import { attachSalonSettings, requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
+import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
 import { assignAppointmentItems, buildAppointmentScope, canAccessAppointment, fetchAppointment, logAppointmentChange, nextNumber } from "./shared.js";
 
@@ -11,18 +9,6 @@ const sendRouteError = (res, error, fallbackMessage) => {
   const status = error?.status || error?.response?.status || 500;
   const message = error?.message || fallbackMessage;
   return res.status(status).json({ message });
-};
-
-const notifyAppointmentEmail = async (salonId, appointment, templateType, extraVariables = {}) => {
-  const genericSettings = await getSalonGenericSettings(salonId);
-  if (genericSettings.sendAppointmentSms === false) return { sent: false, reason: "appointment_sms_disabled" };
-  return attemptCustomerTemplateEmail({
-    salonId,
-    toEmail: appointment?.customer?.email || "",
-    templateType,
-    context: { appointmentId: appointment?.id, customerId: appointment?.customerId },
-    extraVariables
-  });
 };
 
 export const registerAppointmentRoutes = (ownerRouter) => {
@@ -33,23 +19,18 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     const customerId = req.query.customerId ? String(req.query.customerId) : null;
     const from = req.query.from ? new Date(String(req.query.from)) : null;
     const to = req.query.to ? new Date(String(req.query.to)) : null;
-    const genericSettings = await getSalonGenericSettings(req.salonId);
-    const hideCancelledAppointments = genericSettings.hideCancelledAppointments === true && !status;
-    const rangeWhere = (from || to)
-      ? {
-          AND: [
-            ...(to ? [{ startAt: { lte: to } }] : []),
-            ...(from ? [{ endAt: { gte: from } }] : [])
-          ]
-        }
-      : {};
     res.json(await prisma.appointment.findMany({
       where: {
         ...buildAppointmentScope(req, branchId),
-        ...(status ? { status } : hideCancelledAppointments ? { status: { not: "CANCELLED" } } : {}),
+        ...(status ? { status } : {}),
         ...(bookingChannel ? { bookingChannel } : {}),
         ...(customerId ? { customerId } : {}),
-        ...rangeWhere
+        ...((from || to) ? {
+          startAt: {
+            ...(from ? { gte: from } : {}),
+            ...(to ? { lte: to } : {})
+          }
+        } : {})
       },
       include: {
         customer: true,
@@ -65,17 +46,8 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     const branchId = normalizeBranchId(req.query.branchId);
     const from = req.query.from ? new Date(String(req.query.from)) : new Date();
     const to = req.query.to ? new Date(String(req.query.to)) : new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const genericSettings = await getSalonGenericSettings(req.salonId);
-    const hideCancelledAppointments = genericSettings.hideCancelledAppointments === true;
     res.json(await prisma.appointment.findMany({
-      where: {
-        ...buildAppointmentScope(req, branchId),
-        ...(hideCancelledAppointments ? { status: { not: "CANCELLED" } } : {}),
-        AND: [
-          { startAt: { lte: to } },
-          { endAt: { gte: from } }
-        ]
-      },
+      where: { ...buildAppointmentScope(req, branchId), startAt: { gte: from, lte: to } },
       include: {
         customer: true,
         primaryStaff: { include: { user: true } },
@@ -92,20 +64,13 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     res.json(appointment);
   });
 
-  ownerRouter.post("/appointments", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "create"), attachSalonSettings, validate(schemas.appointment), async (req, res) => {
+  ownerRouter.post("/appointments", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "create"), validate(schemas.appointment), async (req, res) => {
     try {
       const body = req.body;
       await ensureScopedCustomer(req.salonId, body.customerId);
       await ensureScopedBranch(req.salonId, body.branchId);
 
       for (const item of body.items) {
-        if (!req.advancedSettings?.allowBackdatedAppointments) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (new Date(item.startAt) < today) {
-            return res.status(400).json({ message: "Backdated appointments are restricted by salon settings" });
-          }
-        }
         const service = await ensureScopedService(req.salonId, item.serviceId);
         if (service.branchId && service.branchId !== body.branchId) {
           return res.status(400).json({ message: `${service.name} does not belong to the selected branch` });
@@ -159,17 +124,13 @@ export const registerAppointmentRoutes = (ownerRouter) => {
         return appointment.id;
       });
 
-      const createdAppointment = await fetchAppointment(req.salonId, createdId);
-      await notifyAppointmentEmail(req.salonId, createdAppointment, "appointment_confirmation", {
-        appointment_status: createdAppointment?.status || "CONFIRMED"
-      });
-      res.status(201).json(createdAppointment);
+      res.status(201).json(await fetchAppointment(req.salonId, createdId));
     } catch (error) {
       return sendRouteError(res, error, "Could not create appointment");
     }
   });
 
-  ownerRouter.patch("/appointments/:id", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "edit"), attachSalonSettings, validate(schemas.appointment), async (req, res) => {
+  ownerRouter.patch("/appointments/:id", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "edit"), validate(schemas.appointment), async (req, res) => {
     try {
       const existing = await fetchAppointment(req.salonId, req.params.id);
       if (!existing) return res.status(404).json({ message: "Appointment not found" });
@@ -179,13 +140,6 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       await ensureScopedBranch(req.salonId, req.body.branchId);
 
       for (const item of req.body.items) {
-        if (!req.advancedSettings?.allowBackdatedAppointments) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (new Date(item.startAt) < today) {
-            return res.status(400).json({ message: "Backdated appointments are restricted by salon settings" });
-          }
-        }
         const service = await ensureScopedService(req.salonId, item.serviceId);
         if (service.branchId && service.branchId !== req.body.branchId) {
           return res.status(400).json({ message: `${service.name} does not belong to the selected branch` });
@@ -231,11 +185,7 @@ export const registerAppointmentRoutes = (ownerRouter) => {
         await logAppointmentChange(tx, existing.id, req.user.id, "UPDATED", existing.status, req.body.status || existing.status, "Appointment updated");
       });
 
-      const updatedAppointment = await fetchAppointment(req.salonId, existing.id);
-      await notifyAppointmentEmail(req.salonId, updatedAppointment, "appointment_update", {
-        appointment_status: updatedAppointment?.status || req.body.status || existing.status
-      });
-      res.json(updatedAppointment);
+      res.json(await fetchAppointment(req.salonId, existing.id));
     } catch (error) {
       return sendRouteError(res, error, "Could not update appointment");
     }
@@ -250,11 +200,7 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       await tx.appointment.update({ where: { id: appointment.id }, data: { status: req.body.status } });
       await logAppointmentChange(tx, appointment.id, req.user.id, "STATUS_CHANGED", appointment.status, req.body.status, req.body.note || null);
     });
-    const updatedAppointment = await fetchAppointment(req.salonId, appointment.id);
-    await notifyAppointmentEmail(req.salonId, updatedAppointment, "appointment_update", {
-      appointment_status: req.body.status
-    });
-    res.json(updatedAppointment);
+    res.json(await fetchAppointment(req.salonId, appointment.id));
   });
 
   ownerRouter.post("/appointments/:id/cancel", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "edit"), validate(schemas.appointmentNote), async (req, res) => {
@@ -268,14 +214,10 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       await logAppointmentChange(tx, appointment.id, req.user.id, "CANCELLED", appointment.status, "CANCELLED", req.body.note || "Appointment cancelled");
     });
 
-    const cancelledAppointment = await fetchAppointment(req.salonId, appointment.id);
-    await notifyAppointmentEmail(req.salonId, cancelledAppointment, "appointment_update", {
-      appointment_status: "CANCELLED"
-    });
-    res.json(cancelledAppointment);
+    res.json(await fetchAppointment(req.salonId, appointment.id));
   });
 
-  ownerRouter.post("/appointments/:id/reschedule", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "edit"), attachSalonSettings, validate(schemas.appointmentReschedule), async (req, res) => {
+  ownerRouter.post("/appointments/:id/reschedule", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "edit"), validate(schemas.appointmentReschedule), async (req, res) => {
     try {
       const appointment = await fetchAppointment(req.salonId, req.params.id);
       if (!appointment) return res.status(404).json({ message: "Appointment not found" });
@@ -290,13 +232,6 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       }));
 
       for (const item of items) {
-        if (!req.advancedSettings?.allowBackdatedAppointments) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          if (new Date(item.startAt) < today) {
-            return res.status(400).json({ message: "Backdated appointments are restricted by salon settings" });
-          }
-        }
         const service = await ensureScopedService(req.salonId, item.serviceId);
         for (const staffUserId of item.staffUserIds) {
           const membership = await ensureScopedStaffMembership(req.salonId, staffUserId);
@@ -335,11 +270,7 @@ export const registerAppointmentRoutes = (ownerRouter) => {
         await logAppointmentChange(tx, appointment.id, req.user.id, "RESCHEDULED", appointment.status, appointment.status, req.body.note || "Appointment rescheduled");
       });
 
-      const rescheduledAppointment = await fetchAppointment(req.salonId, appointment.id);
-      await notifyAppointmentEmail(req.salonId, rescheduledAppointment, "appointment_update", {
-        appointment_status: rescheduledAppointment?.status || "CONFIRMED"
-      });
-      res.json(rescheduledAppointment);
+      res.json(await fetchAppointment(req.salonId, appointment.id));
     } catch (error) {
       return sendRouteError(res, error, "Could not reschedule appointment");
     }
@@ -366,15 +297,11 @@ export const registerAppointmentRoutes = (ownerRouter) => {
 
     const invoice = await prisma.$transaction(async (tx) => {
       const settings = await getSalonSetting(tx, req.salonId, appointment.branchId);
-      const advancedSettings = typeof settings?.advancedSettings === "object" ? settings.advancedSettings : {};
-      const inclusiveTax = advancedSettings?.taxMapping?.inclusiveTax === true;
       const invoiceNumber = await nextNumber(tx, "invoice", req.salonId, settings?.invoicePrefix || "INV");
       const items = appointment.items.map((item) => {
         const unitPrice = toAmount(item.service.price);
         const taxPct = toAmount(item.service.taxRate || 0);
-        const lineTotal = inclusiveTax && taxPct > 0
-          ? unitPrice
-          : unitPrice + (unitPrice * taxPct) / 100;
+        const lineTotal = unitPrice + (unitPrice * taxPct) / 100;
         const firstStaff = item.assignedStaff[0]?.userSalonId || null;
         return {
           serviceId: item.serviceId,
@@ -388,13 +315,7 @@ export const registerAppointmentRoutes = (ownerRouter) => {
         };
       });
       const subtotal = items.reduce((sum, item) => sum + toAmount(item.unitPrice) * item.qty, 0);
-      const tax = inclusiveTax
-        ? items.reduce((sum, item) => {
-            const preTax = toAmount(item.unitPrice) * item.qty;
-            const tp = toAmount(item.taxPct);
-            return sum + (tp > 0 ? (preTax * tp) / (100 + tp) : 0);
-          }, 0)
-        : items.reduce((sum, item) => sum + (toAmount(item.unitPrice) * item.qty * toAmount(item.taxPct)) / 100, 0);
+      const tax = items.reduce((sum, item) => sum + (toAmount(item.unitPrice) * item.qty * toAmount(item.taxPct)) / 100, 0);
       const total = subtotal + tax;
 
       const created = await tx.invoice.create({
@@ -420,15 +341,6 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       return created;
     });
 
-    await attemptCustomerTemplateEmail({
-      salonId: req.salonId,
-      toEmail: appointment?.customer?.email || "",
-      templateType: "invoice_template",
-      context: { invoiceId: invoice.id, customerId: appointment.customerId },
-      extraVariables: {
-        appointment_status: appointment.status
-      }
-    });
     res.status(201).json(invoice);
   });
 
@@ -462,24 +374,14 @@ export const registerAppointmentRoutes = (ownerRouter) => {
 
   ownerRouter.post("/staff-schedule", requireSalonPermission("staffSchedule", "edit"), validate(schemas.staffSchedule), async (req, res) => {
     const membership = await ensureScopedStaffMembership(req.salonId, req.body.userSalonId);
-    const settings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null }, select: { advancedSettings: true } });
-    const adv = typeof settings?.advancedSettings === "object" ? settings.advancedSettings : {};
-    if (adv.allowRosterMgtSettings === false) return res.status(403).json({ message: "Roster management is disabled in salon settings" });
-    const shiftTemplate = (adv.shiftManagement?.shifts || []).find((s) => s.active !== false && (s.days || []).includes(req.body.weekday));
-    const startTime = req.body.startTime || shiftTemplate?.startTime || "09:00";
-    const endTime = req.body.endTime || shiftTemplate?.endTime || "21:00";
-    const isOffDay = req.body.isOffDay != null ? Boolean(req.body.isOffDay) : (shiftTemplate?.active === false);
     res.status(201).json(await prisma.staffSchedule.upsert({
       where: { userSalonId_weekday: { userSalonId: membership.id, weekday: req.body.weekday } },
-      update: { branchId: req.body.branchId || null, startTime, endTime, isOffDay },
-      create: { salonId: req.salonId, branchId: req.body.branchId || null, userSalonId: membership.id, weekday: req.body.weekday, startTime, endTime, isOffDay }
+      update: { branchId: req.body.branchId || null, startTime: req.body.startTime, endTime: req.body.endTime, isOffDay: Boolean(req.body.isOffDay) },
+      create: { salonId: req.salonId, branchId: req.body.branchId || null, userSalonId: membership.id, weekday: req.body.weekday, startTime: req.body.startTime, endTime: req.body.endTime, isOffDay: Boolean(req.body.isOffDay) }
     }));
   });
 
-  ownerRouter.post("/staff-breaks", requireSalonPermission("staffSchedule", "edit"), async (req, res) => {
-    const settings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null }, select: { advancedSettings: true } });
-    const adv = typeof settings?.advancedSettings === "object" ? settings.advancedSettings : {};
-    if (adv.accessControl?.allowRosterOverrides === false) return res.status(403).json({ message: "Roster overrides are restricted by salon settings" });
+  ownerRouter.post("/staff-breaks", requireSalonPermission("staffSchedule", "edit"), validate(schemas.staffBreak), async (req, res) => {
     const membership = await ensureScopedStaffMembership(req.salonId, req.body.userSalonId);
     res.status(201).json(await prisma.staffBreak.create({
       data: {

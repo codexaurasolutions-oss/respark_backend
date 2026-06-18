@@ -12,7 +12,6 @@ export const requireSystemRole = (...roles) => (req, res, next) => {
 
 export const requireSalonPermission = (moduleKey, action = "view") => (req, res, next) => {
   if (req.user.systemRole === "SUPER_ADMIN") return next();
-  if (req.user.salonRole === "SALON_OWNER") return next();
   const perms = req.user.permissions || {};
   const allowed = perms[moduleKey]?.includes(action);
   if (!allowed) return res.status(403).json({ message: `No permission: ${moduleKey}.${action}` });
@@ -49,13 +48,5 @@ export const requireCustomerAuth = (req, res, next) => {
   if (req.user.systemRole !== "CUSTOMER" || !req.user.customerId || !req.user.salonId) {
     return res.status(403).json({ message: "Customer access only" });
   }
-  next();
-};
-
-export const attachSalonSettings = async (req, res, next) => {
-  if (!req.salonId) return next();
-  const settings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
-  req.salonSettings = settings || {};
-  req.advancedSettings = typeof settings?.advancedSettings === "object" && settings.advancedSettings ? settings.advancedSettings : {};
   next();
 };

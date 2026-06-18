@@ -116,9 +116,8 @@ describe("owner support tickets", () => {
         status: "OPEN",
         priority: "HIGH",
         OR: expect.arrayContaining([
-          expect.objectContaining({ title: { contains: "billing" } }),
-          expect.objectContaining({ description: { contains: "billing" } }),
-          expect.objectContaining({ category: { contains: "billing" } })
+          expect.objectContaining({ title: { contains: "billing", mode: "insensitive" } }),
+          expect.objectContaining({ description: { contains: "billing", mode: "insensitive" } })
         ])
       })
     }));

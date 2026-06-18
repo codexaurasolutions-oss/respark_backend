@@ -17,8 +17,8 @@ publicRouter.get("/settings", asyncHandler(async (req, res) => {
       supportEmail: "support@skillify.local",
       defaultCurrency: "INR",
       currencyOptions: ["INR", "USD", "AED"],
-      defaultCountry: "India",
-      defaultCity: "Mumbai",
+      defaultCountry: "Pakistan",
+      defaultCity: "Lahore",
       termsUrl: "/terms",
       privacyUrl: "/privacy",
       demoBookingUrl: "",
@@ -48,15 +48,8 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
   const genericSettings = typeof salonSettings?.advancedSettings === "object"
     ? salonSettings.advancedSettings?.genericSettings || {}
     : {};
-  const normalizedGenericSettings = {
-    ...genericSettings,
-    defaultCurrency: genericSettings.defaultCurrency || genericSettings.currency || salon.currency || "INR"
-  };
   const legalContent = typeof salonSettings?.advancedSettings === "object"
     ? salonSettings.advancedSettings?.legalContent || {}
-    : {};
-  const footerContent = typeof salonSettings?.advancedSettings === "object"
-    ? salonSettings.advancedSettings?.footerContent || {}
     : {};
   const showServices = catalogSettings?.showServices !== false;
   const showProducts = catalogSettings?.showProducts !== false && ecommerceSettings?.storeEnabled === true;
@@ -70,9 +63,8 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
     services,
     products,
     websiteConfig: salon.websiteConfig || { heroTitle: "", heroSubtitle: "", heroImage: "" },
-    genericSettings: normalizedGenericSettings,
+    genericSettings,
     legalContent,
-    footerContent,
     catalogSettings,
     ecommerceSettings,
     visibility: {
@@ -86,21 +78,3 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
 }));
 
 registerPublicPhase3Routes(publicRouter);
-
-publicRouter.post("/demo-leads", asyncHandler(async (req, res) => {
-  const { name, phone, email, salonName, city } = req.body;
-  if (!name || !phone) return res.status(400).json({ message: "Name and phone are required" });
-  const lead = await prisma.demoLead.create({
-    data: { name, phone, email: email || null, salonName: salonName || null, city: city || null }
-  });
-  res.status(201).json(lead);
-}));
-
-publicRouter.get("/plans", asyncHandler(async (req, res) => {
-  const plans = await prisma.plan.findMany({ orderBy: { price: "asc" } });
-  res.json(plans.length ? plans : [
-    { id: "starter", name: "Starter", price: 0, description: "Get started with basic features", features: ["Up to 10 staff", "Basic reports", "Email support"] },
-    { id: "growth", name: "Growth", price: 4999, description: "For growing salons", features: ["Unlimited staff", "Advanced reports", "Priority support", "WhatsApp integration"] },
-    { id: "enterprise", name: "Enterprise", price: 9999, description: "Full suite for large chains", features: ["Multi-branch", "API access", "Custom integrations", "Dedicated manager"] }
-  ]);
-}));

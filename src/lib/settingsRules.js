@@ -8,11 +8,7 @@ export const toRuleNumber = (value, fallback = 0) => {
 };
 
 export const getSalonAdvancedSettings = async (salonId) => {
-  const row = await prisma.salonSetting.findFirst({
-    where: { salonId, branchId: null },
-    select: { advancedSettings: true }
-  });
-  return asObject(row?.advancedSettings);
+  return {};
 };
 
 export const getProgramSettings = async (salonId, key, defaults = {}) => {

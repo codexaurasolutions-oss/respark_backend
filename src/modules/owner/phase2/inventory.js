@@ -1,13 +1,13 @@
 import { prisma } from "../../../lib/prisma.js";
 import { attachBranchStock, createStockMovement, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
-import { attachSalonSettings, requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
+import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
 import { nextNumber } from "./shared.js";
 
 export const registerInventoryRoutes = (ownerRouter) => {
   ownerRouter.get("/inventory/categories", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "view"), async (req, res) => {
     res.json(await prisma.productCategory.findMany({
-      where: { salonId: req.salonId, isActive: true },
+      where: { salonId: req.salonId },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }]
     }));
   });
@@ -60,9 +60,9 @@ export const registerInventoryRoutes = (ownerRouter) => {
         ...(productType ? { productType } : {}),
         ...(q ? {
           OR: [
-            { name: { contains: q } },
-            { sku: { contains: q } },
-            { barcode: { contains: q } }
+            { name: { contains: q, mode: "insensitive" } },
+            { sku: { contains: q, mode: "insensitive" } },
+            { barcode: { contains: q, mode: "insensitive" } }
           ]
         } : {})
       },
@@ -72,7 +72,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
     res.json(await attachBranchStock(prisma, rows, branchId));
   });
 
-  ownerRouter.post("/inventory/products", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "create"), async (req, res) => {
+  ownerRouter.post("/inventory/products", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "create"), validate(schemas.product), async (req, res) => {
     res.status(201).json(await prisma.product.create({
       data: {
         salonId: req.salonId,
@@ -82,52 +82,34 @@ export const registerInventoryRoutes = (ownerRouter) => {
         imageUrl: req.body.imageUrl || null,
         sku: req.body.sku || null,
         barcode: req.body.barcode || null,
-        productType: req.body.productType || "RETAIL",
-        costPrice: req.body.costPrice || 0,
-        sellingPrice: req.body.sellingPrice || 0,
-        salePrice: req.body.salePrice || null,
+        productType: req.body.productType,
+        costPrice: req.body.costPrice,
+        sellingPrice: req.body.sellingPrice,
         minStock: req.body.minStock || 0,
         expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
-        allowNegativeStock: Boolean(req.body.allowNegativeStock),
-        position: req.body.position || 0,
-        targetGroup: req.body.targetGroup || "BOTH",
-        hideFromCatalogue: Boolean(req.body.hideFromCatalogue),
-        nonDiscountable: Boolean(req.body.nonDiscountable),
-        description: req.body.description || null,
-        videoLink: req.body.videoLink || null,
-        benefits: req.body.benefits || null,
-        variations: req.body.variations || null
+        allowNegativeStock: Boolean(req.body.allowNegativeStock)
       }
     }));
   });
 
-  ownerRouter.patch("/inventory/products/:id", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "edit"), async (req, res) => {
+  ownerRouter.patch("/inventory/products/:id", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "edit"), validate(schemas.product), async (req, res) => {
     const product = await prisma.product.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json(await prisma.product.update({
       where: { id: product.id },
       data: {
-        branchId: req.body.branchId !== undefined ? req.body.branchId : product.branchId,
-        categoryId: req.body.categoryId !== undefined ? req.body.categoryId : product.categoryId,
-        name: req.body.name || product.name,
-        imageUrl: req.body.imageUrl !== undefined ? req.body.imageUrl : product.imageUrl,
-        sku: req.body.sku !== undefined ? req.body.sku : product.sku,
-        barcode: req.body.barcode !== undefined ? req.body.barcode : product.barcode,
-        productType: req.body.productType || product.productType,
-        costPrice: req.body.costPrice !== undefined ? req.body.costPrice : product.costPrice,
-        sellingPrice: req.body.sellingPrice !== undefined ? req.body.sellingPrice : product.sellingPrice,
-        salePrice: req.body.salePrice !== undefined ? req.body.salePrice : product.salePrice,
-        minStock: req.body.minStock !== undefined ? req.body.minStock : product.minStock,
-        expiryDate: req.body.expiryDate !== undefined ? (req.body.expiryDate ? new Date(req.body.expiryDate) : null) : product.expiryDate,
-        allowNegativeStock: req.body.allowNegativeStock !== undefined ? Boolean(req.body.allowNegativeStock) : product.allowNegativeStock,
-        position: req.body.position !== undefined ? req.body.position : product.position,
-        targetGroup: req.body.targetGroup || product.targetGroup,
-        hideFromCatalogue: req.body.hideFromCatalogue !== undefined ? Boolean(req.body.hideFromCatalogue) : product.hideFromCatalogue,
-        nonDiscountable: req.body.nonDiscountable !== undefined ? Boolean(req.body.nonDiscountable) : product.nonDiscountable,
-        description: req.body.description !== undefined ? req.body.description : product.description,
-        videoLink: req.body.videoLink !== undefined ? req.body.videoLink : product.videoLink,
-        benefits: req.body.benefits !== undefined ? req.body.benefits : product.benefits,
-        variations: req.body.variations !== undefined ? req.body.variations : product.variations
+        branchId: req.body.branchId || null,
+        categoryId: req.body.categoryId || null,
+        name: req.body.name,
+        imageUrl: req.body.imageUrl || null,
+        sku: req.body.sku || null,
+        barcode: req.body.barcode || null,
+        productType: req.body.productType,
+        costPrice: req.body.costPrice,
+        sellingPrice: req.body.sellingPrice,
+        minStock: req.body.minStock || 0,
+        expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
+        allowNegativeStock: Boolean(req.body.allowNegativeStock)
       }
     }));
   });
@@ -138,10 +120,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
     res.json(await prisma.product.update({ where: { id: product.id }, data: { isActive: false } }));
   });
 
-  ownerRouter.post("/inventory/stock-movements", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "edit"), attachSalonSettings, validate(schemas.stockMovement), async (req, res) => {
-    if (req.body.movementType === "CONSUMABLE_USAGE" && req.advancedSettings?.allowEditConsumable === false) {
-      return res.status(403).json({ message: "Consumable editing is restricted by salon settings" });
-    }
+  ownerRouter.post("/inventory/stock-movements", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "edit"), validate(schemas.stockMovement), async (req, res) => {
     const sign = ["STOCK_OUT", "CONSUMABLE_USAGE"].includes(req.body.movementType) ? -1 : 1;
     const movement = await prisma.$transaction((tx) => createStockMovement(tx, {
       salonId: req.salonId,
@@ -183,9 +162,9 @@ export const registerInventoryRoutes = (ownerRouter) => {
         ...(categoryId ? { categoryId } : {}),
         ...(q ? {
           OR: [
-            { name: { contains: q } },
-            { sku: { contains: q } },
-            { barcode: { contains: q } }
+            { name: { contains: q, mode: "insensitive" } },
+            { sku: { contains: q, mode: "insensitive" } },
+            { barcode: { contains: q, mode: "insensitive" } }
           ]
         } : {})
       },
@@ -196,85 +175,11 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/purchases/vendors", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "view"), async (req, res) => {
-    res.json(await prisma.vendor.findMany({
-      where: { salonId: req.salonId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        items: {
-          where: { isActive: true },
-          include: { product: { select: { id: true, name: true } } }
-        }
-      }
-    }));
-  });
-
-  ownerRouter.get("/purchases/vendors/:id", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "view"), async (req, res) => {
-    const vendor = await prisma.vendor.findFirst({
-      where: { id: req.params.id, salonId: req.salonId },
-      include: {
-        items: {
-          include: { product: { select: { id: true, name: true } } }
-        }
-      }
-    });
-    if (!vendor) return res.status(404).json({ message: "Vendor not found" });
-    res.json(vendor);
+    res.json(await prisma.vendor.findMany({ where: { salonId: req.salonId, isActive: true }, orderBy: { createdAt: "desc" } }));
   });
 
   ownerRouter.post("/purchases/vendors", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "create"), validate(schemas.vendor), async (req, res) => {
-    res.status(201).json(await prisma.vendor.create({ data: { salonId: req.salonId, ...req.body, branchId: req.body.branchId || null } }));
-  });
-
-  ownerRouter.patch("/purchases/vendors/:id", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), validate(schemas.vendor), async (req, res) => {
-    const vendor = await prisma.vendor.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
-    if (!vendor) return res.status(404).json({ message: "Vendor not found" });
-    res.json(await prisma.vendor.update({
-      where: { id: vendor.id },
-      data: { ...req.body, branchId: req.body.branchId || null }
-    }));
-  });
-
-  ownerRouter.get("/purchases/vendors/:id/items", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "view"), async (req, res) => {
-    const items = await prisma.vendorItem.findMany({
-      where: { vendorId: req.params.id, salonId: req.salonId },
-      include: { product: { select: { id: true, name: true } } },
-      orderBy: { createdAt: "desc" }
-    });
-    res.json(items);
-  });
-
-  ownerRouter.post("/purchases/vendors/:id/items", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), validate(schemas.vendorItem), async (req, res) => {
-    const vendor = await prisma.vendor.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
-    if (!vendor) return res.status(404).json({ message: "Vendor not found" });
-    const product = await prisma.product.findFirst({ where: { id: req.body.productId, salonId: req.salonId } });
-    if (!product) return res.status(404).json({ message: "Product not found" });
-    const existing = await prisma.vendorItem.findFirst({ where: { vendorId: vendor.id, productId: product.id } });
-    if (existing) {
-      res.json(await prisma.vendorItem.update({
-        where: { id: existing.id },
-        data: { price: req.body.price, isActive: req.body.isActive ?? true }
-      }));
-    } else {
-      res.status(201).json(await prisma.vendorItem.create({
-        data: { salonId: req.salonId, vendorId: vendor.id, productId: product.id, price: req.body.price, isActive: req.body.isActive ?? true }
-      }));
-    }
-  });
-
-  ownerRouter.patch("/purchases/vendor-items/:itemId", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), async (req, res) => {
-    const item = await prisma.vendorItem.findFirst({ where: { id: req.params.itemId, salonId: req.salonId } });
-    if (!item) return res.status(404).json({ message: "Vendor item not found" });
-    res.json(await prisma.vendorItem.update({
-      where: { id: item.id },
-      data: { ...req.body }
-    }));
-  });
-
-  ownerRouter.delete("/purchases/vendor-items/:itemId", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "delete"), async (req, res) => {
-    const item = await prisma.vendorItem.findFirst({ where: { id: req.params.itemId, salonId: req.salonId } });
-    if (!item) return res.status(404).json({ message: "Vendor item not found" });
-    await prisma.vendorItem.delete({ where: { id: item.id } });
-    res.json({ message: "Vendor item deleted" });
+    res.status(201).json(await prisma.vendor.create({ data: { salonId: req.salonId, ...req.body, branchId: req.body.branchId || null, email: req.body.email || null } }));
   });
 
   ownerRouter.get("/purchases/orders", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "view"), async (req, res) => {
@@ -285,18 +190,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
     }));
   });
 
-  ownerRouter.post("/purchases/orders", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "create"), attachSalonSettings, validate(schemas.purchaseOrder), async (req, res) => {
-    const allowPOPriceEdit = req.advancedSettings?.allowPOPriceEdit !== false;
-
-    if (!allowPOPriceEdit) {
-      for (const item of req.body.items) {
-        const product = await prisma.product.findFirst({ where: { id: item.productId, salonId: req.salonId } });
-        if (product && toAmount(item.unitCost) !== toAmount(product.costPrice)) {
-          return res.status(400).json({ message: "Price edits in PO drafts are restricted by salon settings" });
-        }
-      }
-    }
-
+  ownerRouter.post("/purchases/orders", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "create"), validate(schemas.purchaseOrder), async (req, res) => {
     const order = await prisma.$transaction(async (tx) => {
       const orderNumber = await nextNumber(tx, "purchaseOrder", req.salonId, "PO");
       const totalCost = req.body.items.reduce((sum, item) => sum + toAmount(item.unitCost) * toAmount(item.quantityOrdered), 0);
@@ -308,7 +202,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
           createdByUserId: req.user.id,
           orderNumber,
           notes: req.body.notes || null,
-          status: "DRAFT",
+          status: "ORDERED",
           totalCost,
           items: {
             create: req.body.items.map((item) => ({
@@ -325,51 +219,19 @@ export const registerInventoryRoutes = (ownerRouter) => {
     res.status(201).json(order);
   });
 
-  ownerRouter.patch("/purchases/orders/:id/approve", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "approve"), async (req, res) => {
-    const order = await prisma.purchaseOrder.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
-    if (!order) return res.status(404).json({ message: "Purchase order not found" });
-    if (order.status !== "DRAFT") return res.status(400).json({ message: "Only DRAFT orders can be approved" });
-    res.json(await prisma.purchaseOrder.update({ where: { id: order.id }, data: { status: "ORDERED" } }));
-  });
-
-  ownerRouter.patch("/purchases/orders/:id/reject", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "approve"), async (req, res) => {
-    const order = await prisma.purchaseOrder.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
-    if (!order) return res.status(404).json({ message: "Purchase order not found" });
-    if (order.status !== "DRAFT") return res.status(400).json({ message: "Only DRAFT orders can be rejected" });
-    res.json(await prisma.purchaseOrder.update({ where: { id: order.id }, data: { status: "CANCELLED" } }));
-  });
-
-  ownerRouter.post("/purchases/orders/:id/receive", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), attachSalonSettings, validate(schemas.purchaseReceive), async (req, res) => {
+  ownerRouter.post("/purchases/orders/:id/receive", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), validate(schemas.purchaseReceive), async (req, res) => {
     const order = await prisma.purchaseOrder.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
       include: { items: true }
     });
     if (!order) return res.status(404).json({ message: "Purchase order not found" });
 
-    const allowPriceEditWhilePOSettlement = req.advancedSettings?.allowPriceEditWhilePOSettlement !== false;
-    if (!allowPriceEditWhilePOSettlement) {
-      for (const item of req.body.items) {
-        if (item.unitCost != null) {
-          const orderItem = order.items.find((entry) => entry.id === item.purchaseOrderItemId);
-          if (orderItem && toAmount(item.unitCost) !== toAmount(orderItem.unitCost)) {
-            return res.status(400).json({ message: "Price edits during PO settlement are restricted by salon settings" });
-          }
-        }
-      }
-    }
-
     const updated = await prisma.$transaction(async (tx) => {
       for (const item of req.body.items) {
         const orderItem = order.items.find((entry) => entry.id === item.purchaseOrderItemId);
         if (!orderItem) throw new Error("Invalid purchase order item");
         const nextReceived = toAmount(orderItem.quantityReceived) + toAmount(item.quantityReceived);
-        await tx.purchaseOrderItem.update({ 
-          where: { id: orderItem.id }, 
-          data: { 
-            quantityReceived: nextReceived,
-            ...(item.unitCost != null ? { unitCost: item.unitCost } : {})
-          } 
-        });
+        await tx.purchaseOrderItem.update({ where: { id: orderItem.id }, data: { quantityReceived: nextReceived } });
         await createStockMovement(tx, {
           salonId: req.salonId,
           branchId: order.branchId,
@@ -468,4 +330,3 @@ export const registerInventoryRoutes = (ownerRouter) => {
     res.status(201).json(result);
   });
 };
-

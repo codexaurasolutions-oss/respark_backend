@@ -12,7 +12,7 @@ export const authMiddleware = async (req, res, next) => {
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      include: { memberships: { include: { customRole: true } }, customerProfile: true }
+      include: { memberships: true, customerProfile: true }
     });
     if (!user || !user.isActive) return res.status(401).json({ message: "Invalid user" });
 
@@ -60,7 +60,7 @@ export const authMiddleware = async (req, res, next) => {
     const mergedPermissions = membership
       ? membership.salonRole === "SALON_OWNER"
         ? { ...defaultOwnerPermissions, ...(membership.permissions || {}) }
-        : { ...(membership.customRole?.permissions || {}), ...(membership.permissions || {}) }
+        : (membership.permissions || {})
       : null;
 
     req.user = {

@@ -1,83 +1,14 @@
 import { prisma } from "../../../lib/prisma.js";
-import { randomUUID } from "node:crypto";
 import { calculatePayrollItem, createAuditLog, createStaffNotification } from "../../../lib/phase4.js";
 import { buildCsv } from "../../../lib/phase2.js";
-import { attachSalonSettings, requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
+import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
 
 const toDate = (value) => (value ? new Date(value) : null);
-const normalizePaymentModeQuery = (value) => {
-  const normalized = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
-  return ["CASH", "CARD", "UPI", "BANK_TRANSFER", "WALLET", "ONLINE"].includes(normalized) ? normalized : null;
-};
-const EXPENSE_ACCOUNT_MODES = ["CASH", "CARD", "UPI", "BANK_TRANSFER", "WALLET", "ONLINE"];
-const normalizeAccountMode = (value) => {
-  const normalized = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
-  return EXPENSE_ACCOUNT_MODES.includes(normalized) ? normalized : null;
-};
-const readExpenseAccountConfig = async (salonId) => {
-  const row = await prisma.salonSetting.findFirst({
-    where: { salonId, branchId: null },
-    select: { id: true, advancedSettings: true }
-  });
-  const advancedSettings = row?.advancedSettings && typeof row.advancedSettings === "object" ? row.advancedSettings : {};
-  const expenseAccounts = advancedSettings?.expenseAccounts && typeof advancedSettings.expenseAccounts === "object"
-    ? advancedSettings.expenseAccounts
-    : {};
-  const injections = Array.isArray(expenseAccounts.injections) ? expenseAccounts.injections : [];
-  return { rowId: row?.id || null, advancedSettings, injections };
-};
-const writeExpenseAccountConfig = async (salonId, advancedSettings, injections) => {
-  const current = await prisma.salonSetting.findFirst({
-    where: { salonId, branchId: null },
-    select: { id: true }
-  });
-  const nextAdvancedSettings = {
-    ...(advancedSettings && typeof advancedSettings === "object" ? advancedSettings : {}),
-    expenseAccounts: {
-      ...((advancedSettings?.expenseAccounts && typeof advancedSettings.expenseAccounts === "object") ? advancedSettings.expenseAccounts : {}),
-      injections
-    }
-  };
-
-  if (current?.id) {
-    return prisma.salonSetting.update({
-      where: { id: current.id },
-      data: { advancedSettings: nextAdvancedSettings }
-    });
-  }
-
-  return prisma.salonSetting.create({
-    data: {
-      salonId,
-      branchId: null,
-      advancedSettings: nextAdvancedSettings
-    }
-  });
-};
 
 export const registerOperationsRoutes = (ownerRouter) => {
   ownerRouter.get("/expense-categories", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "view"), async (req, res) => {
-    let cats = await prisma.expenseCategory.findMany({ where: { salonId: req.salonId }, orderBy: { name: "asc" } });
-    if (cats.length === 0) {
-      const defaults = [
-        { name: "Rent", description: "Salon space rental" },
-        { name: "Utilities", description: "Electricity, water, internet" },
-        { name: "Salaries", description: "Staff salaries and wages" },
-        { name: "Inventory", description: "Product purchases and stock" },
-        { name: "Marketing", description: "Advertising and promotions" },
-        { name: "Maintenance", description: "Equipment repair and upkeep" },
-        { name: "Supplies", description: "General salon supplies" },
-        { name: "Insurance", description: "Business insurance premiums" },
-        { name: "Professional Development", description: "Training and certifications" },
-        { name: "Miscellaneous", description: "Other expenses" }
-      ];
-      for (const cat of defaults) {
-        await prisma.expenseCategory.create({ data: { salonId: req.salonId, name: cat.name, description: cat.description } });
-      }
-      cats = await prisma.expenseCategory.findMany({ where: { salonId: req.salonId }, orderBy: { name: "asc" } });
-    }
-    res.json(cats);
+    res.json(await prisma.expenseCategory.findMany({ where: { salonId: req.salonId }, orderBy: { name: "asc" } }));
   });
   ownerRouter.post("/expense-categories", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "create"), validate(schemas.expenseCategory), async (req, res) => {
     res.status(201).json(await prisma.expenseCategory.create({ data: { salonId: req.salonId, name: req.body.name, description: req.body.description || null } }));
@@ -87,7 +18,6 @@ export const registerOperationsRoutes = (ownerRouter) => {
     const q = String(req.query.q || "").trim();
     const status = String(req.query.status || "").trim();
     const branchId = req.query.branchId ? String(req.query.branchId) : null;
-    const paymentMode = normalizePaymentModeQuery(q);
     res.json(await prisma.expense.findMany({
       where: {
         salonId: req.salonId,
@@ -95,9 +25,9 @@ export const registerOperationsRoutes = (ownerRouter) => {
         ...(branchId ? { branchId } : {}),
         ...(q ? {
           OR: [
-            { title: { contains: q } },
-            { notes: { contains: q } },
-            ...(paymentMode ? [{ paymentMode }] : [])
+            { title: { contains: q, mode: "insensitive" } },
+            { notes: { contains: q, mode: "insensitive" } },
+            { paymentMode: { contains: q, mode: "insensitive" } }
           ]
         } : {})
       },
@@ -105,7 +35,7 @@ export const registerOperationsRoutes = (ownerRouter) => {
       orderBy: { expenseDate: "desc" }
     }));
   });
-  ownerRouter.post("/expenses", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "create"), attachSalonSettings, validate(schemas.expense), async (req, res) => {
+  ownerRouter.post("/expenses", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "create"), validate(schemas.expense), async (req, res) => {
     const row = await prisma.expense.create({
       data: {
         salonId: req.salonId,
@@ -113,69 +43,17 @@ export const registerOperationsRoutes = (ownerRouter) => {
         categoryId: req.body.categoryId || null,
         vendorId: req.body.vendorId || null,
         createdByMembershipId: req.user.membershipId || null,
-        approvedByMembershipId: req.user.membershipId || null,
         title: req.body.title,
         amount: req.body.amount,
         expenseDate: new Date(req.body.expenseDate),
         paymentMode: req.body.paymentMode || null,
-        status: "APPROVED",
+        status: req.body.status || "PENDING",
         notes: req.body.notes || null,
         receiptUrl: req.body.receiptUrl || null,
         attachmentUrl: req.body.attachmentUrl || null
       }
     });
-    await createAuditLog({
-      salonId: req.salonId,
-      actorUserId: req.user.userId,
-      actorMembershipId: req.user.membershipId,
-      module: "EXPENSES",
-      action: "CREATED_APPROVED",
-      entityType: "Expense",
-      entityId: row.id,
-      summary: `${row.title} expense created`
-    });
     res.status(201).json(row);
-  });
-  ownerRouter.get("/expenses/reports", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "view"), async (req, res) => {
-    const rows = await prisma.expense.findMany({ where: { salonId: req.salonId }, include: { category: true, branch: true }, orderBy: { expenseDate: "desc" } });
-    res.json({
-      total: rows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
-      approved: rows.filter((row) => row.status === "APPROVED" || row.status === "PAID"),
-      rows
-    });
-  });
-  ownerRouter.get("/expenses/accounts", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "view"), async (req, res) => {
-    const { injections } = await readExpenseAccountConfig(req.salonId);
-    res.json({ injections });
-  });
-  ownerRouter.post("/expenses/accounts/injections", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "edit"), async (req, res) => {
-    const accountMode = normalizeAccountMode(req.body.accountMode);
-    const amount = Number(req.body.amount || 0);
-    if (!accountMode) return res.status(400).json({ message: "Valid account mode is required" });
-    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: "Valid positive amount is required" });
-
-    const { advancedSettings, injections } = await readExpenseAccountConfig(req.salonId);
-    const nextInjection = {
-      id: randomUUID(),
-      accountMode,
-      amount,
-      note: req.body.note ? String(req.body.note).trim() : "Owner balance injection",
-      date: req.body.date || new Date().toISOString().slice(0, 10),
-      createdAt: new Date().toISOString(),
-      createdByMembershipId: req.user.membershipId || null
-    };
-    await writeExpenseAccountConfig(req.salonId, advancedSettings, [...injections, nextInjection]);
-    await createAuditLog({
-      salonId: req.salonId,
-      actorUserId: req.user.userId,
-      actorMembershipId: req.user.membershipId,
-      module: "EXPENSES",
-      action: "ACCOUNT_INJECTION_ADDED",
-      entityType: "SalonSetting",
-      entityId: nextInjection.id,
-      summary: `${accountMode} account balance injected`
-    });
-    res.status(201).json(nextInjection);
   });
   ownerRouter.get("/expenses/:id", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "view"), async (req, res) => {
     const row = await prisma.expense.findFirst({ where: { id: req.params.id, salonId: req.salonId }, include: { branch: true, category: true, vendor: true } });
@@ -215,29 +93,17 @@ export const registerOperationsRoutes = (ownerRouter) => {
   ownerRouter.patch("/expenses/:id/reject", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "approve"), validate(schemas.expenseApproval), async (req, res) => {
     const row = await prisma.expense.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!row) return res.status(404).json({ message: "Expense not found" });
-    const updated = await prisma.expense.update({
-      where: { id: row.id },
-      data: { status: "REJECTED", approvalNote: req.body.approvalNote || null, approvedByMembershipId: req.user.membershipId || null }
-    });
-    await createAuditLog({
-      salonId: req.salonId,
-      actorUserId: req.user.userId,
-      actorMembershipId: req.user.membershipId,
-      module: "EXPENSES",
-      action: "REJECTED",
-      entityType: "Expense",
-      entityId: updated.id,
-      summary: `Expense ${updated.title} rejected`
-    });
-    res.json(updated);
+    res.json(await prisma.expense.update({ where: { id: row.id }, data: { status: "REJECTED", approvalNote: req.body.approvalNote || null, approvedByMembershipId: req.user.membershipId || null } }));
   });
-  ownerRouter.delete("/expenses/:id", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "edit"), async (req, res) => {
-    const row = await prisma.expense.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
-    if (!row) return res.status(404).json({ message: "Expense not found" });
-    await prisma.expense.delete({ where: { id: row.id } });
-    await createAuditLog({ salonId: req.salonId, actorUserId: req.user.userId, actorMembershipId: req.user.membershipId, module: "EXPENSES", action: "DELETED", entityType: "Expense", entityId: row.id, summary: `Expense ${row.title} deleted` });
-    res.json({ message: "Expense deleted successfully" });
+  ownerRouter.get("/expenses/reports", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "view"), async (req, res) => {
+    const rows = await prisma.expense.findMany({ where: { salonId: req.salonId }, include: { category: true, branch: true }, orderBy: { expenseDate: "desc" } });
+    res.json({
+      total: rows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+      approved: rows.filter((row) => row.status === "APPROVED" || row.status === "PAID"),
+      rows
+    });
   });
+
   ownerRouter.get("/attendance", requireFeatureEnabled("attendance"), requireSalonPermission("attendance", "view"), async (req, res) => {
     const q = String(req.query.q || "").trim();
     const branchId = req.query.branchId ? String(req.query.branchId) : null;
@@ -245,7 +111,7 @@ export const registerOperationsRoutes = (ownerRouter) => {
       where: {
         salonId: req.salonId,
         ...(branchId ? { branchId } : {}),
-        ...(q ? { userSalon: { is: { user: { is: { name: { contains: q } } } } } } : {})
+        ...(q ? { userSalon: { is: { user: { is: { name: { contains: q, mode: "insensitive" } } } } } } : {})
       },
       include: { userSalon: { include: { user: true } }, branch: true },
       orderBy: { checkInAt: "desc" }
@@ -295,7 +161,7 @@ export const registerOperationsRoutes = (ownerRouter) => {
       where: {
         salonId: req.salonId,
         ...(status ? { status } : {}),
-        ...(q ? { userSalon: { is: { user: { is: { name: { contains: q } } } } } } : {})
+        ...(q ? { userSalon: { is: { user: { is: { name: { contains: q, mode: "insensitive" } } } } } } : {})
       },
       include: { userSalon: { include: { user: true } }, approvedByMembership: { include: { user: true } } },
       orderBy: { createdAt: "desc" }
@@ -337,9 +203,9 @@ export const registerOperationsRoutes = (ownerRouter) => {
         salonId: req.salonId,
         ...(q ? {
           OR: [
-            { name: { contains: q } },
-            { targetType: { contains: q } },
-            { notes: { contains: q } }
+            { name: { contains: q, mode: "insensitive" } },
+            { targetType: { contains: q, mode: "insensitive" } },
+            { notes: { contains: q, mode: "insensitive" } }
           ]
         } : {})
       },
@@ -461,10 +327,10 @@ export const registerOperationsRoutes = (ownerRouter) => {
           { OR: [{ userSalonId: null }, { userSalonId: req.user.membershipId || "" }] },
           ...(q ? [{
             OR: [
-              { title: { contains: q } },
-              { message: { contains: q } },
-              { type: { contains: q } },
-              { linkUrl: { contains: q } }
+              { title: { contains: q, mode: "insensitive" } },
+              { message: { contains: q, mode: "insensitive" } },
+              { type: { contains: q, mode: "insensitive" } },
+              { linkUrl: { contains: q, mode: "insensitive" } }
             ]
           }] : [])
         ],
@@ -485,10 +351,10 @@ export const registerOperationsRoutes = (ownerRouter) => {
           { OR: [{ userSalonId: null }, { userSalonId: req.user.membershipId || "" }] },
           ...(q ? [{
             OR: [
-              { title: { contains: q } },
-              { message: { contains: q } },
-              { type: { contains: q } },
-              { linkUrl: { contains: q } }
+              { title: { contains: q, mode: "insensitive" } },
+              { message: { contains: q, mode: "insensitive" } },
+              { type: { contains: q, mode: "insensitive" } },
+              { linkUrl: { contains: q, mode: "insensitive" } }
             ]
           }] : [])
         ],
@@ -534,16 +400,15 @@ export const registerOperationsRoutes = (ownerRouter) => {
         ...(req.query.action ? { action: String(req.query.action) } : {}),
         ...(q ? {
           OR: [
-            { module: { contains: q } },
-            { action: { contains: q } },
-            { entityType: { contains: q } },
-            { entityId: { contains: q } },
-            { summary: { contains: q } },
-            { reference: { contains: q } }
+            { module: { contains: q, mode: "insensitive" } },
+            { action: { contains: q, mode: "insensitive" } },
+            { entityType: { contains: q, mode: "insensitive" } },
+            { entityId: { contains: q, mode: "insensitive" } },
+            { summary: { contains: q, mode: "insensitive" } },
+            { reference: { contains: q, mode: "insensitive" } }
           ]
         } : {})
       },
-      include: { actorMembership: { include: { user: true } } },
       orderBy: { createdAt: "desc" }
     }));
   });
@@ -556,12 +421,12 @@ export const registerOperationsRoutes = (ownerRouter) => {
         ...(req.query.action ? { action: String(req.query.action) } : {}),
         ...(q ? {
           OR: [
-            { module: { contains: q } },
-            { action: { contains: q } },
-            { entityType: { contains: q } },
-            { entityId: { contains: q } },
-            { summary: { contains: q } },
-            { reference: { contains: q } }
+            { module: { contains: q, mode: "insensitive" } },
+            { action: { contains: q, mode: "insensitive" } },
+            { entityType: { contains: q, mode: "insensitive" } },
+            { entityId: { contains: q, mode: "insensitive" } },
+            { summary: { contains: q, mode: "insensitive" } },
+            { reference: { contains: q, mode: "insensitive" } }
           ]
         } : {})
       },
@@ -576,4 +441,3 @@ export const registerOperationsRoutes = (ownerRouter) => {
     res.send(csv);
   });
 };
-

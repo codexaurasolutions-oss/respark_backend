@@ -123,25 +123,6 @@ superAdminRouter.post("/salons", validate(schemas.salon), asyncHandler(async (re
       }
     });
 
-    const defaultExpenseCategories = [
-      { name: "Rent", description: "Salon space rental" },
-      { name: "Utilities", description: "Electricity, water, internet" },
-      { name: "Salaries", description: "Staff salaries and wages" },
-      { name: "Inventory", description: "Product purchases and stock" },
-      { name: "Marketing", description: "Advertising and promotions" },
-      { name: "Maintenance", description: "Equipment repair and upkeep" },
-      { name: "Supplies", description: "General salon supplies" },
-      { name: "Insurance", description: "Business insurance premiums" },
-      { name: "Professional Development", description: "Training and certifications" },
-      { name: "Miscellaneous", description: "Other expenses" }
-    ];
-
-    for (const cat of defaultExpenseCategories) {
-      await tx.expenseCategory.create({
-        data: { salonId: createdSalon.id, name: cat.name, description: cat.description }
-      });
-    }
-
     if (ownerEmail && ownerName && ownerPassword) {
       const owner = await tx.user.create({
         data: {
@@ -177,12 +158,12 @@ superAdminRouter.get("/salons", asyncHandler(async (req, res) => {
         ...(status ? { status } : {}),
         ...(q ? {
           OR: [
-            { name: { contains: q } },
-            { slug: { contains: q } },
-            { email: { contains: q } },
-            { phone: { contains: q } },
-            { city: { contains: q } },
-            { country: { contains: q } }
+            { name: { contains: q, mode: "insensitive" } },
+            { slug: { contains: q, mode: "insensitive" } },
+            { email: { contains: q, mode: "insensitive" } },
+            { phone: { contains: q, mode: "insensitive" } },
+            { city: { contains: q, mode: "insensitive" } },
+            { country: { contains: q, mode: "insensitive" } }
           ]
         } : {})
       },
@@ -346,9 +327,9 @@ superAdminRouter.get("/subscriptions", asyncHandler(async (req, res) => {
       ...(paymentStatus ? { paymentStatus } : {}),
       ...(q ? {
         OR: [
-          { salon: { is: { name: { contains: q } } } },
-          { plan: { is: { name: { contains: q } } } },
-          { notes: { contains: q } }
+          { salon: { is: { name: { contains: q, mode: "insensitive" } } } },
+          { plan: { is: { name: { contains: q, mode: "insensitive" } } } },
+          { notes: { contains: q, mode: "insensitive" } }
         ]
       } : {})
     },
@@ -449,10 +430,10 @@ superAdminRouter.get("/demo-leads", asyncHandler(async (req, res) => {
         ...(status ? { status } : {}),
         ...(q ? {
           OR: [
-            { name: { contains: q } },
-            { email: { contains: q } },
-            { phone: { contains: q } },
-            { message: { contains: q } }
+            { name: { contains: q, mode: "insensitive" } },
+            { email: { contains: q, mode: "insensitive" } },
+            { phone: { contains: q, mode: "insensitive" } },
+            { message: { contains: q, mode: "insensitive" } }
           ]
         } : {})
       },
@@ -515,10 +496,10 @@ superAdminRouter.get("/support-tickets", asyncHandler(async (req, res) => {
       ...(priority ? { priority } : {}),
       ...(q ? {
         OR: [
-          { title: { contains: q } },
-          { description: { contains: q } },
-          { category: { contains: q } },
-          { salon: { is: { name: { contains: q } } } }
+          { title: { contains: q, mode: "insensitive" } },
+          { description: { contains: q, mode: "insensitive" } },
+          { category: { contains: q, mode: "insensitive" } },
+          { salon: { is: { name: { contains: q, mode: "insensitive" } } } }
         ]
       } : {})
     },
@@ -605,7 +586,7 @@ superAdminRouter.post("/support-tickets/:id/messages", asyncHandler(async (req, 
 }));
 superAdminRouter.get("/settings", asyncHandler(async (req, res) => {
   const settings = await prisma.globalSetting.findFirst();
-  res.json(settings || { maintenanceMode: false, invoicePrefix: "INV", systemName: "Skillify SaaS" });
+  res.json(settings || { maintenanceMode: false, invoicePrefix: "INV", systemName: "ReSpark Clone SaaS" });
 }));
 superAdminRouter.post("/settings", asyncHandler(async (req, res) => {
   const {
@@ -727,4 +708,3 @@ superAdminRouter.get("/audit-logs", asyncHandler(async (req, res) => {
 
   res.json(logs);
 }));
-

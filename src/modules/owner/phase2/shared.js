@@ -27,7 +27,7 @@ export const fetchAppointment = (salonId, id) =>
       primaryStaff: { include: { user: true } },
       items: {
         include: {
-          service: { include: { category: true, branch: true } },
+          service: true,
           assignedStaff: { include: { userSalon: { include: { user: true } } } }
         }
       },

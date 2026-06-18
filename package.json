@@ -5,16 +5,14 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node scripts/pre-migrate.mjs && prisma db push --accept-data-loss && node src/server.js",
-    "start:prod": "node scripts/pre-migrate.mjs && prisma db push --accept-data-loss && node src/server.js",
+    "start": "node src/server.js",
     "healthcheck": "node scripts/healthcheck.mjs",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node prisma/seed/seed.js",
     "test": "node ./node_modules/vitest/vitest.mjs run",
-    "test:watch": "node ./node_modules/vitest/vitest.mjs",
-    "postinstall": "prisma generate"
+    "test:watch": "node ./node_modules/vitest/vitest.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",
@@ -32,7 +30,6 @@
     "nodemailer": "^8.0.10",
     "pdfkit": "^0.18.0",
     "qrcode": "^1.5.4",
-    "xlsx": "^0.18.5",
     "zod": "^4.0.0"
   },
   "devDependencies": {

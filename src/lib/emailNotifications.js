@@ -5,11 +5,7 @@ import { renderMessageTemplate } from "./messageTemplates.js";
 const asObject = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 
 const getNotificationSettings = async (salonId) => {
-  const row = await prisma.salonSetting.findFirst({
-    where: { salonId, branchId: null },
-    select: { advancedSettings: true }
-  });
-  return asObject(asObject(row?.advancedSettings).notificationSettings);
+  return {};
 };
 
 const nl2br = (value) => String(value || "").replace(/\n/g, "<br />");

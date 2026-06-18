@@ -1,14 +1,13 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../../lib/prisma.js";
-import { attemptCustomerTemplateEmail } from "../../lib/emailNotifications.js";
 import { createOnlineOrder } from "../../lib/phase3.js";
 import { checkStaffAvailability, ensureScopedStaffMembership } from "../../lib/phase2.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { signAccessToken, signRefreshToken } from "../../lib/tokens.js";
 import { requireCustomerAuth } from "../../middlewares/rbac.js";
 import { schemas, validate } from "../../middlewares/validate.js";
-import { buildCatalogLink, ensureDateWithinGenericBookingWindow, getSalonGenericSettings } from "../../lib/phase3.js";
+import { buildCatalogLink } from "../../lib/phase3.js";
 
 export const customerRouter = Router();
 
@@ -76,12 +75,6 @@ customerRouter.post("/register", validate(schemas.customerRegister), asyncHandle
   const salon = await prisma.salon.findUnique({ where: { slug: req.body.salonSlug } });
   if (!salon) return res.status(404).json({ message: "Salon not found" });
   await ensureCustomerPortalEnabledBySalonId(salon.id);
-  const salonSettings = await prisma.salonSetting.findFirst({ where: { salonId: salon.id, branchId: null }, select: { advancedSettings: true } });
-  const advancedSettings = typeof salonSettings?.advancedSettings === "object" ? salonSettings.advancedSettings : {};
-  const otpRequired = advancedSettings.genericSettings?.otpValidationOnRegistration === true;
-  if (otpRequired && !req.body.otpCode) {
-    return res.status(400).json({ message: "OTP verification is required for registration. Provide otpCode." });
-  }
   const email = req.body.email || `${req.body.phone.replace(/[^\d]/g, "")}@customer.local`;
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) return res.status(400).json({ message: "Customer account already exists for this email/phone" });
@@ -207,19 +200,10 @@ customerRouter.patch("/appointments/:id/reschedule", requireCustomerAuth, requir
     }
   });
   if (!row) return res.status(404).json({ message: "Appointment not found" });
-  const [branchSetting, globalSetting, genericSettings] = await Promise.all([
-    prisma.salonSetting.findFirst({ where: { salonId: req.user.salonId, branchId: row.branchId } }),
-    prisma.salonSetting.findFirst({ where: { salonId: req.user.salonId, branchId: null } }),
-    getSalonGenericSettings(req.user.salonId)
-  ]);
-  const setting = branchSetting || globalSetting;
-  if (genericSettings.allowRescheduleFromCatalogue === false) {
-    return res.status(400).json({ message: "Salon booking rules do not allow customer reschedule." });
-  }
+  const setting = await prisma.salonSetting.findFirst({ where: { salonId: req.user.salonId, branchId: row.branchId } }) || await prisma.salonSetting.findFirst({ where: { salonId: req.user.salonId, branchId: null } });
   if (setting?.cancellationPolicy && String(setting.cancellationPolicy).toLowerCase().includes("no reschedule")) {
     return res.status(400).json({ message: "Salon booking rules do not allow customer reschedule." });
   }
-  ensureDateWithinGenericBookingWindow(genericSettings, req.body.startAt, req.body.endAt);
 
   for (const item of row.items) {
     const staffMembershipIds = item.assignedStaff.map((assignment) => assignment.userSalonId);
@@ -255,10 +239,6 @@ customerRouter.patch("/appointments/:id/reschedule", requireCustomerAuth, requir
 customerRouter.patch("/appointments/:id/cancel", requireCustomerAuth, requireCustomerPortalEnabled, validate(schemas.customerCancel), asyncHandler(async (req, res) => {
   const row = await prisma.appointment.findFirst({ where: { id: req.params.id, salonId: req.user.salonId, customerId: req.user.customerId } });
   if (!row) return res.status(404).json({ message: "Appointment not found" });
-  const genericSettings = await getSalonGenericSettings(req.user.salonId);
-  if (genericSettings.allowCancellationFromCatalogue === false) {
-    return res.status(400).json({ message: "Salon booking rules do not allow customer cancellation." });
-  }
   const updated = await prisma.appointment.update({ where: { id: row.id }, data: { status: "CANCELLED", notes: req.body.note || row.notes } });
   await prisma.appointmentLog.create({ data: { appointmentId: row.id, action: "CUSTOMER_CANCELLED", details: req.body.note || "Cancelled from customer portal", fromStatus: row.status, toStatus: "CANCELLED" } });
   res.json(updated);
@@ -310,18 +290,11 @@ customerRouter.get("/orders/:id", requireCustomerAuth, requireCustomerPortalEnab
   res.json(row);
 }));
 customerRouter.post("/orders", requireCustomerAuth, requireCustomerPortalEnabled, validate(schemas.createOrder), asyncHandler(async (req, res) => {
-  const order = await createOnlineOrder({
+  res.status(201).json(await createOnlineOrder({
     salonId: req.user.salonId,
     body: { ...req.body, customerId: req.user.customerId },
     source: "CUSTOMER_PORTAL"
-  });
-  await attemptCustomerTemplateEmail({
-    salonId: req.user.salonId,
-    toEmail: order.customer?.email || req.body.customerEmail || "",
-    templateType: "order_confirmation",
-    context: { orderId: order.id, customerId: order.customerId }
-  });
-  res.status(201).json(order);
+  }));
 }));
 
 customerRouter.get("/coupons", requireCustomerAuth, requireCustomerPortalEnabled, asyncHandler(async (req, res) => {

@@ -58,7 +58,7 @@ describe("owner customers", () => {
   it("ignores branchId when creating a customer while still validating the branch", async () => {
     const response = await request(buildApp()).post("/owner/customers").send({
       name: "Customer QA",
-      phone: "9876543210",
+      phone: "03001234567",
       email: "customer@local",
       branchId: "branch-1",
       source: "Walk In"
@@ -83,7 +83,7 @@ describe("owner customers", () => {
     expect(response.body.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ field: "name", message: "Name is required" }),
-        expect.objectContaining({ field: "phone", message: "Enter a valid Indian +91 mobile number" })
+        expect.objectContaining({ field: "phone", message: "Phone must be at least 5 characters" })
       ])
     );
   });
@@ -93,7 +93,7 @@ describe("owner customers", () => {
       {
         id: "customer-1",
         name: "Areeba Khan",
-        phone: "+919876543210",
+        phone: "03001234567",
         email: "areeba@local",
         source: "Instagram",
         totalSpend: 15000,
@@ -109,10 +109,10 @@ describe("owner customers", () => {
     expect(prismaMock.customer.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         OR: expect.arrayContaining([
-          expect.objectContaining({ name: { contains: "areeba" } }),
-          expect.objectContaining({ phone: { contains: "areeba" } }),
-          expect.objectContaining({ email: { contains: "areeba" } }),
-          expect.objectContaining({ source: { contains: "areeba" } })
+          expect.objectContaining({ name: { contains: "areeba", mode: "insensitive" } }),
+          expect.objectContaining({ phone: { contains: "areeba", mode: "insensitive" } }),
+          expect.objectContaining({ email: { contains: "areeba", mode: "insensitive" } }),
+          expect.objectContaining({ source: { contains: "areeba", mode: "insensitive" } })
         ]),
         totalSpend: { gte: 10000 },
         invoices: { some: { branchId: "branch-1" } }

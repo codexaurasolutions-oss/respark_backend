@@ -107,60 +107,9 @@ export const registerCommunicationRoutes = (ownerRouter) => {
       deliveryStatusEnabled: req.body.deliveryStatusEnabled ?? false,
       readStatusEnabled: req.body.readStatusEnabled ?? false
     };
-    const saved = existing
+    res.json(existing
       ? await prisma.whatsAppSetting.update({ where: { id: existing.id }, data })
-      : await prisma.whatsAppSetting.create({ data: { salonId: req.salonId, ...data } });
-
-    const settingsRow = await prisma.salonSetting.findFirst({
-      where: { salonId: req.salonId, branchId: null },
-      select: { id: true, advancedSettings: true, smsSettings: true }
-    });
-    const currentAdvancedSettings = settingsRow?.advancedSettings && typeof settingsRow.advancedSettings === "object"
-      ? settingsRow.advancedSettings
-      : {};
-    const currentSmsSettings = settingsRow?.smsSettings && typeof settingsRow.smsSettings === "object"
-      ? settingsRow.smsSettings
-      : {};
-    const nextAdvancedSettings = {
-      ...currentAdvancedSettings,
-      notificationSettings: {
-        ...(currentAdvancedSettings.notificationSettings && typeof currentAdvancedSettings.notificationSettings === "object"
-          ? currentAdvancedSettings.notificationSettings
-          : {}),
-        whatsappEnabled: data.automationEnabled !== false,
-        pushEnabled: data.readStatusEnabled === true || data.deliveryStatusEnabled === true
-      }
-    };
-    const nextSmsSettings = {
-      ...currentSmsSettings,
-      gatewayProvider: data.providerName ? `${String(data.providerName).toUpperCase()}_PLACEHOLDER` : currentSmsSettings.gatewayProvider || "TWILIO_PLACEHOLDER",
-      senderId: data.senderName || currentSmsSettings.senderId || "",
-      apiKey: currentSmsSettings.apiKey || ""
-    };
-
-    if (settingsRow) {
-      await prisma.salonSetting.update({
-        where: { id: settingsRow.id },
-        data: {
-          advancedSettings: nextAdvancedSettings,
-          smsSettings: nextSmsSettings
-        }
-      });
-    } else {
-      await prisma.salonSetting.create({
-        data: {
-          salonId: req.salonId,
-          branchId: null,
-          invoicePrefix: "INV",
-          taxLabel: "Tax",
-          paymentModes: {},
-          allowNegativeStock: false,
-          advancedSettings: nextAdvancedSettings,
-          smsSettings: nextSmsSettings
-        }
-      });
-    }
-    res.json(saved);
+      : await prisma.whatsAppSetting.create({ data: { salonId: req.salonId, ...data } }));
   });
 
   ownerRouter.get("/whatsapp/logs", requireFeatureEnabled("whatsapp"), requireSalonPermission("whatsapp", "view"), async (req, res) => {
@@ -174,11 +123,11 @@ export const registerCommunicationRoutes = (ownerRouter) => {
         ...(templateType ? { templateType } : {}),
         ...(q ? {
           OR: [
-            { phone: { contains: q } },
-            { templateType: { contains: q } },
-            { message: { contains: q } },
-            { customer: { is: { name: { contains: q } } } },
-            { campaign: { is: { name: { contains: q } } } }
+            { phone: { contains: q, mode: "insensitive" } },
+            { templateType: { contains: q, mode: "insensitive" } },
+            { message: { contains: q, mode: "insensitive" } },
+            { customer: { is: { name: { contains: q, mode: "insensitive" } } } },
+            { campaign: { is: { name: { contains: q, mode: "insensitive" } } } }
           ]
         } : {})
       },
@@ -251,11 +200,11 @@ export const registerCommunicationRoutes = (ownerRouter) => {
         ...(templateType ? { templateType } : {}),
         ...(q ? {
           OR: [
-            { phone: { contains: q } },
-            { templateType: { contains: q } },
-            { message: { contains: q } },
-            { customer: { is: { name: { contains: q } } } },
-            { campaign: { is: { name: { contains: q } } } }
+            { phone: { contains: q, mode: "insensitive" } },
+            { templateType: { contains: q, mode: "insensitive" } },
+            { message: { contains: q, mode: "insensitive" } },
+            { customer: { is: { name: { contains: q, mode: "insensitive" } } } },
+            { campaign: { is: { name: { contains: q, mode: "insensitive" } } } }
           ]
         } : {})
       },
@@ -342,4 +291,3 @@ export const registerCommunicationRoutes = (ownerRouter) => {
     }));
   });
 };
-
