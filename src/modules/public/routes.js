@@ -33,7 +33,6 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
   const salon = await prisma.salon.findUnique({ 
     where: { slug: req.params.slug },
     include: {
-      websiteConfig: true,
       catalogSettings: true,
       ecommerceSettings: true,
       settings: { where: { branchId: null }, take: 1 }

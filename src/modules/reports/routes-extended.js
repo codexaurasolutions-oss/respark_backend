@@ -88,7 +88,7 @@ const buildDateFilter = (req, field = "createdAt") => {
       include: { user: true }
     });
     const records = await prisma.attendanceRecord.findMany({
-      where: { salonId: req.salonId, ...buildDateFilter(req, "date") },
+      where: { salonId: req.salonId, ...buildDateFilter(req, "checkInAt") },
       include: { userSalon: { include: { user: true } } }
     });
     const breakRecords = await prisma.staffBreak.findMany({
@@ -99,7 +99,7 @@ const buildDateFilter = (req, field = "createdAt") => {
     staff.forEach(s => {
       staffMap[s.id] = {
         "STAFF": s.user?.name || "-",
-        "DESIGNATION": s.designation || s.roleTitle || "-",
+        "DESIGNATION": s.roleTitle || "-",
         "STAFF NUMBER": s.phone || "-",
         "TOTAL WORKING HOURS": 0,
         "TOTAL BREAK TIME": 0
@@ -156,16 +156,16 @@ const buildDateFilter = (req, field = "createdAt") => {
   reportsRouter.get("/gift-card-sold", async (req, res) => {
     const cards = await prisma.giftCard.findMany({
       where: { salonId: req.salonId, ...buildDateFilter(req) },
-      include: { issuedTo: true, branch: true },
+      include: { issuedToCustomer: true },
       orderBy: { createdAt: "desc" }
     });
     res.json(cards.map(c => ({
       date: new Date(c.createdAt).toLocaleDateString(),
       code: c.code,
-      customer: c.issuedTo?.name || "Walk-in",
-      value: toAmount(c.initialValue),
+      customer: c.issuedToCustomer?.name || "Walk-in",
+      value: toAmount(c.originalAmount),
       expiry: c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : "Never",
-      branch: c.branch?.name || "All"
+      branch: "All"
     })));
   });
 
@@ -181,7 +181,7 @@ const buildDateFilter = (req, field = "createdAt") => {
       customer: r.customer?.name || "Walk-in",
       amountUsed: toAmount(r.amountUsed),
       invoiceNumber: r.invoice?.invoiceNumber,
-      remainingBalance: r.giftCard?.currentValue ? toAmount(r.giftCard.currentValue) : 0
+      remainingBalance: r.giftCard?.balanceAmount ? toAmount(r.giftCard.balanceAmount) : 0
     })));
   });
 
@@ -277,7 +277,8 @@ const buildDateFilter = (req, field = "createdAt") => {
     const tips = [];
     invoices.forEach(inv => {
       inv.items.forEach(item => {
-        if (toAmount(item.tipAmount) > 0) {
+        const tipAmt = toAmount(item.tip || item.tipAmount || 0);
+        if (tipAmt > 0) {
           const paymentModes = inv.payments.map(p => p.mode).filter(Boolean).join(", ");
           tips.push({
             "DATE": new Date(inv.createdAt).toISOString().slice(0, 10),
@@ -285,7 +286,7 @@ const buildDateFilter = (req, field = "createdAt") => {
             "GUEST NUMBER": inv.customer?.phone || "-",
             "INVOICE NO": inv.invoiceNumber,
             "STAFF": item.staffUserSalon?.user?.name || item.staffName || "-",
-            "TIP AMOUNT": toAmount(item.tipAmount),
+            "TIP AMOUNT": tipAmt,
             "PAYMENT MODE": paymentModes || "-"
           });
         }
@@ -415,7 +416,7 @@ const buildDateFilter = (req, field = "createdAt") => {
       date: new Date(po.createdAt).toLocaleDateString(),
       vendor: po.vendor?.name || "-",
       products: po.items.map(i => i.product?.name).join(", "),
-      amount: toAmount(po.totalAmount),
+      amount: toAmount(po.totalCost),
       status: po.status,
       receivedOn: po.receivedAt ? new Date(po.receivedAt).toLocaleDateString() : "-"
     })));
@@ -501,7 +502,7 @@ const buildDateFilter = (req, field = "createdAt") => {
       type: m.movementType,
       qty: toAmount(m.quantity),
       staff: "System",
-      note: m.notes || "-"
+      note: m.note || "-"
     })));
   });
   
@@ -532,7 +533,7 @@ const buildDateFilter = (req, field = "createdAt") => {
       staff: f.staffUserSalon?.user?.name || "-",
       service: f.service?.name || "-",
       rating: f.rating,
-      comment: f.comments || "-"
+      comment: f.message || "-"
     })));
   });
 

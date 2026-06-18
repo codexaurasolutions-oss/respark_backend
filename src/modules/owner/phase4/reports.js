@@ -149,25 +149,25 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
         branch: row.branch?.name || "",
         service: row.service?.name || "",
         rating: row.rating,
-        status: row.followUpStatus,
-        comment: row.comment || "",
+        status: row.complaintFollowUpStatus || row.status,
+        comment: row.message || "",
         createdAt: row.createdAt
       }));
     } else if (moduleKey === "enquiries") {
       rows = await prisma.enquiry.findMany({
         where: { salonId: req.salonId },
-        include: { branch: true, assignedUserSalon: { include: { user: true } } },
+        include: { interestedBranch: true, assignedToMembership: { include: { user: true } }, interestedService: true },
         orderBy: { createdAt: "desc" }
       });
       rows = rows.map((row) => ({
         id: row.id,
         customerName: row.name,
         source: row.source,
-        service: row.interestedService || "",
-        branch: row.branch?.name || "",
+        service: row.interestedService?.name || "",
+        branch: row.interestedBranch?.name || "",
         priority: row.priority,
         status: row.status,
-        assignedTo: row.assignedUserSalon?.user?.name || "",
+        assignedTo: row.assignedToMembership?.user?.name || "",
         createdAt: row.createdAt
       }));
     } else if (moduleKey === "payroll") {
