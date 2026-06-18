@@ -36,7 +36,6 @@ enum PaymentMode {
   BANK_TRANSFER
   WALLET
   ONLINE
-  BALANCE
 }
 
 enum InvoiceStatus {
@@ -298,7 +297,6 @@ model Salon {
   incentiveRules      IncentiveRule[]
   payrollRuns         PayrollRun[]
   payrollItems        PayrollItem[]
-  websiteConfig       WebsiteConfig?
   notifications       Notification[]
   auditLogs           AuditLog[]
   campaignTemplates   CampaignTemplate[]
@@ -322,24 +320,6 @@ model UserSalon {
   showInCatalog        Boolean                   @default(false)
   isArchived           Boolean                   @default(false)
   permissions          Json?
-  joiningDate          DateTime?
-  designation          String?
-  uanNumber            String?
-  reportingToId        String?
-  workingHours         String?
-  bankName             String?
-  bankBranch           String?
-  accountNumber        String?
-  ifscCode             String?
-  firstName            String?
-  lastName             String?
-  dateOfBirth          DateTime?
-  gender               String?
-  username             String?
-  enableAppointments   Boolean                   @default(true)
-  showAllStaffAppointments Boolean                @default(false)
-  workExperience       Json?
-  documents            Json?
   user                 User                      @relation(fields: [userId], references: [id])
   salon                Salon                     @relation(fields: [salonId], references: [id])
   branch               Branch?                   @relation(fields: [branchId], references: [id])
@@ -480,12 +460,15 @@ model Branch {
 }
 
 model ServiceCategory {
-  id        String   @id @default(cuid())
+  id        String           @id @default(cuid())
   salonId   String
   name      String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  salon     Salon    @relation(fields: [salonId], references: [id])
+  parentId  String?
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  salon     Salon            @relation(fields: [salonId], references: [id])
+  parent    ServiceCategory? @relation("CategoryTree", fields: [parentId], references: [id])
+  children  ServiceCategory[] @relation("CategoryTree")
   services  Service[]
 }
 
@@ -498,7 +481,6 @@ model Service {
   price                Decimal                   @db.Decimal(10, 2)
   durationMin          Int
   description          String?
-  gender               String?
   taxRate              Decimal?                  @db.Decimal(5, 2)
   onlineBookingEnabled Boolean                   @default(false)
   commissionPct        Decimal?                  @db.Decimal(5, 2)
@@ -604,19 +586,6 @@ model Invoice {
   campaignConversions  CampaignConversion[]
 }
 
-model WebsiteConfig {
-  id           String   @id @default(cuid())
-  salonId      String   @unique
-  heroTitle    String?  @db.Text
-  heroSubtitle String?  @db.Text
-  heroImage    String?  @db.Text
-  sections     String?  @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  salon Salon @relation(fields: [salonId], references: [id])
-}
-
 model InvoiceItem {
   id                  String           @id @default(cuid())
   invoiceId           String
@@ -637,8 +606,6 @@ model InvoiceItem {
   packageSessionsUsed Int?             @default(0)
   membershipWalletUsed Decimal?        @db.Decimal(10, 2)
   commissionAmount    Decimal?         @db.Decimal(10, 2)
-  tipAmount           Decimal          @default(0) @db.Decimal(10, 2)
-  batchNumber         String?
   invoice             Invoice          @relation(fields: [invoiceId], references: [id])
   product             Product?         @relation(fields: [productId], references: [id])
   membershipPlan      MembershipPlan?  @relation(fields: [membershipPlanId], references: [id])
@@ -815,21 +782,12 @@ model Product {
   productType        ProductType          @default(RETAIL)
   costPrice          Decimal              @db.Decimal(10, 2)
   sellingPrice       Decimal              @db.Decimal(10, 2)
-  salePrice          Decimal?             @db.Decimal(10, 2)
   currentStock       Decimal              @default(0) @db.Decimal(12, 2)
   minStock           Decimal              @default(0) @db.Decimal(12, 2)
   expiryDate         DateTime?
   allowNegativeStock Boolean              @default(false)
   isOnlineVisible    Boolean              @default(true)
   isActive           Boolean              @default(true)
-  position           Int                  @default(0)
-  targetGroup        String               @default("BOTH")
-  hideFromCatalogue  Boolean              @default(false)
-  nonDiscountable    Boolean              @default(false)
-  description        String?              @db.Text
-  videoLink          String?
-  benefits           String?              @db.Text
-  variations         Json?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   salon              Salon                @relation(fields: [salonId], references: [id])
@@ -842,8 +800,6 @@ model Product {
   reconciliationItems StockReconciliationItem[]
   orderItems         OnlineOrderItem[]
   coupons            Coupon[]
-  packages           PackageProduct[]
-  vendorItems        VendorItem[]
 
   @@unique([salonId, sku])
 }
@@ -868,43 +824,20 @@ model StockMovement {
 }
 
 model Vendor {
-  id              String          @id @default(cuid())
-  salonId         String
-  branchId        String?
-  name            String
-  firmName        String?
-  phone           String?
-  alternateMobile String?
-  email           String?
-  gstNumber       String?
-  address         String?
-  area            String?
-  landmark        String?
-  city            String?
-  pincode         String?
-  notes           String?
-  isActive        Boolean         @default(true)
-  createdAt       DateTime        @default(now())
-  salon           Salon           @relation(fields: [salonId], references: [id])
-  branch          Branch?         @relation(fields: [branchId], references: [id])
-  purchaseOrders  PurchaseOrder[]
-  expenses        Expense[]
-  items           VendorItem[]
-}
-
-model VendorItem {
-  id         String   @id @default(cuid())
-  salonId    String
-  vendorId   String
-  productId  String
-  price      Decimal  @default(0) @db.Decimal(12, 2)
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  vendor     Vendor   @relation(fields: [vendorId], references: [id])
-  product    Product  @relation(fields: [productId], references: [id])
-
-  @@unique([vendorId, productId])
+  id             String          @id @default(cuid())
+  salonId        String
+  branchId       String?
+  name           String
+  phone          String?
+  email          String?
+  address        String?
+  notes          String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  salon          Salon           @relation(fields: [salonId], references: [id])
+  branch         Branch?         @relation(fields: [branchId], references: [id])
+  purchaseOrders PurchaseOrder[]
+  expenses       Expense[]
 }
 
 model PurchaseOrder {
@@ -989,8 +922,6 @@ model MembershipPlan {
   id                  String                  @id @default(cuid())
   salonId             String
   name                String
-  description         String?
-  benefits            Json?
   price               Decimal                 @db.Decimal(10, 2)
   validityDays        Int
   benefitType         MembershipBenefitType
@@ -1049,21 +980,20 @@ model MembershipUsage {
 }
 
 model Package {
-  id              String            @id @default(cuid())
-  salonId         String
-  name            String
-  price           Decimal           @db.Decimal(10, 2)
-  totalSessions   Int
-  validityDays    Int
-  isPublicVisible Boolean           @default(true)
-  isActive        Boolean           @default(true)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  salon           Salon             @relation(fields: [salonId], references: [id])
-  services        PackageService[]
-  products        PackageProduct[]
-  customers       CustomerPackage[]
-  invoiceItems    InvoiceItem[]
+  id            String           @id @default(cuid())
+  salonId       String
+  name          String
+  price         Decimal          @db.Decimal(10, 2)
+  totalSessions Int
+  validityDays  Int
+  isPublicVisible Boolean        @default(true)
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  salon         Salon            @relation(fields: [salonId], references: [id])
+  services      PackageService[]
+  customers     CustomerPackage[]
+  invoiceItems  InvoiceItem[]
 }
 
 model PackageService {
@@ -1071,21 +1001,10 @@ model PackageService {
   packageId String
   serviceId String
   sessions  Int      @default(1)
-  package   Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  package   Package  @relation(fields: [packageId], references: [id])
   service   Service  @relation(fields: [serviceId], references: [id])
 
   @@unique([packageId, serviceId])
-}
-
-model PackageProduct {
-  id        String   @id @default(cuid())
-  packageId String
-  productId String
-  quantity  Int      @default(1)
-  package   Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id])
-
-  @@unique([packageId, productId])
 }
 
 model CustomerPackage {
@@ -1429,8 +1348,6 @@ model SalonSetting {
   bookingNotes           String?
   cancellationPolicy     String?
   paymentGatewaySettings Json?
-  advancedSettings       Json?
-  smsSettings            Json?
   allowNegativeStock     Boolean  @default(false)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
