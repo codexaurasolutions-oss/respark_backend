@@ -542,7 +542,6 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
           create: itemDrafts.map((item) => ({
             serviceName: item.serviceName,
             staffName: item.staffName,
-            batchNumber: item.batchNumber || null,
             qty: item.qty,
             unitPrice: item.unitPrice,
             taxPct: item.taxPct,
