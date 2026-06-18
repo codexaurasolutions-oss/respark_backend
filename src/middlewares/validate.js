@@ -148,6 +148,12 @@ const indianPhoneSchema = z.string().trim()
   .refine((value) => /^\+\d{10,15}$/.test(value), "Enter a valid phone number with country code (e.g. +91... or +92...)");
 const optionalIndianPhoneSchema = z.union([z.literal(""), indianPhoneSchema]).optional()
   .transform((value) => value || undefined);
+const vendorPhoneSchema = z.string().trim().refine(
+  (value) => /^\+91\d{10}$/.test(value),
+  "Enter a valid +91 mobile number with 10 digits"
+);
+const optionalVendorPhoneSchema = z.union([z.literal(""), vendorPhoneSchema]).optional()
+  .transform((value) => value || undefined);
 const emailOrIndianPhoneSchema = z.string().trim().transform((value) => (
   value.includes("@") ? value : normalizeIndianPhone(value)
 )).refine((value) => (
@@ -545,8 +551,8 @@ export const schemas = {
       branchId: z.string().nullable().optional(),
       name: z.string().min(2),
       firmName: optionalString,
-      phone: z.union([z.literal(""), z.string().trim().min(6)]).optional().transform(v => v || undefined),
-      alternateMobile: z.union([z.literal(""), z.string().trim().min(6)]).optional().transform(v => v || undefined),
+      phone: optionalVendorPhoneSchema,
+      alternateMobile: optionalVendorPhoneSchema,
       email: optionalEmailLike,
       gstNumber: optionalString,
       address: optionalString,
