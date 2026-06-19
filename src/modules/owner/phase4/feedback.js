@@ -18,6 +18,31 @@ export const registerFeedbackRoutes = (ownerRouter) => {
     }));
   });
 
+  ownerRouter.get("/feedback/reports", requireFeatureEnabled("feedback"), requireSalonPermission("feedback", "view"), async (req, res) => {
+    const rows = await prisma.customerFeedback.findMany({
+      where: { salonId: req.salonId },
+      include: { branch: true, service: true, staffUserSalon: { include: { user: true } } }
+    });
+    const averageRating = rows.length ? rows.reduce((sum, row) => sum + row.rating, 0) / rows.length : 0;
+    res.json({
+      summary: {
+        total: rows.length,
+        averageRating,
+        negativeCount: rows.filter((row) => row.rating <= 2).length
+      },
+      rows
+    });
+  });
+
+  ownerRouter.get("/feedback/settings", requireFeatureEnabled("feedback"), requireSalonPermission("feedback", "view"), async (req, res) => {
+    const setting = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
+    res.json({
+      whatsappNumber: setting?.whatsappNumber || "",
+      bookingNotes: setting?.bookingNotes || "",
+      cancellationPolicy: setting?.cancellationPolicy || ""
+    });
+  });
+
   ownerRouter.get("/feedback/:id", requireFeatureEnabled("feedback"), requireSalonPermission("feedback", "view"), async (req, res) => {
     const row = await prisma.customerFeedback.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
@@ -113,28 +138,4 @@ export const registerFeedbackRoutes = (ownerRouter) => {
     res.json(updated);
   });
 
-  ownerRouter.get("/feedback/reports", requireFeatureEnabled("feedback"), requireSalonPermission("feedback", "view"), async (req, res) => {
-    const rows = await prisma.customerFeedback.findMany({
-      where: { salonId: req.salonId },
-      include: { branch: true, service: true, staffUserSalon: { include: { user: true } } }
-    });
-    const averageRating = rows.length ? rows.reduce((sum, row) => sum + row.rating, 0) / rows.length : 0;
-    res.json({
-      summary: {
-        total: rows.length,
-        averageRating,
-        negativeCount: rows.filter((row) => row.rating <= 2).length
-      },
-      rows
-    });
-  });
-
-  ownerRouter.get("/feedback/settings", requireFeatureEnabled("feedback"), requireSalonPermission("feedback", "view"), async (req, res) => {
-    const setting = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
-    res.json({
-      whatsappNumber: setting?.whatsappNumber || "",
-      bookingNotes: setting?.bookingNotes || "",
-      cancellationPolicy: setting?.cancellationPolicy || ""
-    });
-  });
 };
