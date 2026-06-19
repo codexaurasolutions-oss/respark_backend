@@ -355,14 +355,20 @@ ownerRouter.get("/customers", requireSalonPermission("customers", "view"), async
       ...(filter === "active_membership" ? { memberships: { some: { status: "ACTIVE", endsAt: { gte: now } } } } : {}),
       ...(filter === "active_package" ? { packages: { some: { status: "ACTIVE", endsAt: { gte: now } } } } : {})
     },
-    include: { preferredStaff: { include: { user: true } } },
+    include: { 
+      preferredStaff: { include: { user: true } },
+      _count: { select: { invoices: true } }
+    },
     orderBy: { createdAt: "desc" }
   });
   const filteredRows = rows.filter((row) => {
     if (filter === "birthday_month") return row.dateOfBirth ? new Date(row.dateOfBirth).getMonth() === now.getMonth() : false;
     if (filter === "anniversary_month") return row.anniversary ? new Date(row.anniversary).getMonth() === now.getMonth() : false;
     return true;
-  });
+  }).map(row => ({
+    ...row,
+    totalOrders: row._count?.invoices || 0
+  }));
   res.json(filteredRows);
 });
 ownerRouter.post("/customers", requireSalonPermission("customers", "create"), validate(schemas.customer), async (req, res) => {

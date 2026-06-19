@@ -357,10 +357,11 @@ export const registerMembershipRoutes = (ownerRouter) => {
         invoices: { include: { items: true, payments: true, branch: true }, orderBy: { createdAt: "desc" } },
         memberships: { include: { membershipPlan: true, usageLogs: true }, orderBy: { createdAt: "desc" } },
         packages: { include: { package: true, usageLogs: true }, orderBy: { createdAt: "desc" } },
-        timelineEntries: { orderBy: { createdAt: "desc" } }
+        timelineEntries: { orderBy: { createdAt: "desc" } },
+        _count: { select: { invoices: true } }
       }
     });
     if (!customer) return res.status(404).json({ message: "Customer not found" });
-    res.json(customer);
+    res.json({ ...customer, totalOrders: customer._count?.invoices || 0 });
   });
 };
