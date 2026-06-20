@@ -484,8 +484,8 @@ export const registerMembershipRoutes = (ownerRouter) => {
       include: {
         appointments: { include: { branch: true, items: { include: { service: true } } }, orderBy: { startAt: "desc" } },
         invoices: { include: { items: true, payments: true, branch: true }, orderBy: { createdAt: "desc" } },
-        memberships: { include: { membershipPlan: true, usageLogs: true }, orderBy: { createdAt: "desc" } },
-        packages: { include: { package: true, usageLogs: true }, orderBy: { createdAt: "desc" } },
+        memberships: { include: { membershipPlan: { include: { services: { include: { service: true } } } }, usageLogs: true }, orderBy: { createdAt: "desc" } },
+        packages: { include: { package: { include: { services: { include: { service: true } } } }, usageLogs: true }, orderBy: { createdAt: "desc" } },
         timelineEntries: { orderBy: { createdAt: "desc" } }
       }
     });

@@ -79,24 +79,33 @@ export const attemptCustomerTemplateEmail = async ({ salonId, toEmail, templateT
     return { skipped: true, reason: "missing-recipient" };
   }
 
-  const template = await resolveMessageTemplate(salonId, templateType);
-  if (!template?.content) {
-    return { skipped: true, reason: "missing-template" };
+  try {
+    const template = await resolveMessageTemplate(salonId, templateType);
+    if (!template?.content) {
+      return { skipped: true, reason: "missing-template" };
+    }
+
+    const variables = await resolveTemplateContext(salonId, context);
+    const html = renderTemplateText(template.content, variables);
+    const subject = template.title || "Salon update";
+    const delivery = await sendMail({
+      to: toEmail,
+      subject,
+      html: `<div>${html}</div>`,
+      text: html
+    });
+
+    return {
+      skipped: false,
+      templateType: template.type,
+      delivery
+    };
+  } catch (error) {
+    console.error(`[emailNotifications] Failed to send email of type ${templateType} to ${toEmail}:`, error);
+    return {
+      skipped: true,
+      reason: "delivery-error",
+      error: error.message
+    };
   }
-
-  const variables = await resolveTemplateContext(salonId, context);
-  const html = renderTemplateText(template.content, variables);
-  const subject = template.title || "Salon update";
-  const delivery = await sendMail({
-    to: toEmail,
-    subject,
-    html: `<div>${html}</div>`,
-    text: html
-  });
-
-  return {
-    skipped: false,
-    templateType: template.type,
-    delivery
-  };
 };

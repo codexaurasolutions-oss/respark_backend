@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 
 let transporter;
 
-const DEFAULT_TIMEOUT_MS = Number(process.env.SMTP_TIMEOUT_MS || 5000);
+const DEFAULT_TIMEOUT_MS = Number(process.env.SMTP_TIMEOUT_MS || 10000);
 
 const smtpConfigured = () =>
   Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_FROM);

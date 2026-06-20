@@ -1,11 +1,12 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../../lib/prisma.js";
-import { attachBranchStock } from "../../lib/phase2.js";
+import { attachBranchStock, buildCsv } from "../../lib/phase2.js";
 import { createAuditLog } from "../../lib/phase4.js";
 import { patchRouterForAsync } from "../../lib/async-handler.js";
 import { requireAuth, requireMaintenanceAccess, requireSalonContext, requireSalonPermission } from "../../middlewares/rbac.js";
 import { schemas, validate } from "../../middlewares/validate.js";
+import multer from "multer";
 
 import { registerPhase2OwnerRoutes } from "./phase2/index.js";
 import { registerPhase3OwnerRoutes } from "./phase3/index.js";
@@ -15,6 +16,8 @@ import { getCampaignAudience } from "../../lib/phase3.js";
 export const ownerRouter = Router();
 patchRouterForAsync(ownerRouter);
 ownerRouter.use(requireAuth, requireMaintenanceAccess, requireSalonContext);
+
+const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } });
 
 const findScoped = (model, salonId, id) => prisma[model].findFirst({ where: { id, salonId } });
 const toAmount = (value) => Number(value || 0);
@@ -292,6 +295,191 @@ ownerRouter.patch("/branches/:id/archive", requireSalonPermission("branches", "d
   res.json(await prisma.branch.update({ where: { id: req.params.id }, data: { isActive: false } }));
 });
 
+ownerRouter.get("/service-categories/export", requireSalonPermission("services", "view"), async (req, res) => {
+  const categories = await prisma.serviceCategory.findMany({
+    where: { salonId: req.salonId, isActive: true, parentId: null },
+    include: {
+      children: {
+        where: { isActive: true },
+        include: {
+          services: { where: { isActive: true } }
+        }
+      },
+      services: { where: { isActive: true } }
+    }
+  });
+
+  const headers = ["Category", "Subcategory", "ServiceName", "Price", "DurationMin", "TaxRate", "CommissionPct"];
+  const rows = [];
+
+  for (const cat of categories) {
+    for (const svc of cat.services || []) {
+      rows.push([
+        cat.name,
+        "",
+        svc.name,
+        svc.price,
+        svc.durationMin,
+        svc.taxRate || "",
+        svc.commissionPct || ""
+      ]);
+    }
+    for (const sub of cat.children || []) {
+      for (const svc of sub.services || []) {
+        rows.push([
+          cat.name,
+          sub.name,
+          svc.name,
+          svc.price,
+          svc.durationMin,
+          svc.taxRate || "",
+          svc.commissionPct || ""
+        ]);
+      }
+    }
+  }
+
+  const csv = buildCsv(headers, rows);
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=\"service-categories-export.csv\"");
+  res.send(csv);
+});
+
+ownerRouter.post("/service-categories/import", requireSalonPermission("services", "create"), upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "No file provided" });
+  }
+
+  const csvString = req.file.buffer.toString("utf8");
+  
+  const lines = csvString.split(/\r?\n/).map(line => {
+    const result = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"' || char === "'") {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }).filter(line => line.length > 0 && line.some(col => col.length > 0));
+
+  if (lines.length <= 1) {
+    return res.status(400).json({ message: "CSV file is empty or missing headers" });
+  }
+
+  const headers = lines[0].map(h => String(h).toLowerCase().replace(/[^a-z0-9]/g, ""));
+  
+  const catIdx = headers.indexOf("category");
+  const subIdx = headers.indexOf("subcategory");
+  const nameIdx = headers.indexOf("servicename") !== -1 ? headers.indexOf("servicename") : headers.indexOf("name");
+  const priceIdx = headers.indexOf("price");
+  const durationIdx = headers.indexOf("durationmin") !== -1 ? headers.indexOf("durationmin") : headers.indexOf("duration");
+  const taxIdx = headers.indexOf("taxrate");
+  const commIdx = headers.indexOf("commissionpct") !== -1 ? headers.indexOf("commissionpct") : headers.indexOf("commission");
+
+  if (catIdx === -1 || nameIdx === -1 || priceIdx === -1) {
+    return res.status(400).json({ message: "CSV must contain Category, ServiceName, and Price columns" });
+  }
+
+  let successCount = 0;
+  let errorCount = 0;
+  const errors = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const row = lines[i];
+    if (row.length === 0) continue;
+
+    const categoryName = row[catIdx];
+    const serviceName = row[nameIdx];
+    const price = Number(row[priceIdx] || 0);
+
+    if (!categoryName || !serviceName) {
+      errorCount++;
+      errors.push(`Row ${i + 1}: Category name and Service name are required`);
+      continue;
+    }
+
+    try {
+      let parentCategory = await prisma.serviceCategory.findFirst({
+        where: { salonId: req.salonId, name: categoryName, parentId: null, isActive: true }
+      });
+
+      if (!parentCategory) {
+        parentCategory = await prisma.serviceCategory.create({
+          data: { salonId: req.salonId, name: categoryName }
+        });
+      }
+
+      const subcategoryName = subIdx !== -1 ? row[subIdx] : null;
+      let targetCategoryId = parentCategory.id;
+
+      if (subcategoryName) {
+        let subCategory = await prisma.serviceCategory.findFirst({
+          where: { salonId: req.salonId, name: subcategoryName, parentId: parentCategory.id, isActive: true }
+        });
+
+        if (!subCategory) {
+          subCategory = await prisma.serviceCategory.create({
+            data: { salonId: req.salonId, name: subcategoryName, parentId: parentCategory.id }
+          });
+        }
+        targetCategoryId = subCategory.id;
+      }
+
+      const durationMin = durationIdx !== -1 ? Number(row[durationIdx] || 30) : 30;
+      const taxRate = taxIdx !== -1 ? Number(row[taxIdx] || 0) : null;
+      const commissionPct = commIdx !== -1 ? Number(row[commIdx] || 0) : null;
+
+      const existingService = await prisma.service.findFirst({
+        where: { salonId: req.salonId, name: serviceName, categoryId: targetCategoryId, isActive: true }
+      });
+
+      if (existingService) {
+        await prisma.service.update({
+          where: { id: existingService.id },
+          data: {
+            price,
+            durationMin,
+            taxRate,
+            commissionPct
+          }
+        });
+      } else {
+        await prisma.service.create({
+          data: {
+            salonId: req.salonId,
+            categoryId: targetCategoryId,
+            name: serviceName,
+            price,
+            durationMin,
+            taxRate,
+            commissionPct
+          }
+        });
+      }
+      successCount++;
+    } catch (e) {
+      errorCount++;
+      errors.push(`Row ${i + 1}: ${e.message}`);
+    }
+  }
+
+  res.json({
+    message: `Import completed: ${successCount} processed successfully, ${errorCount} errors.`,
+    successCount,
+    errorCount,
+    errors
+  });
+});
+
 ownerRouter.get("/service-categories", requireSalonPermission("services", "view"), async (req, res) => {
   res.json(await prisma.serviceCategory.findMany({ where: { salonId: req.salonId, isActive: true, parentId: null }, include: { children: { where: { isActive: true }, include: { services: { where: { isActive: true } } } }, services: { where: { isActive: true } }, }, orderBy: { createdAt: "desc" } }));
 });
@@ -368,6 +556,163 @@ ownerRouter.patch("/services/:id/archive", requireSalonPermission("services", "d
   const row = await findScoped("service", req.salonId, req.params.id);
   if (!row) return res.status(404).json({ message: "Service not found" });
   res.json(await prisma.service.update({ where: { id: req.params.id }, data: { isActive: false } }));
+});
+
+ownerRouter.get("/customers/export", requireSalonPermission("customers", "view"), async (req, res) => {
+  const { format } = req.query;
+  const customers = await prisma.customer.findMany({
+    where: { salonId: req.salonId },
+    orderBy: { name: "asc" }
+  });
+  
+  const headers = ["Name", "Phone", "Email", "Gender", "DateOfBirth", "Anniversary", "Source", "Tags", "Notes", "CreatedAt"];
+  const rows = customers.map(c => [
+    c.name || "",
+    c.phone || "",
+    c.email || "",
+    c.gender || "",
+    c.dateOfBirth ? c.dateOfBirth.toISOString().slice(0, 10) : "",
+    c.anniversary ? c.anniversary.toISOString().slice(0, 10) : "",
+    c.source || "",
+    Array.isArray(c.tags) ? c.tags.join("; ") : "",
+    c.notes || "",
+    c.createdAt ? c.createdAt.toISOString() : ""
+  ]);
+
+  const csv = buildCsv(headers, rows);
+  
+  if (String(format).toLowerCase() === "xls" || String(format).toLowerCase() === "xlsx" || String(format).toLowerCase() === "excel") {
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=\"customers-export.xlsx\"");
+  } else {
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", "attachment; filename=\"customers-export.csv\"");
+  }
+  res.send(csv);
+});
+
+ownerRouter.post("/customers/import", requireSalonPermission("customers", "create"), upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "No file provided" });
+  }
+
+  const csvString = req.file.buffer.toString("utf8");
+  
+  const lines = csvString.split(/\r?\n/).map(line => {
+    const result = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"' || char === "'") {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }).filter(line => line.length > 0 && line.some(col => col.length > 0));
+
+  if (lines.length <= 1) {
+    return res.status(400).json({ message: "CSV file is empty or missing headers" });
+  }
+
+  const headers = lines[0].map(h => String(h).toLowerCase().replace(/[^a-z0-9]/g, ""));
+  
+  const nameIdx = headers.indexOf("name");
+  const phoneIdx = headers.indexOf("phone") !== -1 ? headers.indexOf("phone") : headers.indexOf("mobileno");
+  const emailIdx = headers.indexOf("email");
+  const genderIdx = headers.indexOf("gender");
+  const dobIdx = headers.indexOf("dateofbirth") !== -1 ? headers.indexOf("dateofbirth") : headers.indexOf("dob");
+  const anniversaryIdx = headers.indexOf("anniversary");
+  const sourceIdx = headers.indexOf("source");
+  const tagsIdx = headers.indexOf("tags");
+  const notesIdx = headers.indexOf("notes");
+
+  if (phoneIdx === -1) {
+    return res.status(400).json({ message: "CSV must contain a 'Phone' or 'Mobile No' column" });
+  }
+
+  let successCount = 0;
+  let errorCount = 0;
+  const errors = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const row = lines[i];
+    if (row.length === 0) continue;
+    
+    const phone = row[phoneIdx];
+    if (!phone) {
+      errorCount++;
+      errors.push(`Row ${i + 1}: Phone number is missing`);
+      continue;
+    }
+
+    const name = nameIdx !== -1 ? (row[nameIdx] || "Guest") : "Guest";
+    const email = emailIdx !== -1 ? row[emailIdx] : null;
+    const gender = genderIdx !== -1 ? String(row[genderIdx]).toLowerCase() : null;
+    const dateOfBirth = dobIdx !== -1 && row[dobIdx] ? new Date(row[dobIdx]) : null;
+    const anniversary = anniversaryIdx !== -1 && row[anniversaryIdx] ? new Date(row[anniversaryIdx]) : null;
+    const source = sourceIdx !== -1 ? row[sourceIdx] : null;
+    const notes = notesIdx !== -1 ? row[notesIdx] : null;
+    
+    let tags = [];
+    if (tagsIdx !== -1 && row[tagsIdx]) {
+      tags = row[tagsIdx].split(";").map(t => t.trim()).filter(Boolean);
+    }
+
+    try {
+      const duplicate = await prisma.customer.findFirst({
+        where: { salonId: req.salonId, phone }
+      });
+
+      if (duplicate) {
+        await prisma.customer.update({
+          where: { id: duplicate.id },
+          data: {
+            name,
+            email: email || duplicate.email,
+            gender: gender || duplicate.gender,
+            dateOfBirth: (dateOfBirth && !isNaN(dateOfBirth.getTime())) ? dateOfBirth : duplicate.dateOfBirth,
+            anniversary: (anniversary && !isNaN(anniversary.getTime())) ? anniversary : duplicate.anniversary,
+            source: source || duplicate.source,
+            tags: tags.length > 0 ? Array.from(new Set([...duplicate.tags, ...tags])) : duplicate.tags,
+            notes: notes || duplicate.notes
+          }
+        });
+      } else {
+        await prisma.customer.create({
+          data: {
+            salonId: req.salonId,
+            name,
+            phone,
+            email,
+            gender,
+            dateOfBirth: (dateOfBirth && !isNaN(dateOfBirth.getTime())) ? dateOfBirth : null,
+            anniversary: (anniversary && !isNaN(anniversary.getTime())) ? anniversary : null,
+            source,
+            tags,
+            notes
+          }
+        });
+      }
+      successCount++;
+    } catch (e) {
+      errorCount++;
+      errors.push(`Row ${i + 1}: ${e.message}`);
+    }
+  }
+
+  res.json({
+    message: `Import completed: ${successCount} processed successfully, ${errorCount} errors.`,
+    successCount,
+    errorCount,
+    errors
+  });
 });
 
 ownerRouter.get("/customers", requireSalonPermission("customers", "view"), async (req, res) => {

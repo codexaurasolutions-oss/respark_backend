@@ -95,7 +95,7 @@ export const registerBillingRoutes = (ownerRouter) => {
             orderBy: { createdAt: "desc" }
           },
           packages: { 
-            include: { package: true },
+            include: { package: { include: { services: { include: { service: true } } } } },
             orderBy: { createdAt: "desc" }
           },
           invoices: {
@@ -172,7 +172,9 @@ export const registerBillingRoutes = (ownerRouter) => {
   ownerRouter.post("/pos/invoices", requireFeatureEnabled("pos"), requireSalonPermission("pos", "create"), validate(schemas.invoice), async (req, res) => {
     try {
       const invoice = await createPosInvoice({ salonId: req.salonId, actorUser: req.user, body: req.body });
-      await sendInvoiceAutomationEmails(req.salonId, invoice);
+      sendInvoiceAutomationEmails(req.salonId, invoice).catch(err => {
+        console.error("Failed to send POS invoice automation emails:", err);
+      });
       res.status(201).json(invoice);
     } catch (error) {
       return sendRouteError(res, error, "Could not create POS invoice");
@@ -182,7 +184,9 @@ export const registerBillingRoutes = (ownerRouter) => {
   ownerRouter.post("/invoices", requireFeatureEnabled("pos"), requireSalonPermission("pos", "create"), validate(schemas.invoice), async (req, res) => {
     try {
       const invoice = await createPosInvoice({ salonId: req.salonId, actorUser: req.user, body: req.body });
-      await sendInvoiceAutomationEmails(req.salonId, invoice);
+      sendInvoiceAutomationEmails(req.salonId, invoice).catch(err => {
+        console.error("Failed to send invoice automation emails:", err);
+      });
       res.status(201).json(invoice);
     } catch (error) {
       return sendRouteError(res, error, "Could not create invoice");
