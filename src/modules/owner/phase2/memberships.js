@@ -5,6 +5,10 @@ import { requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
 
 export const registerMembershipRoutes = (ownerRouter) => {
+  ownerRouter.get("/memberships/plans", async (req, res) => {
+    res.json(await prisma.membershipPlan.findMany({ where: { salonId: req.salonId, isActive: true }, include: { services: { include: { service: true } } } }));
+  });
+
   ownerRouter.get("/memberships", requireSalonPermission("memberships", "view"), async (req, res) => {
     res.json(await prisma.membershipPlan.findMany({ where: { salonId: req.salonId }, include: { services: { include: { service: true } } }, orderBy: { createdAt: "desc" } }));
   });

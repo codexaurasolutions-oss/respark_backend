@@ -84,3 +84,11 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
 }));
 
 registerPublicPhase3Routes(publicRouter);
+
+publicRouter.get("/plans", asyncHandler(async (req, res) => {
+  const plans = await prisma.plan.findMany({ orderBy: { monthlyPrice: "asc" } });
+  res.json(plans.length ? plans : [
+    { id: "starter", name: "Starter", monthlyPrice: 4999, yearlyPrice: 49990, trialDays: 7, branchLimit: 1, userLimit: 5, customerLimit: 500, invoiceLimit: 1000, storageLimit: 5 },
+    { id: "growth", name: "Growth", monthlyPrice: 9999, yearlyPrice: 99990, trialDays: 7, branchLimit: 3, userLimit: 20, customerLimit: 3000, invoiceLimit: 10000, storageLimit: 20 }
+  ]);
+}));

@@ -196,6 +196,14 @@ export const registerPromotionRoutes = (ownerRouter) => {
     res.json(row);
   });
 
+  ownerRouter.get("/customers/:id/gift-cards", async (req, res) => {
+    const rows = await prisma.giftCard.findMany({
+      where: { issuedToCustomerId: req.params.id, salonId: req.salonId },
+      orderBy: { createdAt: "desc" }
+    });
+    res.json(rows);
+  });
+
   ownerRouter.patch("/gift-cards/:id", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "edit"), async (req, res) => {
     const row = await prisma.giftCard.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!row) return res.status(404).json({ message: "Gift card not found" });

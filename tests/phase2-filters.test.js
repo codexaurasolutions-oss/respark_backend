@@ -158,8 +158,8 @@ describe("phase2 filters", () => {
         branchId: "branch-1",
         status: "PAID",
         OR: expect.arrayContaining([
-          expect.objectContaining({ invoiceNumber: { contains: "sara", mode: "insensitive" } }),
-          expect.objectContaining({ customer: { is: { name: { contains: "sara", mode: "insensitive" } } } })
+          expect.objectContaining({ invoiceNumber: { contains: "sara" } }),
+          expect.objectContaining({ customer: { is: { name: { contains: "sara" } } } })
         ])
       })
     }));
@@ -178,8 +178,8 @@ describe("phase2 filters", () => {
         mode: "CASH",
         type: "PAYMENT",
         OR: expect.arrayContaining([
-          expect.objectContaining({ note: { contains: "note", mode: "insensitive" } }),
-          expect.objectContaining({ invoice: { is: { invoiceNumber: { contains: "note", mode: "insensitive" } } } })
+          expect.objectContaining({ note: { contains: "note" } }),
+          expect.objectContaining({ invoice: { is: { invoiceNumber: { contains: "note" } } } })
         ])
       })
     }));

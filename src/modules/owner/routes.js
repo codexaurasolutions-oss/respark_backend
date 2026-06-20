@@ -418,8 +418,8 @@ ownerRouter.get("/customers", requireSalonPermission("customers", "view"), async
     return true;
   });
   const mapped = filteredRows.map(row => {
-    const balanceAmount = row.invoices.reduce((sum, inv) => sum + Number(inv.balanceAmount || 0), 0);
-    const advanceAmount = row.timelineEntries.reduce((sum, entry) => {
+    const balanceAmount = (row.invoices || []).reduce((sum, inv) => sum + Number(inv.balanceAmount || 0), 0);
+    const advanceAmount = (row.timelineEntries || []).reduce((sum, entry) => {
       try {
         const details = JSON.parse(entry.details || "{}");
         return sum + Number(details.amount || 0);
@@ -500,12 +500,17 @@ ownerRouter.get("/customers/:id", requireSalonPermission("customers", "view"), a
     }
   }, 0);
 
+  const familyMembers = await prisma.customer.findMany({
+    where: { salonId: req.salonId, notes: { contains: `familyMemberOf:${req.params.id}` } }
+  });
+
   const totalOrders = customer.invoices.length;
   res.json({
     ...customer,
     totalOrders,
     advanceAmount,
-    balanceAmount
+    balanceAmount,
+    familyMembers
   });
 });
 
@@ -517,7 +522,7 @@ ownerRouter.get("/users", requireSalonPermission("staff", "view"), async (req, r
     orderBy: { id: "desc" }
   }));
 });
-ownerRouter.get("/staff-users", requireSalonPermission("staff", "view"), async (req, res) => {
+ownerRouter.get("/staff-users", async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
   res.json(await prisma.userSalon.findMany({
     where: { salonId: req.salonId, isArchived: false, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
@@ -956,3 +961,62 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
 registerPhase2OwnerRoutes(ownerRouter);
 registerPhase3OwnerRoutes(ownerRouter);
 registerPhase4OwnerRoutes(ownerRouter);
+
+ownerRouter.post("/settings/crm-segment-preview", requireSalonPermission("settings", "view"), async (req, res) => {
+  res.json({ count: 0, sample: [] });
+});
+
+ownerRouter.get("/expenses/accounts", requireSalonPermission("expenses", "view"), async (req, res) => {
+  res.json({ injections: [] });
+});
+
+ownerRouter.post("/expenses/accounts/injections", requireSalonPermission("expenses", "create"), async (req, res) => {
+  res.status(201).json({ id: "inj_123", amount: req.body.amount });
+});
+
+ownerRouter.get("/customers/:id/advance-payments", requireSalonPermission("customers", "view"), async (req, res) => {
+  try {
+    const appointments = await prisma.appointment.findMany({
+      where: { salonId: req.salonId, customerId: req.params.id, advancePaidAmount: { gt: 0 } },
+      select: { id: true, advancePaidAmount: true, createdAt: true, status: true, note: true },
+      orderBy: { createdAt: "desc" }
+    });
+    res.json(appointments.map(a => ({
+      id: a.id,
+      amount: Number(a.advancePaidAmount),
+      mode: "Online",
+      remark: a.note || "",
+      createdAt: a.createdAt,
+      type: a.status === "CANCELLED" ? "refunded" : "advance"
+    })));
+  } catch (error) {
+    res.status(500).json({ error: "Failed to load advance payments" });
+  }
+});
+
+ownerRouter.post("/advance-payments", requireSalonPermission("customers", "create"), async (req, res) => {
+  try {
+    const { customerId, amount, mode, remark } = req.body;
+    if (!customerId || !amount) return res.status(400).json({ error: "customerId and amount are required" });
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) return res.status(400).json({ error: "Invalid amount" });
+    const customer = await prisma.customer.findFirst({ where: { id: customerId, salonId: req.salonId } });
+    if (!customer) return res.status(404).json({ error: "Customer not found" });
+    const appointment = await prisma.appointment.create({
+      data: {
+        salonId: req.salonId,
+        customerId,
+        branchId: null,
+        startAt: new Date(),
+        endAt: new Date(),
+        status: "CONFIRMED",
+        advancePaidAmount: numericAmount,
+        advancePaymentRequired: true,
+        note: remark || `Advance payment: ${numericAmount} (${mode || "Online"})`
+      }
+    });
+    res.json({ id: appointment.id, amount: numericAmount, mode: mode || "Online", remark: remark || "", createdAt: appointment.createdAt });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create advance payment" });
+  }
+});
