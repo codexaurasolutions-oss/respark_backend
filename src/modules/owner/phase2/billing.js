@@ -670,6 +670,18 @@ export const registerBillingRoutes = (ownerRouter) => {
     }
   });
 
+const sanitizeInvoicePhone = (phone) => {
+  if (!phone) return "";
+  let clean = phone.trim();
+  if (clean.startsWith("+92")) {
+    return "+91" + clean.slice(3);
+  }
+  if (clean.startsWith("92") && clean.length > 10) {
+    return "+91" + clean.slice(2);
+  }
+  return clean;
+};
+
   ownerRouter.get("/invoices/:id/receipt", requireSalonPermission("invoices", "view"), async (req, res) => {
     const inv = await prisma.invoice.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
@@ -725,7 +737,7 @@ export const registerBillingRoutes = (ownerRouter) => {
     <div style="text-align:center;padding:20px 0 4px;">
       <div style="font-size:26px;font-weight:900;letter-spacing:3px;color:#0f172a;">${salonName.toUpperCase()}</div>
       <div style="font-size:9px;letter-spacing:3.5px;color:#94a3b8;margin-top:4px;text-transform:uppercase;font-weight:600;">Hair &middot; Lifestyle &middot; Care</div>
-      ${inv.branch?.address ? `<div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.6;">${inv.branch.address}${inv.branch?.phone ? `<br>${inv.branch.phone}` : ""}</div>` : ""}
+      ${inv.branch?.address ? `<div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.6;">${inv.branch.address}${inv.branch?.phone ? `<br>${sanitizeInvoicePhone(inv.branch.phone)}` : ""}</div>` : ""}
     </div>
     <div style="border-top:1px dashed #cbd5e1;margin:14px 0;"></div>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">
@@ -738,7 +750,7 @@ export const registerBillingRoutes = (ownerRouter) => {
     <div style="margin-bottom:4px;">
       <div style="font-size:9px;color:#94a3b8;letter-spacing:2.5px;text-transform:uppercase;font-weight:700;">Bill To</div>
       <div style="font-weight:700;font-size:14px;color:#0f172a;margin-top:2px;">${inv.customer?.name || "Walk-in Customer"}</div>
-      ${inv.customer?.phone ? `<div style="font-size:11px;color:#64748b;margin-top:1px;font-family:'Courier New',monospace;">${inv.customer.phone}</div>` : ""}
+      ${inv.customer?.phone ? `<div style="font-size:11px;color:#64748b;margin-top:1px;font-family:'Courier New',monospace;">${sanitizeInvoicePhone(inv.customer.phone)}</div>` : ""}
     </div>
     <div style="border-top:1px dashed #cbd5e1;margin:14px 0;"></div>
     <div>${items || '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:14px 0;">No items</div>'}</div>
@@ -785,7 +797,7 @@ export const registerBillingRoutes = (ownerRouter) => {
     const salonName = inv.salon?.name || "My Salon";
     const branchName = inv.branch?.name || "";
     const brandName = salonName.toUpperCase();
-    const phone = inv.branch?.phone || inv.salon?.phone || "";
+    const phone = sanitizeInvoicePhone(inv.branch?.phone || inv.salon?.phone || "");
     const currencyCode = inv.salon?.currency || "INR";
 
     const getCurrencySymbol = (code) => {
@@ -904,7 +916,7 @@ export const registerBillingRoutes = (ownerRouter) => {
     pdf.font('Helvetica-Bold').fontSize(12).text(inv.customer?.name || "Walk-in Customer", leftCol, y);
     y = pdf.y + 2;
     if (inv.customer?.phone) {
-      pdf.font('Helvetica').fontSize(11).text(inv.customer.phone, leftCol, y);
+      pdf.font('Helvetica').fontSize(11).text(sanitizeInvoicePhone(inv.customer.phone), leftCol, y);
       y = pdf.y;
     }
 
