@@ -178,11 +178,12 @@ const emailLikeSchema = z.string().trim().refine(
 const optionalEmailLike = z.union([emailLikeSchema, z.literal("")]).optional();
 
 const invoiceItemSchema = z.object({
-  itemType: z.enum(["SERVICE", "PRODUCT", "MEMBERSHIP", "PACKAGE"]).optional(),
+  itemType: z.enum(["SERVICE", "PRODUCT", "MEMBERSHIP", "PACKAGE", "GIFT_CARD"]).optional(),
   serviceId: z.string().optional(),
   productId: z.string().optional(),
   membershipPlanId: z.string().optional(),
   packageId: z.string().optional(),
+  giftCardId: z.string().optional(),
   serviceName: z.string().min(1).optional(),
   staffUserId: z.string().optional(),
   staffName: z.string().optional(),
@@ -190,8 +191,14 @@ const invoiceItemSchema = z.object({
   unitPrice: z.number().nonnegative().optional(),
   taxPct: z.number().min(0).default(0),
   packageSessionsUsed: z.number().int().min(0).optional(),
-  membershipWalletUsed: z.number().min(0).optional()
-}).refine((value) => value.serviceId || value.productId || value.membershipPlanId || value.packageId || value.serviceName, {
+  membershipWalletUsed: z.number().min(0).optional(),
+  validityDays: z.number().int().positive().optional(),
+  gcCode: z.string().optional(),
+  isCustom: z.boolean().optional(),
+  customServices: z.array(z.any()).optional(),
+  customProducts: z.array(z.any()).optional(),
+  purchaseDate: z.string().optional()
+}).refine((value) => value.serviceId || value.productId || value.membershipPlanId || value.packageId || value.giftCardId || value.serviceName, {
   message: "At least one invoice item reference or name is required"
 });
 

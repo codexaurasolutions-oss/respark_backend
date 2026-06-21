@@ -1,0 +1,5 @@
+Found 0 unique API routes called in frontend.
+Found 227 registered routes in backend files.
+
+--- Checking for missing backend routes ---
+Analysis complete. Found 0 potential missing endpoints.

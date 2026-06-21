@@ -1,0 +1,438 @@
+..\frontend\src\components\Topbar.jsx:30:      api.get("/owner/pos/context").then(res => {
+..\frontend\src\components\Topbar.jsx:36:      api.get("/owner/notifications", { params: { limit: 5 } }).then((res) => {
+..\frontend\src\components\Topbar.jsx:76:        const response = await api.get("/owner/global-search", { params: { q: term } });
+..\frontend\src\context\SalonSettingsContext.jsx:50:        const response = await api.get("/owner/settings");
+..\frontend\src\pages\owner\AppointmentCheckoutModal.jsx:73:          api.get(`/owner/pos/context?branchId=${appointment.branchId || ""}`),
+..\frontend\src\pages\owner\AppointmentCheckoutModal.jsx:74:          api.get("/owner/service-categories"),
+..\frontend\src\pages\owner\AppointmentCheckoutModal.jsx:75:          api.get("/owner/inventory/categories"),
+..\frontend\src\pages\owner\AppointmentCheckoutModal.jsx:76:          api.get("/owner/packages"),
+..\frontend\src\pages\owner\AppointmentCheckoutModal.jsx:77:          api.get("/owner/memberships"),
+..\frontend\src\pages\owner\AppointmentCheckoutModal.jsx:78:          api.get("/owner/gift-cards")
+..\frontend\src\pages\owner\AppointmentDetailPage.jsx:22:      api.get(`/owner/appointments/${id}`),
+..\frontend\src\pages\owner\AppointmentDetailPage.jsx:23:      api.get(`/owner/appointments/${id}/self-links`)
+..\frontend\src\pages\owner\AppointmentDetailPage.jsx:33:      api.get(`/owner/appointments/${id}`),
+..\frontend\src\pages\owner\AppointmentDetailPage.jsx:34:      api.get(`/owner/appointments/${id}/self-links`)
+..\frontend\src\pages\owner\AppointmentEditPage.jsx:21:          api.get(`/owner/appointments/${id}`),
+..\frontend\src\pages\owner\AppointmentEditPage.jsx:22:          api.get("/owner/pos/context")
+..\frontend\src\pages\owner\AppointmentsPage.jsx:143:      const contextResponse = await api.get("/owner/pos/context");
+..\frontend\src\pages\owner\AppointmentsPage.jsx:167:      const response = await api.get("/owner/appointments", {
+..\frontend\src\pages\owner\BranchesPage.jsx:18:    const response = await api.get("/owner/branches");
+..\frontend\src\pages\owner\BranchesPage.jsx:25:    api.get("/owner/branches").then((response) => {
+..\frontend\src\pages\owner\CampaignsPage.jsx:66:      const response = await api.get("/owner/campaigns", {
+..\frontend\src\pages\owner\CampaignsPage.jsx:75:        api.get("/owner/services"),
+..\frontend\src\pages\owner\CampaignsPage.jsx:76:        api.get("/owner/coupons").catch(() => ({ data: [] })),
+..\frontend\src\pages\owner\CampaignsPage.jsx:77:        api.get("/owner/campaign-templates").catch(() => ({ data: [] }))
+..\frontend\src\pages\owner\CampaignsPage.jsx:84:        const detailResponse = await api.get(`/owner/campaigns/${params.id}`);
+..\frontend\src\pages\owner\CampaignsPage.jsx:87:          api.get(`/owner/campaigns/${params.id}/performance`).catch(() => ({ data: null })),
+..\frontend\src\pages\owner\CampaignsPage.jsx:88:          api.get(`/owner/campaigns/${params.id}/roi`).catch(() => ({ data: null })),
+..\frontend\src\pages\owner\CampaignsPage.jsx:89:          api.get(`/owner/campaigns/${params.id}/conversions`).catch(() => ({ data: [] })),
+..\frontend\src\pages\owner\CampaignsPage.jsx:90:          api.get(`/owner/campaigns/${params.id}/audience`).catch(() => ({ data: null }))
+..\frontend\src\pages\owner\CampaignsPage.jsx:99:          const logsResponse = await api.get(`/owner/campaigns/${params.id}/logs`, {
+..\frontend\src\pages\owner\CampaignTemplatesPage.jsx:42:      const response = await api.get("/owner/campaign-templates");
+..\frontend\src\pages\owner\CouponsPage.jsx:48:        api.get("/owner/coupons"),
+..\frontend\src\pages\owner\CouponsPage.jsx:49:        api.get("/owner/gift-cards"),
+..\frontend\src\pages\owner\CouponsPage.jsx:50:        api.get("/owner/coupons/reports")
+..\frontend\src\pages\owner\CustomerHistoryPage.jsx:20:    api.get(`/owner/customers/${id}/history`).then((response) => {
+..\frontend\src\pages\owner\CustomerPortalSettingsPage.jsx:24:      api.get("/owner/settings"),
+..\frontend\src\pages\owner\CustomerPortalSettingsPage.jsx:25:      api.get("/owner/catalog/preview")
+..\frontend\src\pages\owner\CustomersPage.jsx:126:      const response = await api.get("/owner/customers", { params: { q: searchText, filter: selectedFilter } });
+..\frontend\src\pages\owner\CustomersPage.jsx:192:      const res = await api.get(`/owner/customers/${row.id}`);
+..\frontend\src\pages\owner\CustomersPage.jsx:221:      const res = await api.get("/owner/memberships/plans");
+..\frontend\src\pages\owner\CustomersPage.jsx:230:      const res = await api.get("/owner/staff-users");
+..\frontend\src\pages\owner\CustomersPage.jsx:239:      const res = await api.get(`/owner/customers/${customerId}/gift-cards`);
+..\frontend\src\pages\owner\CustomersPage.jsx:248:      const res = await api.get(`/owner/customers/${customerId}/advance-payments`);
+..\frontend\src\pages\owner\CustomersPage.jsx:271:      const res = await api.get(`/owner/customers/${selectedCustomer.id}`);
+..\frontend\src\pages\owner\CustomersPage.jsx:291:      const res = await api.get(`/owner/customers/${selectedCustomer.id}`);
+..\frontend\src\pages\owner\CustomersPage.jsx:310:      const res = await api.get(`/owner/customers/${selectedCustomer.id}`);
+..\frontend\src\pages\owner\CustomersPage.jsx:324:      const res = await api.get(`/owner/customers/${selectedCustomer.id}`);
+..\frontend\src\pages\owner\CustomersPage.jsx:334:      const res = await api.get("/owner/packages");
+..\frontend\src\pages\owner\CustomersPage.jsx:374:      const res = await api.get(`/owner/customers/${selectedCustomer.id}`);
+..\frontend\src\pages\owner\CustomersPage.jsx:411:      const res = await api.get(`/owner/customers/${selectedCustomer.id}`);
+..\frontend\src\pages\owner\CustomersPage.jsx:430:      const res = await api.get(`/owner/customers/${selectedCustomer.id}`);
+..\frontend\src\pages\owner\Dashboard.jsx:14:      api.get("/owner/dashboard"),
+..\frontend\src\pages\owner\Dashboard.jsx:15:      api.get("/owner/branches")
+..\frontend\src\pages\owner\Dashboard.jsx:30:      api.get("/owner/dashboard", { params }),
+..\frontend\src\pages\owner\Dashboard.jsx:31:      api.get("/owner/branches")
+..\frontend\src\pages\owner\EnquiriesPage.jsx:36:        api.get("/owner/enquiries", { params }),
+..\frontend\src\pages\owner\EnquiriesPage.jsx:37:        api.get("/owner/enquiries/reports")
+..\frontend\src\pages\owner\ExpensesPage.jsx:92:        api.get("/owner/expenses"),
+..\frontend\src\pages\owner\ExpensesPage.jsx:93:        api.get("/owner/expense-categories"),
+..\frontend\src\pages\owner\ExpensesPage.jsx:94:        api.get("/owner/branches").catch(() => ({ data: [] })),
+..\frontend\src\pages\owner\ExpensesPage.jsx:95:        api.get("/owner/payments").catch(() => ({ data: [] })),
+..\frontend\src\pages\owner\ExpensesPage.jsx:96:        api.get("/owner/expenses/accounts").catch(() => ({ data: { injections: [] } }))
+..\frontend\src\pages\owner\ExpertsPage.jsx:40:      api.get("/owner/users", { params: branchId ? { branchId } : {} }),
+..\frontend\src\pages\owner\ExpertsPage.jsx:41:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\ExpertsPage.jsx:42:      api.get("/owner/services")
+..\frontend\src\pages\owner\ExpertsPage.jsx:54:      api.get("/owner/users"),
+..\frontend\src\pages\owner\ExpertsPage.jsx:55:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\ExpertsPage.jsx:56:      api.get("/owner/services")
+..\frontend\src\pages\owner\ExpertsPage.jsx:73:      api.get("/owner/users", { params: filterBranch ? { branchId: filterBranch } : {} }),
+..\frontend\src\pages\owner\ExpertsPage.jsx:74:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\ExpertsPage.jsx:75:      api.get("/owner/services")
+..\frontend\src\pages\owner\FeedbackPage.jsx:31:        api.get("/owner/feedback", { params }),
+..\frontend\src\pages\owner\FeedbackPage.jsx:32:        api.get("/owner/feedback/reports", { params }),
+..\frontend\src\pages\owner\FeedbackPage.jsx:33:        api.get("/owner/feedback/settings"),
+..\frontend\src\pages\owner\FeedbackPage.jsx:34:        api.get("/owner/branches")
+..\frontend\src\pages\owner\InventoryPage.jsx:248:        api.get("/owner/inventory/categories"),
+..\frontend\src\pages\owner\InventoryPage.jsx:249:        api.get("/owner/inventory/products"),
+..\frontend\src\pages\owner\InventoryPage.jsx:250:        api.get("/owner/inventory/stock-movements"),
+..\frontend\src\pages\owner\InventoryPage.jsx:251:        api.get("/owner/inventory/low-stock"),
+..\frontend\src\pages\owner\InventoryPage.jsx:252:        api.get("/owner/branches"),
+..\frontend\src\pages\owner\InventoryPage.jsx:253:        api.get("/owner/purchases/vendors"),
+..\frontend\src\pages\owner\InventoryPage.jsx:254:        api.get("/owner/purchases/orders")
+..\frontend\src\pages\owner\InvoicesPage.jsx:27:      api.get("/owner/invoices", { params }),
+..\frontend\src\pages\owner\InvoicesPage.jsx:28:      api.get("/owner/branches")
+..\frontend\src\pages\owner\InvoicesPage.jsx:37:    Promise.all([api.get("/owner/invoices"), api.get("/owner/branches")]).then(([invoiceResponse, branchResponse]) => {
+..\frontend\src\pages\owner\InvoicesPage.jsx:55:    Promise.all([api.get("/owner/invoices", { params }), api.get("/owner/branches")]).then(([invoiceResponse, branchResponse]) => {
+..\frontend\src\pages\owner\InvoicesPage.jsx:67:    const response = await api.get(`/owner/invoices/${invoiceId}`);
+..\frontend\src\pages\owner\InvoicesPage.jsx:78:      const response = await api.get(`/owner/invoices/${routeInvoiceId}`);
+..\frontend\src\pages\owner\LoyaltyPage.jsx:43:        api.get("/owner/loyalty/rules"),
+..\frontend\src\pages\owner\LoyaltyPage.jsx:44:        api.get("/owner/loyalty/transactions"),
+..\frontend\src\pages\owner\LoyaltyPage.jsx:45:        api.get("/owner/loyalty/reports")
+..\frontend\src\pages\owner\LoyaltyPage.jsx:51:        const customerResponse = await api.get(`/owner/customers/${params.id}/loyalty`);
+..\frontend\src\pages\owner\MembershipsPage.jsx:36:      api.get("/owner/memberships"),
+..\frontend\src\pages\owner\MembershipsPage.jsx:37:      api.get("/owner/packages"),
+..\frontend\src\pages\owner\MembershipsPage.jsx:38:      api.get("/owner/services"),
+..\frontend\src\pages\owner\MembershipsPage.jsx:39:      api.get("/owner/customers")
+..\frontend\src\pages\owner\MembershipsPage.jsx:47:      const historyResponse = await api.get(`/owner/customers/${activeCustomerId}/history`);
+..\frontend\src\pages\owner\MembershipsPage.jsx:56:        api.get("/owner/memberships"),
+..\frontend\src\pages\owner\MembershipsPage.jsx:57:        api.get("/owner/packages"),
+..\frontend\src\pages\owner\MembershipsPage.jsx:58:        api.get("/owner/services"),
+..\frontend\src\pages\owner\MembershipsPage.jsx:59:        api.get("/owner/customers")
+..\frontend\src\pages\owner\MembershipsPage.jsx:68:        const historyResponse = await api.get(`/owner/customers/${customerId}/history`);
+..\frontend\src\pages\owner\MembershipsPage.jsx:73:        const membershipDetail = await api.get(`/owner/memberships/${editableMembershipId}`);
+..\frontend\src\pages\owner\MembershipsPage.jsx:86:        const packageDetail = await api.get(`/owner/packages/${editablePackageId}`);
+..\frontend\src\pages\owner\MessageTemplatesPage.jsx:36:      const response = await api.get("/owner/message-templates");
+..\frontend\src\pages\owner\MessageTemplatesPage.jsx:39:        const detailResponse = await api.get(`/owner/message-templates/${params.type}`);
+..\frontend\src\pages\owner\MyAppointmentsPage.jsx:14:      const response = await api.get("/owner/my-appointments");
+..\frontend\src\pages\owner\MyAppointmentsPage.jsx:26:    const response = await api.get("/owner/my-appointments");
+..\frontend\src\pages\owner\MyCommissionPage.jsx:12:    api.get("/owner/my-commission").then((response) => {
+..\frontend\src\pages\owner\MyDashboardPage.jsx:12:    api.get("/owner/my-dashboard").then((response) => {
+..\frontend\src\pages\owner\MyPayrollPage.jsx:23:    api.get("/owner/my-payroll").then((response) => {
+..\frontend\src\pages\owner\MyProfilePage.jsx:15:    api.get("/owner/my-profile").then((response) => {
+..\frontend\src\pages\owner\MySchedulePage.jsx:12:    api.get("/owner/my-schedule").then((response) => {
+..\frontend\src\pages\owner\NotificationsPage.jsx:18:      const response = await api.get("/owner/notifications", {
+..\frontend\src\pages\owner\OrdersPage.jsx:32:        api.get("/owner/orders", { params: filter ? { status: filter } : {} }),
+..\frontend\src\pages\owner\OrdersPage.jsx:33:        api.get("/owner/orders/reports/summary")
+..\frontend\src\pages\owner\OrdersPage.jsx:38:        const detailResponse = await api.get(`/owner/orders/${params.id}`);
+..\frontend\src\pages\owner\OwnerAuditLogsPage.jsx:31:      const response = await api.get("/owner/audit-logs", {
+..\frontend\src\pages\owner\PaymentsPage.jsx:25:    Promise.all([api.get("/owner/payments", { params }), api.get("/owner/branches")]).then(([paymentResponse, branchResponse]) => {
+..\frontend\src\pages\owner\PaymentsPage.jsx:120:          const paymentResponse = await api.get("/owner/payments", { params });
+..\frontend\src\pages\owner\PayrollPage.jsx:40:        api.get("/owner/payroll", { params: { ...(filters.payrollStatus ? { status: filters.payrollStatus } : {}), ...(filters.branchId ? { branchId: filters.branchId } : {}) } }),
+..\frontend\src\pages\owner\PayrollPage.jsx:41:        api.get("/owner/attendance", { params: { ...(filters.attendanceQ ? { q: filters.attendanceQ } : {}), ...(filters.attendanceBranchId ? { branchId: filters.attendanceBranchId } : {}) } }),
+..\frontend\src\pages\owner\PayrollPage.jsx:42:        api.get("/owner/leaves", { params: { ...(filters.leaveStatus ? { status: filters.leaveStatus } : {}), ...(filters.leaveQ ? { q: filters.leaveQ } : {}) } }),
+..\frontend\src\pages\owner\PayrollPage.jsx:43:        api.get("/owner/incentives", { params: { ...(filters.incentiveQ ? { q: filters.incentiveQ } : {}) } }),
+..\frontend\src\pages\owner\PayrollPage.jsx:44:        api.get("/owner/payroll/reports")
+..\frontend\src\pages\owner\PosDashboardPage.jsx:197:    const response = await api.get(`/owner/invoices/${invoiceId}`);
+..\frontend\src\pages\owner\PosDashboardPage.jsx:205:        api.get("/owner/pos/context"),
+..\frontend\src\pages\owner\PosDashboardPage.jsx:206:        api.get("/owner/service-categories"),
+..\frontend\src\pages\owner\PosDashboardPage.jsx:207:        api.get("/owner/settings")
+..\frontend\src\pages\owner\PosDashboardPage.jsx:226:        api.get("/owner/invoices", { params: queryParams }),
+..\frontend\src\pages\owner\PosDashboardPage.jsx:227:        api.get("/owner/invoices/reports/summary", { params: { startDate, endDate } })
+..\frontend\src\pages\owner\PosDashboardPage.jsx:234:        const detailResponse = await api.get(`/owner/invoices/${params.id}`);
+..\frontend\src\pages\owner\PosPage.jsx:160:        api.get("/owner/pos/context", { params }),
+..\frontend\src\pages\owner\PosPage.jsx:161:        api.get("/owner/pos/day-closing", { params: branchId ? { branchId } : {} }),
+..\frontend\src\pages\owner\PosPage.jsx:162:        api.get("/owner/service-categories")
+..\frontend\src\pages\owner\PosPage.jsx:180:          api.get("/owner/pos/context", { params }),
+..\frontend\src\pages\owner\PosPage.jsx:181:          api.get("/owner/pos/day-closing", { params: form.branchId ? { branchId: form.branchId } : {} }),
+..\frontend\src\pages\owner\PosPage.jsx:182:          api.get("/owner/service-categories")
+..\frontend\src\pages\owner\PosPage.jsx:709:    const invoiceResponse = await api.get(`/owner/invoices/${result.id}`);
+..\frontend\src\pages\owner\ProductCategoriesPage.jsx:44:        api.get("/owner/inventory/categories"),
+..\frontend\src\pages\owner\ProductCategoriesPage.jsx:45:        api.get("/owner/inventory/products")
+..\frontend\src\pages\owner\ReportsHubPage.jsx:211:    api.get(endpoint, { params })
+..\frontend\src\pages\owner\ReportsPage.jsx:103:        branches: api.get("/owner/branches"),
+..\frontend\src\pages\owner\ReportsPage.jsx:104:        sales: api.get("/reports/sales-summary", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:105:        payments: api.get("/reports/payment-modes", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:106:        appointments: api.get("/reports/appointments", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:107:        staff: api.get("/reports/staff-performance", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:108:        products: api.get("/reports/product-sales", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:109:        services: api.get("/reports/service-sales", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:110:        memberships: api.get("/reports/memberships", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:111:        packages: api.get("/reports/packages", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:112:        stock: api.get("/reports/stock", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:113:        customers: api.get("/reports/customers", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:114:        branchSales: api.get("/reports/branch-sales", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:115:        cancelled: api.get("/reports/cancelled-invoices", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:116:        lowStock: api.get("/reports/low-stock", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:117:        advanced: api.get("/owner/reports/advanced", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:118:        profitLoss: api.get("/owner/reports/profit-loss", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:119:        campaignRoi: api.get("/owner/reports/campaign-roi", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:120:        payroll: api.get("/owner/reports/payroll", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:121:        tax: api.get("/owner/reports/tax", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:122:        loyalty: api.get("/owner/loyalty/reports", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:123:        coupons: api.get("/owner/coupons/reports", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:124:        giftCards: api.get("/owner/gift-cards/reports", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:125:        feedback: api.get("/owner/feedback/reports", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:126:        enquiries: api.get("/owner/enquiries/reports", { params: sharedParams }),
+..\frontend\src\pages\owner\ReportsPage.jsx:127:        expenses: api.get("/owner/expenses/reports", { params: sharedParams })
+..\frontend\src\pages\owner\ServiceCategoriesPage.jsx:23:      const res = await api.get("/owner/service-categories");
+..\frontend\src\pages\owner\ServiceHubPage.jsx:56:        api.get('/owner/service-categories'),
+..\frontend\src\pages\owner\ServiceHubPage.jsx:57:        api.get('/owner/services'),
+..\frontend\src\pages\owner\ServiceHubPage.jsx:58:        api.get('/owner/branches')
+..\frontend\src\pages\owner\ServicesPage.jsx:45:      api.get("/owner/services", { params: branchId ? { branchId } : {} }),
+..\frontend\src\pages\owner\ServicesPage.jsx:46:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\ServicesPage.jsx:47:      api.get("/owner/service-categories")
+..\frontend\src\pages\owner\ServicesPage.jsx:58:      api.get("/owner/services"),
+..\frontend\src\pages\owner\ServicesPage.jsx:59:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\ServicesPage.jsx:60:      api.get("/owner/service-categories")
+..\frontend\src\pages\owner\ServicesPage.jsx:77:      api.get("/owner/services", { params }),
+..\frontend\src\pages\owner\ServicesPage.jsx:78:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\ServicesPage.jsx:79:      api.get("/owner/service-categories")
+..\frontend\src\pages\owner\SettingsPage.jsx:407:      const response = await api.get("/owner/gift-cards");
+..\frontend\src\pages\owner\SettingsPage.jsx:431:          api.get("/owner/settings"),
+..\frontend\src\pages\owner\SettingsPage.jsx:432:          api.get("/owner/users"),
+..\frontend\src\pages\owner\SettingsPage.jsx:433:          api.get("/owner/custom-roles"),
+..\frontend\src\pages\owner\SettingsPage.jsx:434:          api.get("/owner/staff-schedule"),
+..\frontend\src\pages\owner\SettingsPage.jsx:435:          api.get("/owner/customers"),
+..\frontend\src\pages\owner\SettingsPage.jsx:436:          api.get("/owner/services"),
+..\frontend\src\pages\owner\SettingsPage.jsx:437:          api.get("/owner/memberships"),
+..\frontend\src\pages\owner\SettingsPage.jsx:438:          api.get("/owner/packages"),
+..\frontend\src\pages\owner\SettingsPage.jsx:439:          api.get("/owner/loyalty/rules"),
+..\frontend\src\pages\owner\SettingsPage.jsx:440:          api.get("/owner/coupons"),
+..\frontend\src\pages\owner\SettingsPage.jsx:441:          api.get("/owner/gift-cards"),
+..\frontend\src\pages\owner\SettingsPage.jsx:442:          api.get("/owner/incentives"),
+..\frontend\src\pages\owner\SettingsPage.jsx:443:          api.get("/owner/notifications"),
+..\frontend\src\pages\owner\SettingsPage.jsx:444:          api.get("/owner/feedback/reports"),
+..\frontend\src\pages\owner\SettingsPage.jsx:445:          api.get("/owner/expenses/accounts")
+..\frontend\src\pages\owner\SettingsPage.jsx:584:      const response = await api.get("/owner/settings");
+..\frontend\src\pages\owner\StaffRolesPage.jsx:46:      api.get("/owner/roles-permissions"),
+..\frontend\src\pages\owner\StaffRolesPage.jsx:47:      api.get("/owner/custom-roles")
+..\frontend\src\pages\owner\StaffRolesPage.jsx:56:      api.get("/owner/roles-permissions"),
+..\frontend\src\pages\owner\StaffRolesPage.jsx:57:      api.get("/owner/custom-roles")
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:20:      api.get("/owner/staff-schedule"),
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:21:      api.get("/owner/users"),
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:22:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:23:      api.get("/owner/staff-availability")
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:35:        api.get("/owner/staff-schedule"),
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:36:        api.get("/owner/users"),
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:37:        api.get("/owner/branches"),
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:38:        api.get("/owner/staff-availability")
+..\frontend\src\pages\owner\SupportTicketsPage.jsx:16:    setRows((await api.get("/owner/support-tickets", {
+..\frontend\src\pages\owner\SupportTicketsPage.jsx:28:    api.get("/owner/support-tickets", {
+..\frontend\src\pages\owner\TrendsPage.jsx:136:    api.get("/owner/reports/trends", { params: { range: timeRange, period: linePeriod, filter: activeFilter } })
+..\frontend\src\pages\owner\UsersPage.jsx:64:      api.get("/owner/users", { params: branchId ? { branchId } : {} }),
+..\frontend\src\pages\owner\UsersPage.jsx:65:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\UsersPage.jsx:66:      api.get("/owner/services"),
+..\frontend\src\pages\owner\UsersPage.jsx:67:      api.get("/owner/custom-roles"),
+..\frontend\src\pages\owner\UsersPage.jsx:68:      api.get("/owner/settings")
+..\frontend\src\pages\owner\UsersPage.jsx:85:      api.get("/owner/users"),
+..\frontend\src\pages\owner\UsersPage.jsx:86:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\UsersPage.jsx:87:      api.get("/owner/services"),
+..\frontend\src\pages\owner\UsersPage.jsx:88:      api.get("/owner/custom-roles"),
+..\frontend\src\pages\owner\UsersPage.jsx:89:      api.get("/owner/settings")
+..\frontend\src\pages\owner\UsersPage.jsx:115:      api.get("/owner/users", { params: filterBranch ? { branchId: filterBranch } : {} }),
+..\frontend\src\pages\owner\UsersPage.jsx:116:      api.get("/owner/branches"),
+..\frontend\src\pages\owner\UsersPage.jsx:117:      api.get("/owner/services"),
+..\frontend\src\pages\owner\UsersPage.jsx:118:      api.get("/owner/custom-roles"),
+..\frontend\src\pages\owner\UsersPage.jsx:119:      api.get("/owner/settings")
+..\frontend\src\pages\owner\VendorManagement.jsx:153:    api.get("/owner/inventory/products").then(res => setProducts(res.data || [])).catch(console.error);
+..\frontend\src\pages\owner\VendorManagement.jsx:158:      const res = await api.get("/owner/purchases/vendors");
+..\frontend\src\pages\owner\VendorManagement.jsx:259:      const res = await api.get(`/owner/purchases/vendors/${vendorId}/items`);
+..\frontend\src\pages\owner\WebsiteEditorPage.jsx:19:    // api.get("/owner/website/config").then(res => setConfig(res.data));
+..\frontend\src\pages\owner\WhatsAppPage.jsx:83:        api.get("/owner/whatsapp/settings"),
+..\frontend\src\pages\owner\WhatsAppPage.jsx:84:        api.get("/owner/whatsapp/logs", {
+..\frontend\src\pages\owner\WhatsAppPage.jsx:91:        api.get("/owner/whatsapp/automations"),
+..\frontend\src\pages\owner\WhatsAppPage.jsx:92:        api.get("/owner/message-templates").catch(() => ({ data: [] }))
+..\frontend\src\pages\public\DemoLeadPage.jsx:42:    api.get("/public/settings").then((response) => {
+..\frontend\src\pages\public\MarketingHomePage.jsx:168:    Promise.all([api.get("/public/settings"), api.get("/public/plans").catch(() => ({ data: [] }))])
+..\frontend\src\pages\shared\LegalContentPage.jsx:15:          const response = await api.get(`/public/salon/${slug}`);
+..\frontend\src\pages\shared\LegalContentPage.jsx:27:        const response = await api.get("/public/settings");
+..\frontend\src\pages\storefront\CategoryDetailPage.jsx:12:    api.get(`/public/salon/${salon.slug}`).then(res => {
+..\frontend\src\pages\storefront\HomePage.jsx:27:    api.get(`/public/salon/${salon.slug}`).then(res => {
+..\frontend\src\pages\storefront\StorefrontLayout.jsx:18:    api.get(`/public/salon/${slug}`)
+..\frontend\src\pages\superAdmin\AuditLogsPage.jsx:17:    api.get("/super-admin/audit-logs", {
+..\frontend\src\pages\superAdmin\Dashboard.jsx:11:    api.get("/super-admin/dashboard", { params: { period } }).then((response) => setData(response.data));
+..\frontend\src\pages\superAdmin\DemoLeadsPage.jsx:27:      api.get("/super-admin/demo-leads", {
+..\frontend\src\pages\superAdmin\DemoLeadsPage.jsx:33:      api.get("/super-admin/plans")
+..\frontend\src\pages\superAdmin\DemoLeadsPage.jsx:45:          api.get("/super-admin/demo-leads", {
+..\frontend\src\pages\superAdmin\DemoLeadsPage.jsx:51:          api.get("/super-admin/plans")
+..\frontend\src\pages\superAdmin\PlansPage.jsx:41:      setRows((await api.get("/super-admin/plans")).data);
+..\frontend\src\pages\superAdmin\PlansPage.jsx:48:    api.get("/super-admin/plans").then((response) => {
+..\frontend\src\pages\superAdmin\SalonsPage.jsx:100:      setSalons((await api.get("/super-admin/salons", {
+..\frontend\src\pages\superAdmin\SalonsPage.jsx:113:    api.get("/super-admin/salons", {
+..\frontend\src\pages\superAdmin\SalonsPage.jsx:161:      const response = await api.get(`/super-admin/salons/${salonId}`);
+..\frontend\src\pages\superAdmin\SettingsPage.jsx:37:    api.get("/super-admin/settings").then((response) => {
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:24:      api.get("/super-admin/subscriptions", {
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:31:      api.get("/super-admin/salons"),
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:32:      api.get("/super-admin/plans")
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:43:      api.get("/super-admin/subscriptions", {
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:50:      api.get("/super-admin/salons"),
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:51:      api.get("/super-admin/plans")
+..\frontend\src\pages\superAdmin\SupportTicketsPage.jsx:20:    const response = await api.get("/super-admin/support-tickets", {
+..\frontend\src\pages\superAdmin\SupportTicketsPage.jsx:35:    api.get("/super-admin/support-tickets", {
+..\frontend\src\utils\download.js:9:  const response = await api.get(url, {
+..\frontend\src\components\owner\CatalogContentManager.jsx:46:        await api.post(endpoint, payload);
+..\frontend\src\components\public\PublicBookingForm.jsx:56:      const response = await api.post(`/public/salons/${slug}/book`, {
+..\frontend\src\context\AuthContext.jsx:29:    const { data } = await api.post("/auth/login", payload);
+..\frontend\src\context\AuthContext.jsx:52:        await api.post("/auth/logout", { refreshToken: auth.refreshToken });
+..\frontend\src\pages\ForgotPasswordPage.jsx:20:      const response = await api.post("/auth/forgot-password", { email });
+..\frontend\src\pages\owner\AppointmentCheckoutModal.jsx:407:        const convertRes = await api.post(`/owner/appointments/${appointment.id}/convert-to-invoice`);
+..\frontend\src\pages\owner\AppointmentDetailPage.jsx:64:      await api.post(`/owner/appointments/${id}/cancel`, { note: statusNote || "Cancelled from detail view" });
+..\frontend\src\pages\owner\AppointmentDetailPage.jsx:75:      const response = await api.post(`/owner/appointments/${id}/convert-to-invoice`);
+..\frontend\src\pages\owner\AppointmentsPage.jsx:352:        await api.post("/owner/appointments", payload);
+..\frontend\src\pages\owner\BranchesPage.jsx:49:        await api.post("/owner/branches", form);
+..\frontend\src\pages\owner\CampaignsPage.jsx:146:      else await api.post("/owner/campaigns", payload);
+..\frontend\src\pages\owner\CampaignsPage.jsx:167:    await api.post(`/owner/campaigns/${id}/duplicate`);
+..\frontend\src\pages\owner\CampaignsPage.jsx:173:    const response = await api.post(`/owner/campaigns/${id}/schedule`, { scheduledFor });
+..\frontend\src\pages\owner\CampaignsPage.jsx:179:    const response = await api.post(`/owner/campaigns/${id}/send-placeholder`);
+..\frontend\src\pages\owner\CampaignsPage.jsx:191:      await api.post(`/owner/campaigns/${campaignId}/link-coupon`, { couponId });
+..\frontend\src\pages\owner\CampaignsPage.jsx:201:      await api.post(`/owner/campaigns/${campaignId}/upload-to-catalog`);
+..\frontend\src\pages\owner\CampaignTemplatesPage.jsx:94:      else await api.post("/owner/campaign-templates", payload);
+..\frontend\src\pages\owner\CouponsPage.jsx:80:        await api.post("/owner/coupons", {
+..\frontend\src\pages\owner\CouponsPage.jsx:118:        await api.post("/owner/gift-cards", {
+..\frontend\src\pages\owner\CustomerPortalSettingsPage.jsx:51:      await api.post("/owner/settings", form);
+..\frontend\src\pages\owner\CustomersPage.jsx:258:      await api.post("/owner/memberships/assign", {
+..\frontend\src\pages\owner\CustomersPage.jsx:282:      await api.post("/owner/advance-payments", {
+..\frontend\src\pages\owner\CustomersPage.jsx:344:      await api.post("/owner/gift-cards", {
+..\frontend\src\pages\owner\CustomersPage.jsx:363:      await api.post("/owner/packages/assign", {
+..\frontend\src\pages\owner\CustomersPage.jsx:402:      await api.post("/owner/customers", {
+..\frontend\src\pages\owner\CustomersPage.jsx:421:      await api.post("/owner/follow-ups", {
+..\frontend\src\pages\owner\CustomersPage.jsx:450:      await api.post("/owner/customers", formData);
+..\frontend\src\pages\owner\CustomersPage.jsx:489:      await api.post("/owner/customers/merge", {
+..\frontend\src\pages\owner\EnquiriesPage.jsx:58:      await api.post("/owner/enquiries", form);
+..\frontend\src\pages\owner\ExpensesPage.jsx:236:          await api.post("/owner/expense-categories", {
+..\frontend\src\pages\owner\ExpensesPage.jsx:244:        await api.post("/owner/expense-categories", {
+..\frontend\src\pages\owner\ExpensesPage.jsx:311:        await api.post("/owner/expenses", payload);
+..\frontend\src\pages\owner\ExpensesPage.jsx:385:      await api.post("/owner/expenses/accounts/injections", {
+..\frontend\src\pages\owner\ExpertsPage.jsx:114:        await api.post("/owner/users/create-login", {
+..\frontend\src\pages\owner\InventoryPage.jsx:82:      await api.post("/owner/purchases/reconciliation", {
+..\frontend\src\pages\owner\InventoryPage.jsx:139:      await api.post("/owner/purchases/reconciliation", {
+..\frontend\src\pages\owner\InventoryPage.jsx:387:      await api.post("/owner/inventory/products", { ...productForm, costPrice: Number(productForm.costPrice), sellingPrice: Number(productForm.sellingPrice), minStock: Number(productForm.minStock) });
+..\frontend\src\pages\owner\InventoryPage.jsx:399:      await api.post("/owner/inventory/categories", { ...categoryForm, sortOrder: Number(categoryForm.sortOrder) });
+..\frontend\src\pages\owner\InventoryPage.jsx:411:      await api.post("/owner/inventory/stock-movements", { ...movementForm, quantity: Number(movementForm.quantity) });
+..\frontend\src\pages\owner\InventoryPage.jsx:423:      await api.post("/owner/purchases/vendors", {
+..\frontend\src\pages\owner\InventoryPage.jsx:475:      await api.post("/owner/purchases/orders", {
+..\frontend\src\pages\owner\InvoicesPage.jsx:90:      await api.post("/owner/payments", { invoiceId, ...paymentForm, amount: Number(paymentForm.amount) });
+..\frontend\src\pages\owner\InvoicesPage.jsx:116:      const response = await api.post(`/owner/invoices/${invoiceId}/payment-reminder`);
+..\frontend\src\pages\owner\LoyaltyPage.jsx:73:      await api.post("/owner/loyalty/rules", {
+..\frontend\src\pages\owner\LoyaltyPage.jsx:91:      await api.post("/owner/loyalty/adjust", {
+..\frontend\src\pages\owner\MembershipsPage.jsx:165:              await api.post("/owner/memberships", payload);
+..\frontend\src\pages\owner\MembershipsPage.jsx:222:              await api.post("/owner/packages", payload);
+..\frontend\src\pages\owner\MembershipsPage.jsx:328:              await api.post("/owner/memberships/assign", {
+..\frontend\src\pages\owner\MembershipsPage.jsx:368:              await api.post("/owner/packages/assign", {
+..\frontend\src\pages\owner\MembershipsPage.jsx:412:              await api.post("/owner/packages/redeem", {
+..\frontend\src\pages\owner\MembershipsPage.jsx:556:                    await api.post(`/owner/customer-memberships/${membershipLifecycleForm.customerMembershipId}/renew`, { note: membershipLifecycleForm.note });
+..\frontend\src\pages\owner\MembershipsPage.jsx:561:                    await api.post(`/owner/customer-memberships/${membershipLifecycleForm.customerMembershipId}/top-up`, {
+..\frontend\src\pages\owner\MembershipsPage.jsx:569:                    await api.post(`/owner/customer-memberships/${membershipLifecycleForm.customerMembershipId}/upgrade`, {
+..\frontend\src\pages\owner\MembershipsPage.jsx:577:                    await api.post(`/owner/customer-memberships/${membershipLifecycleForm.customerMembershipId}/transfer`, {
+..\frontend\src\pages\owner\MembershipsPage.jsx:616:                    await api.post(`/owner/customer-packages/${packageLifecycleForm.customerPackageId}/renew`, {
+..\frontend\src\pages\owner\MembershipsPage.jsx:624:                    await api.post(`/owner/customer-packages/${packageLifecycleForm.customerPackageId}/transfer`, {
+..\frontend\src\pages\owner\MessageTemplatesPage.jsx:67:      const response = await api.post(`/owner/message-templates/${params.type}/preview`, previewInput);
+..\frontend\src\pages\owner\MessageTemplatesPage.jsx:80:      await api.post(`/owner/message-templates/${params.type}/reset`);
+..\frontend\src\pages\owner\OrdersPage.jsx:74:      await api.post(`/owner/orders/${id}/convert-to-invoice`);
+..\frontend\src\pages\owner\PaymentsPage.jsx:116:          await api.post("/owner/payments/refund", { ...refundForm, amount: Number(refundForm.amount) });
+..\frontend\src\pages\owner\PayrollPage.jsx:68:      await api.post("/owner/payroll", form);
+..\frontend\src\pages\owner\PosPage.jsx:646:      const response = await api.post("/owner/pos/invoices", buildInvoicePayload(mode));
+..\frontend\src\pages\owner\PosPage.jsx:681:    const response = await api.post(`/owner/invoices/${result.id}/payment-link`, paymentLinkForm);
+..\frontend\src\pages\owner\PosPage.jsx:690:      const res = await api.post("/owner/customers", newGuestForm);
+..\frontend\src\pages\owner\PosPage.jsx:704:    await api.post(`/owner/invoices/${result.id}/payment-link/log`, {
+..\frontend\src\pages\owner\ProductCategoriesPage.jsx:68:      await api.post("/owner/inventory/categories", categoryForm);
+..\frontend\src\pages\owner\ProductCategoriesPage.jsx:123:        await api.post("/owner/inventory/products", payload);
+..\frontend\src\pages\owner\ServiceCategoriesPage.jsx:55:        await api.post("/owner/service-categories", { name: catInput.trim() });
+..\frontend\src\pages\owner\ServiceCategoriesPage.jsx:80:        await api.post("/owner/service-categories", { name: subInput.trim(), parentId: selectedCat.id });
+..\frontend\src\pages\owner\ServiceHubPage.jsx:167:      await api.post('/owner/service-categories', { name: catForm.name.trim() });
+..\frontend\src\pages\owner\ServiceHubPage.jsx:199:        await api.post("/owner/services", payload);
+..\frontend\src\pages\owner\ServicesPage.jsx:114:        await api.post("/owner/services", payload);
+..\frontend\src\pages\owner\SettingsPage.jsx:520:        const response = await api.post("/owner/settings/crm-segment-preview", { segments });
+..\frontend\src\pages\owner\SettingsPage.jsx:628:      const response = await api.post("/owner/settings", {
+..\frontend\src\pages\owner\SettingsPage.jsx:700:      await api.post("/owner/gift-cards", {
+..\frontend\src\pages\owner\StaffRolesPage.jsx:99:      await api.post("/owner/custom-roles", payload);
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:73:            await api.post("/owner/staff-schedule", { ...scheduleForm, weekday: Number(scheduleForm.weekday) });
+..\frontend\src\pages\owner\StaffSchedulePage.jsx:97:            await api.post("/owner/staff-breaks", { ...breakForm, weekday: Number(breakForm.weekday) });
+..\frontend\src\pages\owner\SupportTicketsPage.jsx:49:      await api.post("/owner/support-tickets", form);
+..\frontend\src\pages\owner\SupportTicketsPage.jsx:61:      await api.post(`/owner/support-tickets/${ticketId}/messages`, { message: replyDrafts[ticketId] || "", attachmentUrl: replyAttachments[ticketId] || "" });
+..\frontend\src\pages\owner\UsersPage.jsx:316:        await api.post("/owner/users/create-login", {
+..\frontend\src\pages\owner\VendorManagement.jsx:243:        await api.post("/owner/purchases/vendors", payload);
+..\frontend\src\pages\owner\VendorManagement.jsx:278:      await api.post(`/owner/purchases/vendors/${selectedVendor.id}/items`, {
+..\frontend\src\pages\owner\WebsiteEditorPage.jsx:26:      // await api.post("/owner/website/config", config);
+..\frontend\src\pages\owner\WhatsAppPage.jsx:115:      await api.post("/owner/whatsapp/settings", settings);
+..\frontend\src\pages\owner\WhatsAppPage.jsx:126:      await api.post("/owner/whatsapp/send-manual", message);
+..\frontend\src\pages\owner\WhatsAppPage.jsx:138:      const response = await api.post("/owner/whatsapp/send-bulk-placeholder", bulkMessage);
+..\frontend\src\pages\owner\WhatsAppPage.jsx:154:        await api.post("/owner/whatsapp/automations", automationForm);
+..\frontend\src\pages\public\DemoLeadPage.jsx:55:      await api.post("/public/demo-leads", form);
+..\frontend\src\pages\ResetPasswordPage.jsx:30:    api.post("/auth/validate-reset-token", { token: initialToken })
+..\frontend\src\pages\ResetPasswordPage.jsx:64:      const response = await api.post("/auth/reset-password", { token: form.token, password: form.password });
+..\frontend\src\pages\superAdmin\DemoLeadsPage.jsx:95:      const response = await api.post(`/super-admin/demo-leads/${leadId}/approve`, draftsById[leadId]);
+..\frontend\src\pages\superAdmin\DemoLeadsPage.jsx:112:      await api.post(`/super-admin/demo-leads/${leadId}/reject`, {
+..\frontend\src\pages\superAdmin\DemoLeadsPage.jsx:128:      const response = await api.post(`/super-admin/demo-leads/${leadId}/resend-invite`);
+..\frontend\src\pages\superAdmin\PlansPage.jsx:92:        await api.post("/super-admin/plans", payload);
+..\frontend\src\pages\superAdmin\SalonsPage.jsx:148:        await api.post("/super-admin/salons", payload);
+..\frontend\src\pages\superAdmin\SalonsPage.jsx:206:    const response = await api.post(`/super-admin/salons/${salonId}/impersonate`);
+..\frontend\src\pages\superAdmin\SettingsPage.jsx:72:      await api.post("/super-admin/settings", {
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:68:      await api.post("/super-admin/subscriptions", {
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:110:      const response = await api.post(`/super-admin/subscriptions/${id}/send-trial-reminder`);
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:134:      const response = await api.post(`/super-admin/subscriptions/${row.id}/convert-demo`, {
+..\frontend\src\pages\superAdmin\SupportTicketsPage.jsx:70:      await api.post(`/super-admin/support-tickets/${ticketId}/messages`, {
+..\frontend\src\components\owner\CatalogContentManager.jsx:44:        await api.patch(`${endpoint}/${editingId}`, payload);
+..\frontend\src\components\Topbar.jsx:100:      await api.patch("/owner/notifications/read-all");
+..\frontend\src\components\Topbar.jsx:111:        await api.patch(`/owner/notifications/${notif.id}/read`);
+..\frontend\src\pages\owner\AppointmentCheckoutModal.jsx:404:        await api.patch(`/owner/appointments/${appointment.id}/status`, { status: "COMPLETED" });
+..\frontend\src\pages\owner\AppointmentCheckoutModal.jsx:417:      const invoiceUpdateRes = await api.patch(`/owner/invoices/${activeInvoiceId}`, {
+..\frontend\src\pages\owner\AppointmentDetailPage.jsx:53:      await api.patch(`/owner/appointments/${id}/status`, { status: statusValue, note: statusNote || undefined });
+..\frontend\src\pages\owner\AppointmentEditPage.jsx:89:      await api.patch(`/owner/appointments/${id}`, {
+..\frontend\src\pages\owner\AppointmentsPage.jsx:349:        await api.patch(`/owner/appointments/${editingAppointmentId}`, payload);
+..\frontend\src\pages\owner\AppointmentsPage.jsx:367:      await api.patch(`/owner/appointments/${editingAppointmentId}/status`, { status: "CHECKED_IN" });
+..\frontend\src\pages\owner\AppointmentsPage.jsx:395:      await api.patch(`/owner/appointments/${editingAppointmentId}/status`, { status: "CANCELLED", note: "Cancelled from appointment panel" });
+..\frontend\src\pages\owner\BranchesPage.jsx:46:        await api.patch(`/owner/branches/${editingId}`, form);
+..\frontend\src\pages\owner\BranchesPage.jsx:60:    await api.patch(`/owner/branches/${branchId}/archive`);
+..\frontend\src\pages\owner\CampaignsPage.jsx:145:      if (isEdit) await api.patch(`/owner/campaigns/${params.id}`, payload);
+..\frontend\src\pages\owner\CampaignTemplatesPage.jsx:93:      if (isEdit && params.id) await api.patch(`/owner/campaign-templates/${params.id}`, payload);
+..\frontend\src\pages\owner\CouponsPage.jsx:73:        await api.patch(`/owner/coupons/${editingCoupon.id}`, {
+..\frontend\src\pages\owner\CouponsPage.jsx:110:        await api.patch(`/owner/gift-cards/${editingGc.id}`, {
+..\frontend\src\pages\owner\CouponsPage.jsx:147:      await api.patch(`/owner/gift-cards/${gc.id}`, { isActive: !gc.isActive });
+..\frontend\src\pages\owner\CustomersPage.jsx:302:      await api.patch(`/owner/customers/${selectedCustomer.id}`, {
+..\frontend\src\pages\owner\CustomersPage.jsx:323:      await api.patch(`/owner/customers/${selectedCustomer.id}`, { notes });
+..\frontend\src\pages\owner\ExpensesPage.jsx:231:        await api.patch(`/owner/expenses/categories/${selectedCategory.id}`, {
+..\frontend\src\pages\owner\ExpensesPage.jsx:308:        await api.patch(`/owner/expenses/${editingExpenseId}`, payload);
+..\frontend\src\pages\owner\ExpensesPage.jsx:358:      await api.patch(`/owner/expenses/${id}/approve`, { approvalNote: "Approved via dashboard" });
+..\frontend\src\pages\owner\ExpensesPage.jsx:369:      await api.patch(`/owner/expenses/${id}/reject`, { approvalNote: "Rejected via dashboard" });
+..\frontend\src\pages\owner\ExpertsPage.jsx:111:        await api.patch(`/owner/users/${editingId}`, payload);
+..\frontend\src\pages\owner\ExpertsPage.jsx:149:    await api.patch(`/owner/users/${row.id}/status`, { isActive: !row.user.isActive });
+..\frontend\src\pages\owner\ExpertsPage.jsx:154:    await api.patch(`/owner/users/${row.id}/archive`); 
+..\frontend\src\pages\owner\FeedbackPage.jsx:55:      await api.patch(`/owner/feedback/${id}/status`, { status: "REVIEWED" });
+..\frontend\src\pages\owner\InventoryPage.jsx:497:      await api.patch(`/owner/purchases/orders/${selectedOrder.id}/approve`);
+..\frontend\src\pages\owner\InventoryPage.jsx:512:      await api.patch(`/owner/purchases/orders/${selectedOrder.id}/reject`);
+..\frontend\src\pages\owner\InvoicesPage.jsx:103:      await api.patch(`/owner/invoices/${invoiceId}/cancel`);
+..\frontend\src\pages\owner\MembershipsPage.jsx:163:              await api.patch(`/owner/memberships/${editableMembershipId}`, payload);
+..\frontend\src\pages\owner\MembershipsPage.jsx:220:              await api.patch(`/owner/packages/${editablePackageId}`, payload);
+..\frontend\src\pages\owner\MessageTemplatesPage.jsx:57:      await api.patch(`/owner/message-templates/${params.type}`, form);
+..\frontend\src\pages\owner\MyAppointmentsPage.jsx:25:    await api.patch(`/owner/appointments/${id}/status`, { status });
+..\frontend\src\pages\owner\MyProfilePage.jsx:57:            await api.patch("/owner/my-profile", form);
+..\frontend\src\pages\owner\NotificationsPage.jsx:42:      await api.patch("/owner/notifications/read-all");
+..\frontend\src\pages\owner\NotificationsPage.jsx:52:      await api.patch(`/owner/notifications/${id}/read`);
+..\frontend\src\pages\owner\OrdersPage.jsx:54:      await api.patch(`/owner/orders/${id}/status`, { status: nextStatus });
+..\frontend\src\pages\owner\OrdersPage.jsx:64:      await api.patch(`/owner/orders/${id}/cancel`, { note: "Cancelled from owner panel" });
+..\frontend\src\pages\owner\PosDashboardPage.jsx:576:      await api.patch(`/owner/invoices/${invoiceId}`, {
+..\frontend\src\pages\owner\ProductCategoriesPage.jsx:121:        await api.patch(`/owner/inventory/products/${editingProduct.id}`, payload);
+..\frontend\src\pages\owner\ServiceCategoriesPage.jsx:52:        await api.patch(`/owner/service-categories/${editingCatId}`, { name: catInput.trim() });
+..\frontend\src\pages\owner\ServiceCategoriesPage.jsx:66:    await api.patch(`/owner/service-categories/${id}/archive`);
+..\frontend\src\pages\owner\ServiceCategoriesPage.jsx:77:        await api.patch(`/owner/service-categories/${editingSubId}`, { name: subInput.trim() });
+..\frontend\src\pages\owner\ServiceCategoriesPage.jsx:91:    await api.patch(`/owner/service-categories/${id}/archive`);
+..\frontend\src\pages\owner\ServiceHubPage.jsx:196:        await api.patch(`/owner/services/${editingId}`, payload);
+..\frontend\src\pages\owner\ServiceHubPage.jsx:212:      await api.patch(`/owner/services/${serviceId}/archive`);
+..\frontend\src\pages\owner\ServicesPage.jsx:111:        await api.patch(`/owner/services/${editingId}`, payload);
+..\frontend\src\pages\owner\ServicesPage.jsx:125:    await api.patch(`/owner/services/${serviceId}/archive`);
+..\frontend\src\pages\owner\SettingsPage.jsx:1676:        await api.patch("/owner/settings", form.advancedSettings);
+..\frontend\src\pages\owner\StaffRolesPage.jsx:77:    await api.patch(`/owner/users/${row.id}`, { permissions: nextPermissions });
+..\frontend\src\pages\owner\StaffRolesPage.jsx:84:    await api.patch(`/owner/users/${row.id}/status`, { isActive: !row.user.isActive });
+..\frontend\src\pages\owner\StaffRolesPage.jsx:97:      await api.patch(`/owner/custom-roles/${editingRoleId}`, payload);
+..\frontend\src\pages\owner\UsersPage.jsx:313:        await api.patch(`/owner/users/${editingId}`, payload);
+..\frontend\src\pages\owner\UsersPage.jsx:343:    await api.patch(`/owner/users/${row.id}/status`, { isActive: !row.user.isActive });
+..\frontend\src\pages\owner\UsersPage.jsx:348:    await api.patch(`/owner/users/${row.id}/archive`);
+..\frontend\src\pages\owner\VendorManagement.jsx:240:        await api.patch(`/owner/purchases/vendors/${selectedVendor.id}`, payload);
+..\frontend\src\pages\owner\VendorManagement.jsx:294:      await api.patch(`/owner/purchases/vendor-items/${item.id}`, {
+..\frontend\src\pages\owner\WhatsAppPage.jsx:151:        await api.patch(`/owner/whatsapp/automations/${editingAutomationId}`, automationForm);
+..\frontend\src\pages\owner\WhatsAppPage.jsx:221:      await api.patch(`/owner/whatsapp/logs/${id}/status`, { status: nextStatus });
+..\frontend\src\pages\owner\WhatsAppPage.jsx:236:      await api.patch(`/owner/whatsapp/logs/${id}/reply-placeholder`, { replyNote });
+..\frontend\src\pages\superAdmin\PlansPage.jsx:89:        await api.patch(`/super-admin/plans/${editingId}`, payload);
+..\frontend\src\pages\superAdmin\SalonsPage.jsx:145:        await api.patch(`/super-admin/salons/${editingId}`, payload);
+..\frontend\src\pages\superAdmin\SalonsPage.jsx:193:    await api.patch(`/super-admin/salons/${salonId}/status`, { status: nextStatus });
+..\frontend\src\pages\superAdmin\SalonsPage.jsx:200:    await api.patch(`/super-admin/salons/${salonId}/features`, { featureFlags: nextFlags });
+..\frontend\src\pages\superAdmin\SubscriptionsPage.jsx:83:      await api.patch(`/super-admin/subscriptions/${id}`, patch);
+..\frontend\src\pages\superAdmin\SupportTicketsPage.jsx:57:      await api.patch(`/super-admin/support-tickets/${ticketId}`, data);
+..\frontend\src\components\owner\CatalogContentManager.jsx:86:      await api.delete(`${endpoint}/${id}`);
+..\frontend\src\pages\owner\CouponsPage.jsx:98:      await api.delete(`/owner/coupons/${id}`);
+..\frontend\src\pages\owner\CouponsPage.jsx:137:      await api.delete(`/owner/gift-cards/${id}`);
+..\frontend\src\pages\owner\CustomersPage.jsx:472:      await api.delete(`/owner/customers/${row.id}`);
+..\frontend\src\pages\owner\ExpensesPage.jsx:346:      await api.delete(`/owner/expenses/${id}`);
+..\frontend\src\pages\owner\VendorManagement.jsx:307:      await api.delete(`/owner/purchases/vendor-items/${item.id}`);

@@ -117,12 +117,14 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
   const membership = await ensureActiveCustomerMembership(salonId, body.customerId, body.appliedMembershipId);
 
   const salonSettings = await prisma.salonSetting.findFirst({ where: { salonId, branchId: null } });
-  const advancedSettings = typeof salonSettings === "object" ? {} : {};
+  const advancedSettings = salonSettings?.advancedSettings && typeof salonSettings.advancedSettings === "object"
+    ? salonSettings.advancedSettings
+    : {};
   const allowPriceEdit = true;
   const allowFutureBackdatedBills = false;
   const allowEditConsumable = true;
   const membershipSettings = {};
-  const inclusiveTax = false;
+  const inclusiveTax = advancedSettings?.taxMapping?.inclusiveTax === true;
 
   if (!allowFutureBackdatedBills && body.invoiceDate) {
     const invoiceDate = new Date(body.invoiceDate);

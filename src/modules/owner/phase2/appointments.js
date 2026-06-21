@@ -214,6 +214,28 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     }
   });
 
+  ownerRouter.delete("/appointments/:id", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "edit"), async (req, res) => {
+    try {
+      const appointment = await prisma.appointment.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+      if (!appointment) return res.status(404).json({ message: "Appointment not found" });
+
+      await prisma.$transaction(async (tx) => {
+        const apptServices = await tx.appointmentService.findMany({ where: { appointmentId: appointment.id } });
+        const apptServiceIds = apptServices.map(s => s.id);
+
+        await tx.appointmentServiceStaff.deleteMany({ where: { appointmentServiceId: { in: apptServiceIds } } });
+        await tx.appointmentService.deleteMany({ where: { appointmentId: appointment.id } });
+        await tx.appointmentLog.deleteMany({ where: { appointmentId: appointment.id } });
+        await tx.invoice.updateMany({ where: { appointmentId: appointment.id }, data: { appointmentId: null } });
+        await tx.appointment.delete({ where: { id: appointment.id } });
+      });
+
+      res.json({ message: "Appointment deleted successfully" });
+    } catch (error) {
+      return sendRouteError(res, error, "Could not delete appointment");
+    }
+  });
+
   ownerRouter.patch("/appointments/:id/status", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "edit"), validate(schemas.appointmentStatus), async (req, res) => {
     const appointment = await prisma.appointment.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!appointment) return res.status(404).json({ message: "Appointment not found" });

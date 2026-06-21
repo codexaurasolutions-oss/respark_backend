@@ -517,6 +517,12 @@ ownerRouter.post("/services", requireSalonPermission("services", "create"), vali
   const branchId = normalizeBranchId(req.body.branchId);
   if (branchId) await ensureBranch(req.salonId, branchId);
   const categoryId = req.body.categoryId || null;
+  const salonSettings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
+  const taxRows = Array.isArray(salonSettings?.advancedSettings?.taxMapping?.rates)
+    ? salonSettings.advancedSettings.taxMapping.rates
+    : [];
+  const defaultServiceTax = taxRows.find((row) => row?.active !== false && Array.isArray(row?.applicableFor) && row.applicableFor.includes("SERVICE"));
+  const explicitTaxRate = req.body.taxRate != null ? toAmount(req.body.taxRate) : null;
   const { gender, ...createData } = req.body;
   res.status(201).json(await prisma.service.create({
     data: {
@@ -525,7 +531,7 @@ ownerRouter.post("/services", requireSalonPermission("services", "create"), vali
       categoryId,
       price: toAmount(req.body.price),
       durationMin: Number(req.body.durationMin),
-      taxRate: req.body.taxRate != null ? toAmount(req.body.taxRate) : null,
+      taxRate: explicitTaxRate ?? (defaultServiceTax?.rate != null ? toAmount(defaultServiceTax.rate) : null),
       commissionPct: req.body.commissionPct != null ? toAmount(req.body.commissionPct) : null,
       salonId: req.salonId
     },
