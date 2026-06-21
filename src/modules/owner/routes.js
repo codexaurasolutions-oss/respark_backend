@@ -850,9 +850,57 @@ ownerRouter.get("/customers/:id", requireSalonPermission("customers", "view"), a
   if (!customer) return res.status(404).json({ message: "Customer not found" });
   
   const balanceAmount = customer.invoices.reduce((sum, inv) => sum + Number(inv.balanceAmount || 0), 0);
-  const timelineEntries = await prisma.customerTimeline.findMany({
-    where: { customerId: req.params.id, eventType: "ADVANCE_PAYMENT" }
+  const [advanceTimelineEntries, followUpEntries, staffDirectory] = await Promise.all([
+    prisma.customerTimeline.findMany({
+      where: { customerId: req.params.id, eventType: "ADVANCE_PAYMENT" }
+    }),
+    prisma.customerTimeline.findMany({
+      where: { customerId: req.params.id, eventType: "FOLLOW_UP" },
+      orderBy: { createdAt: "desc" }
+    }),
+    prisma.userSalon.findMany({
+      where: { salonId: req.salonId, isArchived: false },
+      include: { user: true }
+    })
+  ]);
+  const staffNameMap = new Map(staffDirectory.map((row) => [row.id, row.user?.name || row.user?.email || row.id]));
+  const followUps = followUpEntries.map((entry) => {
+    try {
+      const details = JSON.parse(entry.details || "{}");
+      const staffName = details.staffName || (details.staffUserId ? staffNameMap.get(details.staffUserId) : "");
+      return {
+        id: entry.id,
+        createdAt: entry.createdAt,
+        eventType: entry.eventType,
+        title: entry.title,
+        message: details.message || entry.title,
+        note: details.message || entry.title,
+        date: details.date || "",
+        time: details.time || "",
+        type: details.type || "call",
+        status: details.status || "SCHEDULED",
+        staffUserId: details.staffUserId || "",
+        staffName: staffName || "",
+        scheduledFor: details.time ? `${details.date || ""}T${details.time}` : (details.date || "")
+      };
+    } catch (e) {
+      return {
+        id: entry.id,
+        createdAt: entry.createdAt,
+        eventType: entry.eventType,
+        title: entry.title,
+        message: entry.title,
+        note: entry.title,
+        date: "",
+        time: "",
+        type: "call",
+        status: "SCHEDULED",
+        staffUserId: "",
+        staffName: ""
+      };
+    }
   });
+  const timelineEntries = advanceTimelineEntries;
   const advanceAmount = timelineEntries.reduce((sum, entry) => {
     try {
       const details = JSON.parse(entry.details || "{}");
@@ -877,7 +925,58 @@ ownerRouter.get("/customers/:id", requireSalonPermission("customers", "view"), a
     advanceAmount,
     balanceAmount,
     familyMembers,
-    referralCode
+    referralCode,
+    followUps
+  });
+});
+
+ownerRouter.post("/follow-ups", requireSalonPermission("customers", "edit"), validate(schemas.customerFollowUp), async (req, res) => {
+  const customer = await prisma.customer.findFirst({
+    where: { id: req.body.customerId, salonId: req.salonId }
+  });
+  if (!customer) return res.status(404).json({ message: "Customer not found" });
+
+  const staffUser = await prisma.userSalon.findFirst({
+    where: { id: req.body.staffUserId, salonId: req.salonId, isArchived: false },
+    include: { user: true }
+  });
+  if (!staffUser) return res.status(400).json({ message: "Assigned staff not found for this salon" });
+
+  const title = `Follow-up scheduled (${String(req.body.type || "call").toUpperCase()})`;
+  const details = {
+    date: req.body.date,
+    time: req.body.time || "",
+    message: req.body.message,
+    type: req.body.type,
+    status: "SCHEDULED",
+    staffUserId: staffUser.id,
+    staffName: staffUser.user?.name || staffUser.user?.email || staffUser.id
+  };
+
+  const timeline = await prisma.customerTimeline.create({
+    data: {
+      customerId: customer.id,
+      eventType: "FOLLOW_UP",
+      title,
+      details: JSON.stringify(details),
+      referenceId: customer.id
+    }
+  });
+
+  await createAuditLog({
+    salonId: req.salonId,
+    actorUserId: req.user.userId,
+    actorMembershipId: req.user.membershipId,
+    module: "CRM",
+    action: "FOLLOW_UP_CREATED",
+    entityType: "CustomerTimeline",
+    entityId: timeline.id,
+    summary: `Follow-up scheduled for ${customer.name || customer.phone || customer.id}`
+  });
+
+  res.status(201).json({
+    ...timeline,
+    ...details
   });
 });
 
