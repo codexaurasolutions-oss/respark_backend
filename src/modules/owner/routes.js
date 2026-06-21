@@ -544,6 +544,12 @@ ownerRouter.patch("/services/:id", requireSalonPermission("services", "edit"), v
   const branchId = normalizeBranchId(req.body.branchId);
   if (branchId) await ensureBranch(req.salonId, branchId);
   const { gender, ...updateData } = req.body;
+  const salonSettings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
+  const taxRows = Array.isArray(salonSettings?.advancedSettings?.taxMapping?.rates)
+    ? salonSettings.advancedSettings.taxMapping.rates
+    : [];
+  const defaultServiceTax = taxRows.find((taxRow) => taxRow?.active !== false && Array.isArray(taxRow?.applicableFor) && taxRow.applicableFor.includes("SERVICE"));
+  const explicitTaxRate = req.body.taxRate != null ? toAmount(req.body.taxRate) : null;
   res.json(await prisma.service.update({
     where: { id: req.params.id },
     data: {
@@ -552,7 +558,7 @@ ownerRouter.patch("/services/:id", requireSalonPermission("services", "edit"), v
       categoryId: req.body.categoryId !== undefined ? req.body.categoryId : row.categoryId,
       price: toAmount(req.body.price),
       durationMin: Number(req.body.durationMin),
-      taxRate: req.body.taxRate != null ? toAmount(req.body.taxRate) : null,
+      taxRate: explicitTaxRate ?? (defaultServiceTax?.rate != null ? toAmount(defaultServiceTax.rate) : row.taxRate),
       commissionPct: req.body.commissionPct != null ? toAmount(req.body.commissionPct) : null
     },
     include: { branch: true, category: true }
