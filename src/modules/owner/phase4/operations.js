@@ -324,8 +324,8 @@ export const registerOperationsRoutes = (ownerRouter) => {
       });
       const item = calculatePayrollItem({
         invoices,
-        membershipSales: [],
-        packageSales: [],
+        membershipSales: invoices.filter(i => i.itemType === "MEMBERSHIP").map(i => ({ price: Number(i.lineTotal || 0) })),
+        packageSales: invoices.filter(i => i.itemType === "PACKAGE").map(i => ({ price: Number(i.lineTotal || 0) })),
         attendanceRecords,
         leaveRequests,
         baseSalary: 50000
