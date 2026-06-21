@@ -110,6 +110,19 @@ publicRouter.get("/debug-db", asyncHandler(async (req, res) => {
   res.json({ users, settings, giftCards });
 }));
 
+publicRouter.get("/debug-code", asyncHandler(async (req, res) => {
+  if (req.query.key !== "respark123") {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+  const fs = await import("node:fs/promises");
+  try {
+    const code = await fs.readFile("./src/modules/owner/phase4/promotions.js", "utf8");
+    res.json({ code });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}));
+
 publicRouter.get("/run-seed-services", asyncHandler(async (req, res) => {
   if (req.query.key !== "respark123") {
     return res.status(403).json({ error: "Unauthorized" });
