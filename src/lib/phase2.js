@@ -6,8 +6,20 @@ export const toDate = (value) => (value ? new Date(value) : null);
 
 export const timeToMinutes = (value) => {
   if (!value) return null;
-  const [hours = "0", minutes = "0"] = String(value).split(":");
-  return Number(hours) * 60 + Number(minutes);
+  const valStr = String(value).trim().toLowerCase();
+  const [timePart] = valStr.split(" ");
+  const [hoursStr = "0", minutesStr = "0"] = timePart.split(":");
+  let hours = parseInt(hoursStr, 10);
+  let minutes = parseInt(minutesStr, 10);
+  if (isNaN(hours)) hours = 0;
+  if (isNaN(minutes)) minutes = 0;
+
+  if (valStr.includes("pm")) {
+    if (hours < 12) hours += 12;
+  } else if (valStr.includes("am")) {
+    if (hours === 12) hours = 0;
+  }
+  return hours * 60 + minutes;
 };
 
 export const dateToMinutes = (value) => {
