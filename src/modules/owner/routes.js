@@ -275,13 +275,7 @@ ownerRouter.get("/branches", requireSalonPermission("branches", "view"), async (
   res.json(rows);
 });
 ownerRouter.post("/branches", requireSalonPermission("branches", "create"), validate(schemas.branch), async (req, res) => {
-  const plan = await getActivePlanForSalon(req.salonId);
-  if (plan) {
-    const branchCount = await prisma.branch.count({ where: { salonId: req.salonId, isActive: true } });
-    if (branchCount >= plan.branchLimit) {
-      return res.status(403).json({ message: "Branch limit reached for current plan" });
-    }
-  }
+  // Branches are unlimited — no plan-based cap.
   res.status(201).json(await prisma.branch.create({ data: { ...req.body, email: req.body.email || null, salonId: req.salonId } }));
 });
 ownerRouter.patch("/branches/:id", requireSalonPermission("branches", "edit"), validate(schemas.branch), async (req, res) => {

@@ -382,7 +382,7 @@ model Plan {
   monthlyPrice  Decimal  @db.Decimal(10, 2)
   yearlyPrice   Decimal  @db.Decimal(10, 2)
   trialDays     Int      @default(14)
-  branchLimit   Int      @default(1)
+  branchLimit   Int      @default(9999)
   userLimit     Int      @default(5)
   customerLimit Int      @default(500)
   invoiceLimit  Int      @default(1000)
