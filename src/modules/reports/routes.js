@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../lib/prisma.js";
-import { attachBranchStock, buildCsv, isOwnScopedStaff, normalizeBranchId, toAmount } from "../../lib/phase2.js";
+import { appendTotalRow, attachBranchStock, buildCsv, isOwnScopedStaff, normalizeBranchId, toAmount } from "../../lib/phase2.js";
 import { requireAuth, requireFeatureEnabled, requireSalonContext, requireSalonPermission } from "../../middlewares/rbac.js";
 import { registerExtendedReports } from "./routes-extended.js";
 
@@ -425,33 +425,33 @@ reportsRouter.get("/sales-summary-list", async (req, res) => {
     orderBy: { createdAt: "desc" }
   });
 
-  res.json(
-    invoices.map((invoice, idx) => {
-      const dateObj = new Date(invoice.createdAt);
-      const total = toAmount(invoice.total);
-      const paid = toAmount(invoice.paidAmount);
-      const refunded = toAmount(invoice.refundAmount);
-      const due = Math.max(0, total - paid - refunded);
-      const paymentModes = invoice.payments?.map((payment) => payment.mode).filter(Boolean).join(", ") || "-";
+  const mapped = invoices.map((invoice, idx) => {
+    const dateObj = new Date(invoice.createdAt);
+    const total = toAmount(invoice.total);
+    const paid = toAmount(invoice.paidAmount);
+    const refunded = toAmount(invoice.refundAmount);
+    const due = Math.max(0, total - paid - refunded);
+    const paymentModes = invoice.payments?.map((payment) => payment.mode).filter(Boolean).join(", ") || "-";
 
-      return {
-        "SR. NO.": idx + 1,
-        "DATE": dateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-"),
-        "TIME": dateObj.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-        "INVOICE NO": invoice.invoiceNumber || "-",
-        "GUEST NAME": invoice.customer?.name || "Walk-in",
-        "GUEST NUMBER": invoice.customer?.phone || "-",
-        "ITEMS": Array.isArray(invoice.items) ? invoice.items.length : 0,
-        "GROSS AMOUNT": total,
-        "DISCOUNT": toAmount(invoice.discount),
-        "TAX": toAmount(invoice.tax),
-        "NET TOTAL": total,
-        "PAID AMOUNT": paid,
-        "DUE AMOUNT": due,
-        "PAYMENT MODE": paymentModes
-      };
-    })
-  );
+    return {
+      "SR. NO.": idx + 1,
+      "DATE": dateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-"),
+      "TIME": dateObj.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+      "INVOICE NO": invoice.invoiceNumber || "-",
+      "GUEST NAME": invoice.customer?.name || "Walk-in",
+      "GUEST NUMBER": invoice.customer?.phone || "-",
+      "ITEMS": Array.isArray(invoice.items) ? invoice.items.length : 0,
+      "GROSS AMOUNT": total,
+      "DISCOUNT": toAmount(invoice.discount),
+      "TAX": toAmount(invoice.tax),
+      "NET TOTAL": total,
+      "PAID AMOUNT": paid,
+      "DUE AMOUNT": due,
+      "PAYMENT MODE": paymentModes
+    };
+  });
+
+  res.json(appendTotalRow(mapped, "GUEST NAME", "TOTAL", ["ITEMS", "GROSS AMOUNT", "DISCOUNT", "TAX", "NET TOTAL", "PAID AMOUNT", "DUE AMOUNT"]));
 });
 
 reportsRouter.get("/payment-modes", async (req, res) => {
@@ -481,7 +481,21 @@ reportsRouter.get("/appointments", async (req, res) => {
     include: { customer: true, branch: true, items: { include: { service: true } } },
     orderBy: { startAt: "desc" }
   });
-  res.json(rows);
+  const mapped = rows.map((r) => {
+    const total = r.items?.reduce((s, i) => s + toAmount(i.lineTotal || i.unitPrice || 0), 0) || 0;
+    const services = r.items?.map((i) => i.service?.name || i.serviceName).filter(Boolean).join(", ") || "-";
+    const staff = r.items?.flatMap((i) => i.assignedStaff || []).map((a) => a.userSalon?.user?.name).filter(Boolean).join(", ") || "-";
+    return {
+      Date: r.startAt,
+      Customer: r.customer?.name || "Walk-in",
+      Service: services,
+      Staff: staff,
+      Branch: r.branch?.name || "-",
+      Status: r.status || "-",
+      Amount: total
+    };
+  });
+  res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Amount"]));
 });
 
 const sendStaffPerformance = async (req, res) => {
@@ -527,7 +541,9 @@ const sendStaffPerformance = async (req, res) => {
   });
 
   const rows = Object.values(summary).sort((a, b) => b.revenue - a.revenue);
-  res.json(isOwnScopedStaff(req, "reports") ? rows.filter((row) => row.staffId === req.user.membershipId) : rows);
+  const filtered = isOwnScopedStaff(req, "reports") ? rows.filter((row) => row.staffId === req.user.membershipId) : rows;
+  const mapped = filtered.map(r => ({ "Staff": r.staffName, "Appointments": r.appointments, "Completed": r.completedAppointments, "Revenue": r.revenue, "Commission": r.commission, "Qty": r.quantity }));
+  res.json(appendTotalRow(mapped, "Staff", "TOTAL", ["Appointments", "Completed", "Revenue", "Commission", "Qty"]));
 };
 
 reportsRouter.get("/staff-performance", sendStaffPerformance);
@@ -551,7 +567,8 @@ reportsRouter.get("/product-sales", async (req, res) => {
     grouped[key].sales += toAmount(row.lineTotal);
   });
   const result = Object.values(grouped).sort((a, b) => b.sales - a.sales);
-  res.json(result.map(r => ({ ...r, "Qty": r.qty, "Sales": r.sales })));
+  const mapped = result.map(r => ({ ...r, "Qty": r.qty, "Sales": r.sales }));
+  res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Qty", "Sales"]));
 });
 
 reportsRouter.get("/service-sales", async (req, res) => {
@@ -570,7 +587,7 @@ reportsRouter.get("/service-sales", async (req, res) => {
   const serviceMap = {};
   services.forEach(s => { serviceMap[s.id] = s; });
 
-  res.json(rows.map((row, idx) => {
+  const mapped = rows.map((row, idx) => {
     const inv = row.invoice;
     const svc = serviceMap[row.serviceId];
     const dateObj = new Date(inv?.createdAt || Date.now());
@@ -600,7 +617,9 @@ reportsRouter.get("/service-sales", async (req, res) => {
       "TOTAL": toAmount(row.lineTotal),
       "PAYMENT MODE": paymentModes
     };
-  }));
+  });
+
+  res.json(appendTotalRow(mapped, "GUEST NAME", "TOTAL", ["QTY", "UNIT PRICE", "DISCOUNT", "COMPLIMENTARY", "REDEMPTION AMOUNT", "TAX", "SUBTOTAL", "TOTAL"]));
 });
 
 reportsRouter.get("/memberships", async (req, res) => {
@@ -621,7 +640,15 @@ reportsRouter.get("/memberships", async (req, res) => {
     include: { membershipPlan: true, customer: true, soldInvoice: true, usageLogs: true },
     orderBy: { createdAt: "desc" }
   });
-  res.json(rows);
+  const mapped = rows.map((r) => ({
+    Date: r.createdAt,
+    Customer: r.customer?.name || "-",
+    "Membership Plan": r.membershipPlan?.name || "-",
+    Price: r.pricePaid ?? toAmount(r.soldInvoice?.total),
+    Validity: r.validUntil ? new Date(r.validUntil).toISOString().slice(0, 10) : (r.membershipPlan?.validityDays ? `${r.membershipPlan.validityDays} days` : "-"),
+    Branch: r.soldInvoice?.branchName || "-"
+  }));
+  res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Price"]));
 });
 
 reportsRouter.get("/packages", async (req, res) => {
@@ -642,7 +669,15 @@ reportsRouter.get("/packages", async (req, res) => {
     include: { package: true, customer: true, soldInvoice: true, usageLogs: true },
     orderBy: { createdAt: "desc" }
   });
-  res.json(rows);
+  const mapped = rows.map((r) => ({
+    Date: r.createdAt,
+    Customer: r.customer?.name || "-",
+    Package: r.package?.name || "-",
+    "Price Paid": r.pricePaid ?? toAmount(r.soldInvoice?.total),
+    Validity: r.validUntil ? new Date(r.validUntil).toISOString().slice(0, 10) : (r.package?.validityDays ? `${r.package.validityDays} days` : "-"),
+    "Services Included": r.package?.sessionCount ?? r.package?.items?.length ?? "-"
+  }));
+  res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Price Paid"]));
 });
 
 reportsRouter.get("/stock", async (req, res) => {
@@ -654,6 +689,31 @@ reportsRouter.get("/stock", async (req, res) => {
       orderBy: { name: "asc" }
     });
     return res.json(await attachBranchStock(prisma, products, branchId));
+  }
+
+  if (req.query.format === "daily-stock") {
+    const products = await prisma.product.findMany({
+      where: { salonId: req.salonId, isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }, { stockMovements: { some: { branchId } } }] } : {}) },
+      include: { category: true, branch: true },
+      orderBy: { name: "asc" }
+    });
+    const rows = await attachBranchStock(prisma, products, branchId);
+    const mapped = rows.map((p, idx) => ({
+      "SR. NO.": idx + 1,
+      "ITEM NAME": p.name,
+      "VARIATION NAME": p.variationName || "-",
+      "CATEGORY NAME": p.category?.name || "-",
+      "SKU": p.sku || "-",
+      "OPENING STOCK": p.openingStock ?? "-",
+      "CURRENT STOCK": toAmount(p.currentStock),
+      "CURRENT ONFLOOR": toAmount(p.currentOnFloor),
+      "UNIT PRICE": toAmount(p.price),
+      "TOTAL STOCK PRICE": toAmount(p.currentStock) * toAmount(p.price),
+      "TOTAL ONFLOOR PRICE": toAmount(p.currentOnFloor) * toAmount(p.price),
+      "TOTAL PRICE": toAmount(p.currentStock) * toAmount(p.price),
+      "STOCK TYPE": p.stockType || "-"
+    }));
+    return res.json(appendTotalRow(mapped, "ITEM NAME", "TOTAL", ["CURRENT STOCK", "CURRENT ONFLOOR", "TOTAL STOCK PRICE", "TOTAL ONFLOOR PRICE", "TOTAL PRICE"]));
   }
 
   res.json(await prisma.stockMovement.findMany({
@@ -797,25 +857,45 @@ reportsRouter.get("/customers", async (req, res) => {
 reportsRouter.get("/branch-sales", async (req, res) => {
   const invoices = await prisma.invoice.findMany({
     where: buildInvoiceWhere(req, null),
-    include: { branch: true }
+    include: { branch: true, payments: true }
   });
   const grouped = invoices.reduce((acc, invoice) => {
     const key = invoice.branch?.name || "Unassigned";
-    if (!acc[key]) acc[key] = { branch: key, sales: 0, paid: 0, count: 0 };
+    if (!acc[key]) acc[key] = { branch: key, sales: 0, paid: 0, cash: 0, card: 0, upi: 0, online: 0, count: 0 };
     acc[key].sales += toAmount(invoice.total);
     acc[key].paid += toAmount(invoice.paidAmount);
     acc[key].count += 1;
+    invoice.payments?.forEach(p => {
+      const amt = toAmount(p.amount);
+      const mode = (p.mode || "").toUpperCase();
+      if (mode === "CASH") acc[key].cash += amt;
+      else if (mode === "CARD") acc[key].card += amt;
+      else if (mode === "UPI") acc[key].upi += amt;
+      if (p.mode === "ONLINE" || mode === "ONLINE") acc[key].online += amt;
+    });
     return acc;
   }, {});
-  res.json(Object.values(grouped));
+  const result = Object.values(grouped);
+  const mapped = result.map(r => ({ Date: r.branch, Invoices: r.count, Cash: r.cash, Card: r.card, UPI: r.upi, Online: r.online, Total: r.sales }));
+  res.json(appendTotalRow(mapped, "Date", "TOTAL", ["Invoices", "Cash", "Card", "UPI", "Online", "Total"]));
 });
 
 reportsRouter.get("/cancelled-invoices", async (req, res) => {
-  res.json(await prisma.invoice.findMany({
+  const invoices = await prisma.invoice.findMany({
     where: { ...buildInvoiceWhere(req, null), status: { in: ["CANCELLED", "REFUNDED"] } },
     include: { customer: true, branch: true, payments: true },
     orderBy: { createdAt: "desc" }
+  });
+  const mapped = invoices.map((inv, idx) => ({
+    Invoice: inv.invoiceNumber || "-",
+    Customer: inv.customer?.name || "Walk-in",
+    Branch: inv.branch?.name || "-",
+    Status: inv.status || "-",
+    Total: toAmount(inv.total),
+    Paid: toAmount(inv.paidAmount),
+    Refunded: toAmount(inv.refundAmount)
   }));
+  res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Total", "Paid", "Refunded"]));
 });
 
 reportsRouter.get("/export.csv", async (req, res) => {

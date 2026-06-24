@@ -372,3 +372,17 @@ export const buildCsv = (header, rows) =>
 
 export const isOwnScopedStaff = (req, moduleKey) =>
   req.user?.salonRole === "STAFF" && !((req.user?.permissions?.[moduleKey] || []).includes("manage_all"));
+
+export const appendTotalRow = (rows, labelColumn, labelValue, numericColumns, preserveNulls = false) => {
+  if (!rows || rows.length === 0) return rows;
+  const total = { [labelColumn]: labelValue || "TOTAL" };
+  numericColumns.forEach((col) => {
+    if (preserveNulls) {
+      const allNull = rows.every((r) => r[col] === null || r[col] === undefined);
+      total[col] = allNull ? null : rows.reduce((sum, r) => sum + (Number(r[col]) || 0), 0);
+    } else {
+      total[col] = rows.reduce((sum, r) => sum + (Number(r[col]) || 0), 0);
+    }
+  });
+  return [...rows, total];
+};

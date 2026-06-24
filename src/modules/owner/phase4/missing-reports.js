@@ -1,6 +1,6 @@
 import { prisma } from "../../../lib/prisma.js";
 import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
-import { isOwnScopedStaff, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
+import { appendTotalRow, isOwnScopedStaff, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
 
 const parseDateSafe = (val, isEnd = false) => {
   if (!val) return null;
@@ -141,7 +141,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { totalPayout: "desc" },
       take: 200
     });
-    res.json(payrollItems.map((item, idx) => ({
+    const mapped = payrollItems.map((item, idx) => ({
       "SR. NO.": idx + 1,
       "Staff": item.membership?.userSalon?.user?.name || "-",
       "Month": item.payrollRun ? new Date(item.payrollRun.periodStart).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "-",
@@ -150,7 +150,8 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Commission Amt": item.commissionAmount,
       "Bonus": item.incentiveAmount,
       "Total": item.totalPayout
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Staff", "TOTAL", ["Revenue Generated", "Commission Amt", "Bonus", "Total"]));
   });
 
   // ============ Staff Attendance ============
@@ -235,14 +236,15 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(usage.map((u, idx) => ({
+    const mapped = usage.map((u, idx) => ({
       "Date": u.createdAt,
       "Customer": u.customerMembership?.customer?.name || "-",
       "Home Branch": u.customerMembership?.homeBranch?.name || "-",
       "Redeemed Branch": u.branch?.name || "-",
       "Service": u.serviceName || "-",
       "Value Transfer": u.amountUsed || 0
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Value Transfer"]));
   });
 
   // ============ Package Redemption ============
@@ -281,14 +283,15 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(cards.map((c, idx) => ({
+    const mapped = cards.map((c, idx) => ({
       "Date": c.createdAt,
       "Code": c.code,
       "Customer": c.customer?.name || "-",
       "Value": c.originalAmount,
       "Expiry": c.expiresAt ? c.expiresAt.toISOString().slice(0,10) : "-",
       "Branch": c.branch?.name || "-"
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Value"]));
   });
 
   // ============ Gift Card Redemption ============
@@ -300,13 +303,14 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(redemptions.map((r, idx) => ({
+    const mapped = redemptions.map((r, idx) => ({
       "Date": r.createdAt,
       "Code": r.giftCard?.code || "-",
       "Amount Used": r.amountUsed,
       "Invoice #": r.invoice?.invoiceNumber || "-",
       "Remaining Balance": r.giftCard ? r.giftCard.balanceAmount : 0
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Code", "TOTAL", ["Amount Used", "Remaining Balance"]));
   });
 
   // ============ Advance Received ============
@@ -318,14 +322,15 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(payments.map((p, idx) => ({
+    const mapped = payments.map((p, idx) => ({
       "Date": p.createdAt,
       "Customer": p.invoice?.customer?.name || "-",
       "Invoice #": p.invoice?.invoiceNumber || "-",
       "Advance Amount": p.amount,
       "Mode": p.mode,
       "Staff": p.invoice?.salesByUserId || "-"
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Advance Amount"]));
   });
 
   // ============ Balance Received ============
@@ -337,14 +342,15 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(payments.map((p, idx) => ({
+    const mapped = payments.map((p, idx) => ({
       "Date": p.createdAt,
       "Customer": p.invoice?.customer?.name || "-",
       "Invoice #": p.invoice?.invoiceNumber || "-",
       "Balance Amt": p.amount,
       "Mode": p.mode,
       "Collected By": p.invoice?.salesByUserId || "-"
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Balance Amt"]));
   });
 
   // ============ Coupon Redemption ============
@@ -356,13 +362,14 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(redemptions.map((r, idx) => ({
+    const mapped = redemptions.map((r, idx) => ({
       "Date": r.createdAt,
       "Code": r.coupon?.code || "-",
       "Customer": r.customer?.name || "-",
       "Invoice #": r.invoice?.invoiceNumber || "-",
       "Discount Applied": r.amountSaved
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Discount Applied"]));
   });
 
   // ============ Tip Report ============
@@ -374,7 +381,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(tips.map((p, idx) => ({
+    const mapped = tips.map((p, idx) => ({
       "SR. NO.": idx + 1,
       "Date": p.createdAt,
       "Customer": p.invoice?.customer?.name || "-",
@@ -383,7 +390,8 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Staff": p.invoice?.salesByUserId || "-",
       "Tip Amount": p.amount,
       "Payment Mode": p.mode
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Tip Amount"]));
   });
 
   // ============ Complimentary Report ============
@@ -395,7 +403,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(invoices.map((inv, idx) => {
+    const mapped = invoices.map((inv, idx) => {
       const firstService = inv.items.find(i => i.service)?.service?.name || "-";
       return {
         "Date": inv.createdAt,
@@ -405,7 +413,8 @@ export const registerMissingReportRoutes = (ownerRouter) => {
         "Reason": inv.notes || "Complimentary",
         "Value": inv.subtotal
       };
-    }));
+    });
+    res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Value"]));
   });
 
   // ============ GST Returns Report ============
@@ -418,7 +427,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(invoices.map((inv, idx) => ({
+    const mapped = invoices.map((inv, idx) => ({
       "SR. NO.": idx + 1,
       "Invoice Date": inv.createdAt,
       "Invoice No": inv.invoiceNumber,
@@ -430,7 +439,8 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Discount": inv.discount,
       "Taxable Amount": inv.subtotal - inv.discount,
       "Invoice Amount": inv.total
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Qty", "Amount", "Discount", "Taxable Amount", "Invoice Amount"]));
   });
 
   // ============ GST Outwards Report ============
@@ -443,7 +453,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    res.json(invoices.map((inv, idx) => ({
+    const mapped = invoices.map((inv, idx) => ({
       "Invoice #": inv.invoiceNumber,
       "Date": inv.createdAt,
       "Customer": inv.customer?.name || "-",
@@ -451,7 +461,8 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Tax Rate": inv.items[0]?.taxPct ? `${inv.items[0].taxPct}%` : "0%",
       "Tax Amt": inv.tax,
       "Total": inv.total
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Taxable Amt", "Tax Amt", "Total"]));
   });
 
   // ============ Guest Followups ============
@@ -502,7 +513,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
         });
       });
     });
-    res.json(rows);
+    res.json(appendTotalRow(rows, "Product", "TOTAL", ["Qty", "Total Cost"]));
   });
 
   // ============ Reconcile Stock ============
@@ -554,13 +565,14 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       grouped[key].totalUsed += Math.abs(Number(m.quantity || 0));
       grouped[key].cost += Math.abs(Number(m.quantity || 0)) * Number(m.product?.costPrice || 0);
     });
-    res.json(Object.values(grouped).map((g, idx) => ({
+    const mapped = Object.values(grouped).map((g, idx) => ({
       "Product": g.product,
       "Service": g.service,
       "Qty Used Per Service": g.qtyPerService,
       "Total Used": g.totalUsed,
       "Cost": g.cost
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Qty Used Per Service", "Total Used", "Cost"]));
   });
 
   // ============ Total Consumed ============
@@ -586,12 +598,13 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       grouped[key].totalQuantity += qty;
       grouped[key].value += qty * Number(m.product?.costPrice || 0);
     });
-    res.json(Object.values(grouped).map((g, idx) => ({
+    const mapped = Object.values(grouped).map((g, idx) => ({
       "Product": g.product,
       "Category": g.category,
       "Total Quantity Consumed": g.totalQuantity,
       "Value": g.value
-    })));
+    }));
+    res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Total Quantity Consumed", "Value"]));
   });
 
   // ============ Purchase Order Report ============
@@ -617,7 +630,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
         });
       });
     });
-    res.json(rows);
+    res.json(appendTotalRow(rows, "PO #", "TOTAL", ["Amount"]));
   });
 
   // ============ Inventory Transaction Report ============
@@ -671,13 +684,13 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     }
     const rows = months.map((m) => ({
       "Month": m.label,
-      "Revenue": revenue / months.length,
-      "COGS": cogs / months.length,
-      "Gross Profit": grossProfit / months.length,
-      "Expenses": totalExpenses / months.length,
-      "Net Profit": netProfit / months.length,
+      "Revenue": Math.round(revenue / months.length),
+      "COGS": Math.round(cogs / months.length),
+      "Gross Profit": Math.round(grossProfit / months.length),
+      "Expenses": Math.round(totalExpenses / months.length),
+      "Net Profit": Math.round(netProfit / months.length),
       "Margin Percentage": revenue ? Math.round((netProfit / revenue) * 100) : 0
     }));
-    res.json(rows);
+    res.json(appendTotalRow(rows, "Month", "TOTAL", ["Revenue", "COGS", "Gross Profit", "Expenses", "Net Profit"]));
   });
 };
