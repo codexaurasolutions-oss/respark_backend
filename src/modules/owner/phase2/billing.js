@@ -2,7 +2,7 @@ import PDFDocument from "pdfkit";
 import { getNotificationToggles } from "../../../lib/emailAutomation.js";
 import { attemptCustomerTemplateEmail } from "../../../lib/emailNotifications.js";
 import { prisma } from "../../../lib/prisma.js";
-import { addInvoicePayment, createPosInvoice, generatePaymentLink, getDayClosingSummary, logPaymentLinkPlaceholder, refundInvoice } from "../../../lib/pos.js";
+import { addInvoicePayment, addInvoiceTip, createPosInvoice, generatePaymentLink, getDayClosingSummary, logPaymentLinkPlaceholder, refundInvoice } from "../../../lib/pos.js";
 import { reverseInvoiceLoyalty, createStaffNotification, createCustomerNotification } from "../../../lib/phase4.js";
 import { attachBranchStock, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
 import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
@@ -1258,8 +1258,7 @@ const sanitizeInvoicePhone = (phone) => {
     const packages = await prisma.customerPackage.findMany({
       where: { salonId: req.salonId, customerId: req.params.id },
       include: {
-        package: true,
-        services: { include: { service: true } }
+        package: { include: { services: { include: { service: true } } } }
       },
       orderBy: { createdAt: "desc" }
     });
@@ -1267,7 +1266,7 @@ const sanitizeInvoicePhone = (phone) => {
   });
 
   // Gift Card Validation for POS redemption
-  ownerRouter.post("/gift-cards/validate", requireSalonPermission("billing", "edit"), async (req, res) => {
+  ownerRouter.post("/gift-cards/validate", requireSalonPermission("billing", "view"), async (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ message: "Gift card code is required" });
     const giftCard = await prisma.giftCard.findFirst({
@@ -1287,6 +1286,90 @@ const sanitizeInvoicePhone = (phone) => {
       originalAmount: giftCard.originalAmount,
       expiresAt: giftCard.expiresAt
     });
+  });
+
+  // Add Tip to existing invoice
+  ownerRouter.post("/invoices/:id/tip", requireSalonPermission("billing", "edit"), async (req, res) => {
+    try {
+      const { amount, mode, staffId, note } = req.body;
+      if (!amount || Number(amount) <= 0) return res.status(400).json({ message: "Tip amount must be greater than zero" });
+      const payment = await addInvoiceTip({
+        salonId: req.salonId,
+        invoiceId: req.params.id,
+        amount: Number(amount),
+        mode: mode || "CASH",
+        note: note || `Tip`,
+        actorUser: req.user
+      });
+      res.status(201).json(payment);
+    } catch (error) {
+      const status = error.status || 500;
+      res.status(status).json({ message: error.message || "Failed to add tip" });
+    }
+  });
+
+  // Apply Gift Card to existing invoice
+  ownerRouter.post("/invoices/:id/apply-gift-card", requireSalonPermission("billing", "edit"), async (req, res) => {
+    const { giftCardCode } = req.body;
+    if (!giftCardCode) return res.status(400).json({ message: "Gift card code is required" });
+    
+    const invoice = await prisma.invoice.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+    
+    const giftCard = await prisma.giftCard.findFirst({
+      where: { salonId: req.salonId, code: String(giftCardCode).trim(), isActive: true }
+    });
+    if (!giftCard) return res.status(404).json({ message: "Gift card not found" });
+    if (giftCard.expiresAt && new Date(giftCard.expiresAt) < new Date()) {
+      return res.status(400).json({ message: "Gift card has expired" });
+    }
+    const gcBalance = Number(giftCard.balanceAmount || 0);
+    if (gcBalance <= 0) return res.status(400).json({ message: "Gift card has no remaining balance" });
+    
+    const invoiceBalance = Math.max(0, Number(invoice.total || 0) - Number(invoice.paidAmount || 0));
+    const applyAmount = Math.min(gcBalance, invoiceBalance);
+    if (applyAmount <= 0) return res.status(400).json({ message: "No balance to apply" });
+    
+    const result = await prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.create({
+        data: {
+          salonId: req.salonId,
+          invoiceId: invoice.id,
+          amount: applyAmount,
+          mode: "WALLET",
+          note: `Gift card ${giftCardCode}`,
+          type: "PAYMENT"
+        }
+      });
+      
+      const nextPaid = Number(invoice.paidAmount || 0) + applyAmount;
+      const nextBalance = Math.max(0, Number(invoice.total || 0) - nextPaid);
+      const nextStatus = nextPaid >= Number(invoice.total || 0) ? "PAID" : nextPaid > 0 ? "PARTIAL" : "UNPAID";
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { paidAmount: nextPaid, balanceAmount: nextBalance, status: nextStatus }
+      });
+      
+      const newGcBalance = gcBalance - applyAmount;
+      await tx.giftCard.update({
+        where: { id: giftCard.id },
+        data: { balanceAmount: newGcBalance, isActive: newGcBalance > 0 }
+      });
+      
+      await tx.giftCardRedemption.create({
+        data: {
+          salonId: req.salonId,
+          giftCardId: giftCard.id,
+          customerId: invoice.customerId,
+          invoiceId: invoice.id,
+          amountUsed: applyAmount
+        }
+      });
+      
+      return { payment, applyAmount, newGcBalance };
+    });
+    
+    res.json(result);
   });
 
 };

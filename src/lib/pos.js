@@ -900,6 +900,35 @@ export const addInvoicePayment = async ({ salonId, invoiceId, amount, mode, note
   });
 };
 
+export const addInvoiceTip = async ({ salonId, invoiceId, amount, mode, note, actorUser }) => {
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.findFirst({
+      where: { id: invoiceId, salonId }
+    });
+    if (!invoice) {
+      const error = new Error("Invoice not found");
+      error.status = 404;
+      throw error;
+    }
+    if (["CANCELLED", "REFUNDED"].includes(invoice.status)) {
+      const error = new Error("This invoice cannot accept more payments");
+      error.status = 400;
+      throw error;
+    }
+    const payment = await tx.payment.create({
+      data: {
+        salonId,
+        invoiceId: invoice.id,
+        amount: toAmount(amount),
+        mode,
+        note: note || null,
+        type: "TIP"
+      }
+    });
+    return payment;
+  });
+};
+
 export const refundInvoice = async ({ salonId, invoiceId, amount, note, actorUser }) => {
   return prisma.$transaction(async (tx) => {
     const invoice = await tx.invoice.findFirst({
