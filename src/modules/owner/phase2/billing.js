@@ -1251,6 +1251,44 @@ const sanitizeInvoicePhone = (phone) => {
     res.json(mapped);
   });
 
+  // Customer Packages for POS redemption
+  ownerRouter.get("/customers/:id/packages", requireSalonPermission("billing", "view"), async (req, res) => {
+    const customer = await prisma.customer.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!customer) return res.status(404).json({ message: "Customer not found" });
+    const packages = await prisma.customerPackage.findMany({
+      where: { salonId: req.salonId, customerId: req.params.id },
+      include: {
+        package: true,
+        services: { include: { service: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    res.json(packages);
+  });
+
+  // Gift Card Validation for POS redemption
+  ownerRouter.post("/gift-cards/validate", requireSalonPermission("billing", "edit"), async (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ message: "Gift card code is required" });
+    const giftCard = await prisma.giftCard.findFirst({
+      where: { salonId: req.salonId, code: String(code).trim(), isActive: true }
+    });
+    if (!giftCard) return res.status(404).json({ message: "Gift card not found" });
+    if (giftCard.expiresAt && new Date(giftCard.expiresAt) < new Date()) {
+      return res.status(400).json({ message: "Gift card has expired" });
+    }
+    if (Number(giftCard.balanceAmount || 0) <= 0) {
+      return res.status(400).json({ message: "Gift card has no remaining balance" });
+    }
+    res.json({
+      id: giftCard.id,
+      code: giftCard.code,
+      balanceAmount: giftCard.balanceAmount,
+      originalAmount: giftCard.originalAmount,
+      expiresAt: giftCard.expiresAt
+    });
+  });
+
 };
 
 
