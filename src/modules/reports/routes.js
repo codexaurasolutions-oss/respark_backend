@@ -499,50 +499,108 @@ reportsRouter.get("/appointments", async (req, res) => {
 
 const sendStaffPerformance = async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
-  const appointments = await prisma.appointment.findMany({
-    where: buildAppointmentWhere(req, branchId),
-    include: { items: { include: { assignedStaff: { include: { userSalon: { include: { user: true } } } }, service: true } } }
-  });
   const invoices = await prisma.invoice.findMany({
     where: buildInvoiceWhere(req, branchId),
-    include: { items: true }
+    include: { items: true, customer: true, payments: true }
   });
 
   const summary = {};
-  appointments.forEach((appointment) => {
-    appointment.items.forEach((item) => {
-      item.assignedStaff.forEach((assignment) => {
-        const key = assignment.userSalonId;
-        if (!summary[key]) summary[key] = { staffId: key, staffName: assignment.userSalon.user.name, appointments: 0, completedAppointments: 0, revenue: 0, commission: 0, quantity: 0 };
-        summary[key].appointments += 1;
-        if (appointment.status === "COMPLETED") summary[key].completedAppointments += 1;
-      });
-    });
-  });
+  const uniqueGuests = {};
 
   invoices.forEach((invoice) => {
+    if (invoice.customerId) {
+      invoice.items.forEach((item) => {
+        if (!item.staffUserSalonId) return;
+        const guestSet = uniqueGuests[item.staffUserSalonId] || (uniqueGuests[item.staffUserSalonId] = new Set());
+        guestSet.add(invoice.customerId);
+      });
+    }
+
     invoice.items.forEach((item) => {
       if (!item.staffUserSalonId) return;
       const row = summary[item.staffUserSalonId] || (summary[item.staffUserSalonId] = {
         staffId: item.staffUserSalonId,
         staffName: item.staffName || "Assigned Staff",
-        appointments: 0,
-        completedAppointments: 0,
-        revenue: 0,
-        commission: 0,
-        quantity: 0
+        totalServicesDone: 0,
+        uniqueGuestCount: 0,
+        servicesWithoutTax: 0,
+        productsWithoutTax: 0,
+        averageRetailSale: 0,
+        packagesRevenue: 0,
+        packagesSold: 0,
+        membershipsSold: 0,
+        membershipsRevenue: 0,
+        giftCardRevenue: 0,
+        discount: 0,
+        totalWithoutTax: 0,
+        complimentaryAmount: 0,
+        redemptionAmount: 0,
+        averageBillValue: 0,
+        invoiceCount: 0,
+        invoiceIds: new Set()
       });
       if (!row.staffName && item.staffName) row.staffName = item.staffName;
-      row.revenue += toAmount(item.lineTotal);
-      row.commission += toAmount(item.commissionAmount);
-      row.quantity += Number(item.qty || 0);
+
+      const qty = Number(item.qty || 0);
+      const unitPrice = toAmount(item.unitPrice);
+      const preTax = unitPrice * qty;
+      const lineTotal = toAmount(item.lineTotal);
+      const isComplimentary = toAmount(invoice.total) === 0;
+      const redemption = toAmount(item.membershipWalletUsed) + toAmount(item.packageSessionsUsed);
+
+      row.totalServicesDone += qty;
+      row.totalWithoutTax += preTax;
+      row.redemptionAmount += redemption;
+      row.discount += toAmount(invoice.discount); // will be deduped per invoice below
+      if (isComplimentary) row.complimentaryAmount += lineTotal;
+      row.invoiceIds.add(invoice.id);
+
+      if (item.itemType === "SERVICE") row.servicesWithoutTax += preTax;
+      if (item.itemType === "PRODUCT") row.productsWithoutTax += preTax;
+      if (item.itemType === "PACKAGE") { row.packagesRevenue += lineTotal; row.packagesSold += qty; }
+      if (item.itemType === "MEMBERSHIP") { row.membershipsRevenue += lineTotal; row.membershipsSold += qty; }
+      if (item.itemType === "GIFT_CARD") row.giftCardRevenue += lineTotal;
     });
   });
 
-  const rows = Object.values(summary).sort((a, b) => b.revenue - a.revenue);
+  // Deduplicate discount per invoice (it was added once per item above)
+  Object.keys(summary).forEach((staffId) => {
+    const row = summary[staffId];
+    row.uniqueGuestCount = uniqueGuests[staffId]?.size || 0;
+    row.invoiceCount = row.invoiceIds.size;
+    row.averageRetailSale = row.invoiceCount > 0 ? Math.round(row.totalWithoutTax / row.invoiceCount) : 0;
+    row.averageBillValue = row.invoiceCount > 0 ? Math.round(row.totalWithoutTax / row.invoiceCount) : 0;
+    row.discount = Math.round(row.discount);
+    delete row.invoiceIds;
+  });
+
+  const rows = Object.values(summary).sort((a, b) => b.totalWithoutTax - a.totalWithoutTax);
   const filtered = isOwnScopedStaff(req, "reports") ? rows.filter((row) => row.staffId === req.user.membershipId) : rows;
-  const mapped = filtered.map(r => ({ "Staff": r.staffName, "Appointments": r.appointments, "Completed": r.completedAppointments, "Revenue": r.revenue, "Commission": r.commission, "Qty": r.quantity }));
-  res.json(appendTotalRow(mapped, "Staff", "TOTAL", ["Appointments", "Completed", "Revenue", "Commission", "Qty"]));
+  const mapped = filtered.map((r, idx) => ({
+    "SR. NO.": idx + 1,
+    "STAFF": r.staffName,
+    "TOTAL SERVICES DONE": r.totalServicesDone,
+    "UNIQUE GUEST COUNT": r.uniqueGuestCount,
+    "SERVICES WITHOUT TAX": r.servicesWithoutTax,
+    "PRODUCTS WITHOUT TAX": r.productsWithoutTax,
+    "AVERAGE RETAIL SALE": r.averageRetailSale,
+    "PACKAGES REVENUE": r.packagesRevenue,
+    "PACKAGES SOLD": r.packagesSold,
+    "MEMBERSHIP SOLD": r.membershipsSold,
+    "MEMBERSHIP REVENUE": r.membershipsRevenue,
+    "GIFTCARD REVENUE": r.giftCardRevenue,
+    "DISCOUNT": r.discount,
+    "TOTAL WITHOUT TAX": r.totalWithoutTax,
+    "COMPLIMENTARY AMOUNT": r.complimentaryAmount,
+    "REDEMPTION AMOUNT": r.redemptionAmount,
+    "AVERAGE BILL VALUE": r.averageBillValue
+  }));
+  res.json(appendTotalRow(mapped, "STAFF", "TOTAL", [
+    "TOTAL SERVICES DONE", "UNIQUE GUEST COUNT", "SERVICES WITHOUT TAX", "PRODUCTS WITHOUT TAX",
+    "AVERAGE RETAIL SALE", "PACKAGES REVENUE", "PACKAGES SOLD", "MEMBERSHIP SOLD", "MEMBERSHIP REVENUE",
+    "GIFTCARD REVENUE", "DISCOUNT", "TOTAL WITHOUT TAX", "COMPLIMENTARY AMOUNT", "REDEMPTION AMOUNT",
+    "AVERAGE BILL VALUE"
+  ]));
 };
 
 reportsRouter.get("/staff-performance", sendStaffPerformance);
@@ -733,13 +791,16 @@ reportsRouter.get("/memberships", async (req, res) => {
 });
 
 reportsRouter.get("/packages", async (req, res) => {
+  const branchId = normalizeBranchId(req.query.branchId);
   const start = parseDateSafe(req.query.start, false);
   const end = parseDateSafe(req.query.end, true);
   const rows = await prisma.customerPackage.findMany({
     where: {
+      salonId: req.salonId,
+      ...(branchId ? { branchId } : {}),
       ...(isOwnScopedStaff(req, "reports")
-        ? { salonId: req.salonId, soldInvoice: { is: { items: { some: { staffUserSalonId: req.user.membershipId } } } } }
-        : { salonId: req.salonId }),
+        ? { soldInvoice: { is: { items: { some: { staffUserSalonId: req.user.membershipId } } } } }
+        : {}),
       ...(start || end ? {
         createdAt: {
           ...(start ? { gte: start } : {}),
@@ -747,18 +808,45 @@ reportsRouter.get("/packages", async (req, res) => {
         }
       } : {})
     },
-    include: { package: true, customer: true, soldInvoice: true, usageLogs: true },
+    include: {
+      package: { include: { services: true } },
+      customer: true,
+      soldInvoice: { include: { items: { include: { staffUserSalon: { include: { user: true } } } }, payments: true } }
+    },
     orderBy: { createdAt: "desc" }
   });
-  const mapped = rows.map((r) => ({
-    Date: r.createdAt,
-    Customer: r.customer?.name || "-",
-    Package: r.package?.name || "-",
-    "Price Paid": r.pricePaid ?? toAmount(r.soldInvoice?.total),
-    Validity: r.validUntil ? new Date(r.validUntil).toISOString().slice(0, 10) : (r.package?.validityDays ? `${r.package.validityDays} days` : "-"),
-    "Services Included": r.package?.sessionCount ?? r.package?.items?.length ?? "-"
-  }));
-  res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Price Paid"]));
+
+  const mapped = rows.map((r, idx) => {
+    const inv = r.soldInvoice;
+    const packageItem = inv?.items?.find(i => i.itemType === "PACKAGE" && i.packageId === r.packageId);
+    const staff = packageItem?.staffUserSalon?.user?.name || packageItem?.staffName || "-";
+    const purchaseDate = r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-") : "-";
+    const businessDate = inv?.createdAt ? new Date(inv.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-") : purchaseDate;
+    const expiryDate = r.validUntil ? new Date(r.validUntil).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-") : "-";
+    const subtotal = toAmount(packageItem?.lineTotal) || toAmount(inv?.subtotal) || toAmount(r.pricePaid);
+    const tax = toAmount(inv?.tax) || 0;
+    const total = toAmount(inv?.total) || toAmount(r.pricePaid);
+    const paymentModes = inv?.payments?.map(p => p.mode).filter(Boolean).join(", ") || "-";
+    const purchaseSource = inv?.invoiceNumber?.toString().toUpperCase().startsWith("PCK") ? "POS" : "Online";
+
+    return {
+      "SR. NO.": idx + 1,
+      "INVOICE NO.": inv?.invoiceNumber || "-",
+      "PURCHASE DATE": purchaseDate,
+      "BUSINESS DATE": businessDate,
+      "EXPIRY DATE": expiryDate,
+      "GUEST NAME": r.customer?.name || "-",
+      "GUEST NUMBER": r.customer?.phone || "-",
+      "STAFF": staff,
+      "PACKAGE NAME": r.package?.name || "-",
+      "SUBTOTAL": subtotal,
+      "TAX": tax,
+      "TOTAL": total,
+      "PAYMENT MODE": paymentModes,
+      "PURCHASE SOURCE": purchaseSource
+    };
+  });
+  res.json(appendTotalRow(mapped, "PACKAGE NAME", "TOTAL", ["SUBTOTAL", "TAX", "TOTAL"]));
 });
 
 reportsRouter.get("/stock", async (req, res) => {
@@ -806,10 +894,12 @@ reportsRouter.get("/stock", async (req, res) => {
 
 reportsRouter.get("/low-stock", async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
+  const productId = req.query.productId;
   const products = await prisma.product.findMany({
     where: {
       salonId: req.salonId,
       isActive: true,
+      ...(productId ? { id: productId } : {}),
       ...(branchId ? { OR: [{ branchId }, { branchId: null }, { stockMovements: { some: { branchId } } }] } : {})
     },
     include: { category: true, branch: true },
@@ -1033,6 +1123,106 @@ reportsRouter.get("/export.xls", async (req, res) => {
   res.setHeader("Content-Type", "application/vnd.ms-excel; charset=utf-8");
   res.setHeader("Content-Disposition", "attachment; filename=\"reports-export.xls\"");
   res.send(html);
+});
+
+reportsRouter.get("/day-wise", async (req, res) => {
+  const branchId = normalizeBranchId(req.query.branchId);
+  const invoices = await prisma.invoice.findMany({
+    where: buildInvoiceWhere(req, branchId),
+    include: { items: true, payments: true },
+    orderBy: { createdAt: "asc" }
+  });
+
+  const grouped = {};
+  invoices.forEach((invoice) => {
+    const dateKey = new Date(invoice.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-");
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = {
+        date: dateKey,
+        serviceRevenue: 0,
+        productRevenue: 0,
+        membershipRevenue: 0,
+        packageRevenue: 0,
+        giftCardRevenue: 0,
+        inclusiveTax: 0,
+        exclusiveTax: 0,
+        totalTax: 0,
+        discount: 0,
+        advanceAdded: 0,
+        totalRevenue: 0,
+        online: 0,
+        offline: 0,
+        balance: 0,
+        invoiceCount: 0
+      };
+    }
+    const g = grouped[dateKey];
+    g.invoiceCount += 1;
+    g.discount += toAmount(invoice.discount);
+    g.totalRevenue += toAmount(invoice.total);
+    g.balance += Math.max(0, toAmount(invoice.total) - toAmount(invoice.paidAmount) - toAmount(invoice.refundAmount));
+
+    invoice.items.forEach((item) => {
+      const lineTotal = toAmount(item.lineTotal);
+      const qty = Number(item.qty || 1);
+      const unitPrice = toAmount(item.unitPrice);
+      const preTax = unitPrice * qty;
+      const taxPct = toAmount(item.taxPct);
+      let itemTax = 0;
+      if (taxPct > 0) itemTax = lineTotal - preTax; // approximate
+
+      if (item.itemType === "SERVICE") g.serviceRevenue += lineTotal;
+      if (item.itemType === "PRODUCT") g.productRevenue += lineTotal;
+      if (item.itemType === "MEMBERSHIP") g.membershipRevenue += lineTotal;
+      if (item.itemType === "PACKAGE") g.packageRevenue += lineTotal;
+      if (item.itemType === "GIFT_CARD") g.giftCardRevenue += lineTotal;
+
+      g.totalTax += itemTax;
+      // rough split: if taxPct looks inclusive vs exclusive based on lineTotal vs preTax
+      if (Math.abs(lineTotal - preTax) < 0.01) {
+        g.inclusiveTax += itemTax;
+      } else {
+        g.exclusiveTax += itemTax;
+      }
+    });
+
+    invoice.payments.forEach((p) => {
+      const amt = toAmount(p.amount);
+      const modeUpper = String(p.mode || "").toUpperCase();
+      if (modeUpper === "ONLINE" || modeUpper.includes("UPI") || modeUpper.includes("CARD") || modeUpper.includes("NET") || modeUpper.includes("BANK")) {
+        g.online += amt;
+      } else if (modeUpper === "ADVANCE") {
+        g.advanceAdded += amt;
+      } else {
+        g.offline += amt;
+      }
+    });
+  });
+
+  const result = Object.values(grouped).map((g, idx) => ({
+    "SR. NO.": idx + 1,
+    "DATE": g.date,
+    "SERVICE REVENUE": g.serviceRevenue,
+    "PRODUCT REVENUE": g.productRevenue,
+    "MEMBERSHIP REVENUE": g.membershipRevenue,
+    "PACKAGE REVENUE": g.packageRevenue,
+    "GIFTCARD REVENUE": g.giftCardRevenue,
+    "INCLUSIVE TAX": g.inclusiveTax,
+    "EXCLUSIVE TAX": g.exclusiveTax,
+    "TOTAL TAX": g.totalTax,
+    "DISCOUNT": g.discount,
+    "ADVANCE ADDED": g.advanceAdded,
+    "TOTAL REVENUE": g.totalRevenue,
+    "ONLINE": g.online,
+    "OFFLINE": g.offline,
+    "BALANCE": g.balance
+  }));
+
+  res.json(appendTotalRow(result, "DATE", "TOTAL", [
+    "SERVICE REVENUE", "PRODUCT REVENUE", "MEMBERSHIP REVENUE", "PACKAGE REVENUE", "GIFTCARD REVENUE",
+    "INCLUSIVE TAX", "EXCLUSIVE TAX", "TOTAL TAX", "DISCOUNT", "ADVANCE ADDED", "TOTAL REVENUE",
+    "ONLINE", "OFFLINE", "BALANCE"
+  ]));
 });
 
 // (extended reports routes were removed — the registration stub has been deleted)
