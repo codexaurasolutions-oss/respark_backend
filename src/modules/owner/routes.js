@@ -511,11 +511,8 @@ ownerRouter.post("/services", requireSalonPermission("services", "create"), vali
   const branchId = normalizeBranchId(req.body.branchId);
   if (branchId) await ensureBranch(req.salonId, branchId);
   const categoryId = req.body.categoryId || null;
-  const salonSettings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
-  const taxRows = Array.isArray(salonSettings?.advancedSettings?.taxMapping?.rates)
-    ? salonSettings.advancedSettings.taxMapping.rates
-    : [];
-  const defaultServiceTax = taxRows.find((row) => row?.active !== false && Array.isArray(row?.applicableFor) && row.applicableFor.includes("SERVICE"));
+  const taxRows = await prisma.taxRate.findMany({ where: { salonId: req.salonId, active: true } });
+  const defaultServiceTax = taxRows.find((row) => row.applicableFor?.split(",").includes("SERVICE"));
   const explicitTaxRate = req.body.taxRate != null ? toAmount(req.body.taxRate) : null;
   const { gender, ...createData } = req.body;
   res.status(201).json(await prisma.service.create({
@@ -538,11 +535,8 @@ ownerRouter.patch("/services/:id", requireSalonPermission("services", "edit"), v
   const branchId = normalizeBranchId(req.body.branchId);
   if (branchId) await ensureBranch(req.salonId, branchId);
   const { gender, ...updateData } = req.body;
-  const salonSettings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
-  const taxRows = Array.isArray(salonSettings?.advancedSettings?.taxMapping?.rates)
-    ? salonSettings.advancedSettings.taxMapping.rates
-    : [];
-  const defaultServiceTax = taxRows.find((taxRow) => taxRow?.active !== false && Array.isArray(taxRow?.applicableFor) && taxRow.applicableFor.includes("SERVICE"));
+  const taxRows = await prisma.taxRate.findMany({ where: { salonId: req.salonId, active: true } });
+  const defaultServiceTax = taxRows.find((taxRow) => taxRow.applicableFor?.split(",").includes("SERVICE"));
   const explicitTaxRate = req.body.taxRate != null ? toAmount(req.body.taxRate) : null;
   res.json(await prisma.service.update({
     where: { id: req.params.id },

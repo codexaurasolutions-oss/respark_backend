@@ -126,9 +126,9 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
   const advancedSettings = salonSettings?.advancedSettings && typeof salonSettings.advancedSettings === "object"
     ? salonSettings.advancedSettings
     : {};
-  const allowPriceEdit = true;
-  const allowFutureBackdatedBills = false;
-  const allowEditConsumable = true;
+  const allowPriceEdit = advancedSettings.allowPriceEditOnBill !== false;
+  const allowFutureBackdatedBills = advancedSettings.allowFutureBackdatedBills !== false;
+  const allowEditConsumable = advancedSettings.allowEditConsumable !== false;
   const membershipSettings = {};
   const inclusiveTax = advancedSettings?.taxMapping?.inclusiveTax === true;
 

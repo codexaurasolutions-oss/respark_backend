@@ -160,6 +160,12 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       await ensureScopedCustomer(req.salonId, body.customerId);
       await ensureScopedBranch(req.salonId, body.branchId);
 
+      const salonSetting = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
+      const advancedSettings = salonSetting?.advancedSettings || {};
+      if (advancedSettings.allowBackdatedAppointments !== true && body.startAt && new Date(body.startAt) < new Date(new Date().toDateString())) {
+        return res.status(400).json({ message: "Backdated appointments are restricted by salon settings" });
+      }
+
       for (const item of body.items) {
         const service = await ensureScopedService(req.salonId, item.serviceId);
         if (service.branchId && service.branchId !== body.branchId) {
