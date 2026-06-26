@@ -242,6 +242,9 @@ ownerRouter.get("/dashboard", requireSalonPermission("dashboard", "view"), async
   const totalDue = allInvoices.reduce((sum, item) => sum + Math.max(0, toAmount(item.total) - toAmount(item.paidAmount)), 0);
   const branchScopedProducts = await attachBranchStock(prisma, inventoryProducts, branchId);
   const lowStockAlertCount = branchScopedProducts.filter((product) => toAmount(product.currentStock) <= toAmount(product.minStock)).length;
+  const lowStockProducts = branchScopedProducts
+    .filter((product) => toAmount(product.currentStock) <= toAmount(product.minStock))
+    .map((product) => ({ id: product.id, name: product.name, currentStock: toAmount(product.currentStock), minStock: toAmount(product.minStock), unit: product.unit || "pcs" }));
 
   res.json({
     customers,
@@ -256,6 +259,7 @@ ownerRouter.get("/dashboard", requireSalonPermission("dashboard", "view"), async
     upcomingAppointments,
     todayAppointments,
     lowStockAlertCount,
+    lowStockProducts,
     recentInvoices,
     recentCustomers,
     recentPayments
