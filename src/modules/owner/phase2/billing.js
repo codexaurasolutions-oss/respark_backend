@@ -1154,6 +1154,7 @@ const sanitizeInvoicePhone = (phone) => {
   });
 
   ownerRouter.post("/advance-payments", requireSalonPermission("customers", "edit"), async (req, res) => {
+    try {
     const { customerId, amount, mode, remark, branchId } = req.body;
     if (!customerId || !amount || Number(amount) <= 0) {
       return res.status(400).json({ message: "Customer and a positive amount are required" });
@@ -1162,7 +1163,9 @@ const sanitizeInvoicePhone = (phone) => {
     if (!customer) return res.status(404).json({ message: "Customer not found" });
 
     const numericAmount = Number(amount);
-    const paymentMode = mode || "CASH";
+    const rawMode = (mode || "CASH").toUpperCase();
+    const validModes = ["CASH", "CARD", "UPI", "BANK_TRANSFER", "WALLET", "ONLINE", "ADVANCE"];
+    const paymentMode = validModes.includes(rawMode) ? rawMode : "CASH";
 
     // Generate unique invoice number
     const dateKey = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -1222,6 +1225,10 @@ const sanitizeInvoicePhone = (phone) => {
     });
 
     res.status(201).json({ invoice: result.invoice, entry: result.entry });
+    } catch (error) {
+      console.error("Advance payment error:", error);
+      res.status(500).json({ message: error.message || "Failed to add advance payment" });
+    }
   });
 
   ownerRouter.get("/advance-payments", requireSalonPermission("customers", "view"), async (req, res) => {
