@@ -892,7 +892,7 @@ export const addInvoicePayment = async ({ salonId, invoiceId, amount, mode, note
         amount: toAmount(amount),
         mode,
         note: note || null,
-        type: "PAYMENT"
+        type: ["PARTIAL", "UNPAID"].includes(invoice.status) ? "BALANCE" : "PAYMENT"
       }
     });
     await tx.invoice.update({
