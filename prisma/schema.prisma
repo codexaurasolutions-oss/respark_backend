@@ -798,11 +798,13 @@ model Product {
   categoryId         String?
   name               String
   imageUrl           String?
+  displayImages      Json?
   sku                String?
   barcode            String?
   productType        ProductType          @default(RETAIL)
   costPrice          Decimal              @db.Decimal(10, 2)
   sellingPrice       Decimal              @db.Decimal(10, 2)
+  salePrice          Decimal?             @db.Decimal(10, 2)
   currentStock       Decimal              @default(0) @db.Decimal(12, 2)
   minStock           Decimal              @default(0) @db.Decimal(12, 2)
   expiryDate         DateTime?
@@ -810,6 +812,15 @@ model Product {
   isOnlineVisible    Boolean              @default(true)
   isActive           Boolean              @default(true)
   featured           Boolean              @default(false)
+  targetGroup        String               @default("BOTH")
+  hideFromCatalogue  Boolean              @default(false)
+  nonDiscountable    Boolean              @default(false)
+  description        String?
+  videoLink          String?
+  benefits           String?
+  ingredients        String?
+  usageInstructions  String?
+  variations         Json?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   salon              Salon                @relation(fields: [salonId], references: [id])

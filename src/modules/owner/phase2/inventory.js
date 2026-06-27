@@ -80,15 +80,26 @@ export const registerInventoryRoutes = (ownerRouter) => {
         categoryId: req.body.categoryId || null,
         name: req.body.name,
         imageUrl: req.body.imageUrl || null,
+        displayImages: req.body.displayImages || undefined,
         sku: req.body.sku || null,
         barcode: req.body.barcode || null,
         productType: req.body.productType,
         costPrice: req.body.costPrice,
         sellingPrice: req.body.sellingPrice,
+        salePrice: req.body.salePrice ?? null,
         minStock: req.body.minStock || 0,
         expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
         allowNegativeStock: Boolean(req.body.allowNegativeStock),
-        featured: Boolean(req.body.featured)
+        featured: Boolean(req.body.featured),
+        targetGroup: req.body.targetGroup || "BOTH",
+        hideFromCatalogue: Boolean(req.body.hideFromCatalogue),
+        nonDiscountable: Boolean(req.body.nonDiscountable),
+        description: req.body.description || null,
+        videoLink: req.body.videoLink || null,
+        benefits: req.body.benefits || null,
+        ingredients: req.body.ingredients || null,
+        usageInstructions: req.body.usageInstructions || null,
+        variations: req.body.variations || undefined
       }
     }));
   });
@@ -103,15 +114,26 @@ export const registerInventoryRoutes = (ownerRouter) => {
         categoryId: req.body.categoryId || null,
         name: req.body.name,
         imageUrl: req.body.imageUrl || null,
+        displayImages: req.body.displayImages !== undefined ? req.body.displayImages : product.displayImages,
         sku: req.body.sku || null,
         barcode: req.body.barcode || null,
         productType: req.body.productType,
         costPrice: req.body.costPrice,
         sellingPrice: req.body.sellingPrice,
+        salePrice: req.body.salePrice ?? null,
         minStock: req.body.minStock ?? product.minStock,
         expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
         allowNegativeStock: Boolean(req.body.allowNegativeStock),
-        featured: req.body.featured !== undefined ? Boolean(req.body.featured) : product.featured
+        featured: req.body.featured !== undefined ? Boolean(req.body.featured) : product.featured,
+        targetGroup: req.body.targetGroup || product.targetGroup,
+        hideFromCatalogue: req.body.hideFromCatalogue !== undefined ? Boolean(req.body.hideFromCatalogue) : product.hideFromCatalogue,
+        nonDiscountable: req.body.nonDiscountable !== undefined ? Boolean(req.body.nonDiscountable) : product.nonDiscountable,
+        description: req.body.description !== undefined ? req.body.description : product.description,
+        videoLink: req.body.videoLink !== undefined ? req.body.videoLink : product.videoLink,
+        benefits: req.body.benefits !== undefined ? req.body.benefits : product.benefits,
+        ingredients: req.body.ingredients !== undefined ? req.body.ingredients : product.ingredients,
+        usageInstructions: req.body.usageInstructions !== undefined ? req.body.usageInstructions : product.usageInstructions,
+        variations: req.body.variations !== undefined ? req.body.variations : product.variations
       }
     }));
   });

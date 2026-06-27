@@ -569,15 +569,26 @@ export const schemas = {
       categoryId: z.string().nullable().optional(),
       name: z.string().min(2),
       imageUrl: optionalString,
+      displayImages: z.array(z.string()).optional(),
       sku: optionalString,
       barcode: optionalString,
       productType: z.enum(["RETAIL", "CONSUMABLE"]),
       costPrice: z.number().min(0),
       sellingPrice: z.number().min(0),
+      salePrice: z.number().min(0).optional(),
       minStock: z.number().min(0).optional(),
       expiryDate: optionalDateString,
       allowNegativeStock: z.boolean().optional(),
-      featured: z.boolean().optional()
+      featured: z.boolean().optional(),
+      targetGroup: z.enum(["BOTH", "FEMALE", "MALE"]).optional(),
+      hideFromCatalogue: z.boolean().optional(),
+      nonDiscountable: z.boolean().optional(),
+      description: optionalString,
+      videoLink: optionalString,
+      benefits: optionalString,
+      ingredients: optionalString,
+      usageInstructions: optionalString,
+      variations: z.array(z.any()).optional()
     })
   }),
   stockMovement: z.object({
