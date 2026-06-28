@@ -1265,11 +1265,30 @@ const sanitizeInvoicePhone = (phone) => {
     const packages = await prisma.customerPackage.findMany({
       where: { salonId: req.salonId, customerId: req.params.id },
       include: {
-        package: { include: { services: { include: { service: true } } } }
+        package: { include: { services: { include: { service: true } } } },
+        usageLogs: true
       },
       orderBy: { createdAt: "desc" }
     });
-    res.json(packages);
+
+    const result = packages.map((cp) => {
+      const usageByService = {};
+      for (const log of cp.usageLogs || []) {
+        if (log.serviceId) {
+          usageByService[log.serviceId] = (usageByService[log.serviceId] || 0) + (log.sessionsUsed || 1);
+        }
+      }
+      const enrichedServices = (cp.package?.services || []).map((svc) => ({
+        ...svc,
+        sessionsUsed: usageByService[svc.serviceId] || 0,
+      }));
+      return {
+        ...cp,
+        package: { ...cp.package, services: enrichedServices },
+      };
+    });
+
+    res.json(result);
   });
 
   // Gift Card Validation for POS redemption
