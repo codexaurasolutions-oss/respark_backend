@@ -273,55 +273,57 @@ ownerRouter.get("/global-search", requireSalonPermission("customers", "view"), a
   const salonId = req.salonId;
   const term = { contains: q, mode: "insensitive" };
 
+  const safe = (promise) => promise.catch(() => []);
+
   const [customers, services, products, staff, appointments, invoices, memberships, packages] = await Promise.all([
-    prisma.customer.findMany({
-      where: { salonId, isActive: true, OR: [{ name: term }, { phone: term }, { email: term }] },
+    safe(prisma.customer.findMany({
+      where: { salonId, OR: [{ name: term }, { phone: term }, { email: term }] },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, phone: true, email: true }
-    }),
-    prisma.service.findMany({
+    })),
+    safe(prisma.service.findMany({
       where: { salonId, isActive: true, OR: [{ name: term }, { serviceTag: term }] },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, price: true, category: { select: { name: true } } }
-    }),
-    prisma.product.findMany({
+    })),
+    safe(prisma.product.findMany({
       where: { salonId, isActive: true, OR: [{ name: term }, { sku: term }] },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, sku: true, sellingPrice: true, currentStock: true }
-    }),
-    prisma.userSalon.findMany({
+    })),
+    safe(prisma.userSalon.findMany({
       where: { salonId, user: { name: term } },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, user: { select: { name: true, email: true } }, salonRole: true }
-    }),
-    prisma.appointment.findMany({
+    })),
+    safe(prisma.appointment.findMany({
       where: { salonId, OR: [{ title: term }, { customer: { name: term } }] },
       take: 5,
       orderBy: { startAt: "desc" },
       select: { id: true, title: true, status: true, startAt: true, customer: { select: { name: true } } }
-    }),
-    prisma.invoice.findMany({
+    })),
+    safe(prisma.invoice.findMany({
       where: { salonId, OR: [{ invoiceNumber: term }, { customer: { name: term } }] },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, invoiceNumber: true, total: true, status: true, customer: { select: { name: true } } }
-    }),
-    prisma.membershipPlan.findMany({
+    })),
+    safe(prisma.membershipPlan.findMany({
       where: { salonId, isActive: true, name: term },
       take: 3,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, price: true, validityDays: true }
-    }),
-    prisma.package.findMany({
+    })),
+    safe(prisma.package.findMany({
       where: { salonId, isActive: true, name: term },
       take: 3,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, price: true }
-    })
+    }))
   ]);
 
   const results = [];
