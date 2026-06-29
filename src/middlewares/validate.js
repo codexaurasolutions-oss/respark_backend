@@ -296,7 +296,10 @@ export const schemas = {
       email: optionalEmailLike,
       address: optionalString,
       businessHours: optionalString,
-      weeklyOff: optionalString
+      weeklyOff: optionalString,
+      latitude: z.number().min(-90).max(90).nullable().optional(),
+      longitude: z.number().min(-180).max(180).nullable().optional(),
+      geofenceRadiusMeters: z.number().int().min(10).max(1000).nullable().optional()
     })
   }),
   service: z.object({
@@ -385,6 +388,8 @@ export const schemas = {
       avatarUrl: optionalString,
       roleTitle: optionalString,
       showInCatalog: z.boolean().optional(),
+      attendanceEnabled: z.boolean().optional(),
+      attendanceEnrollmentPhotoUrl: optionalString,
       serviceIds: z.array(z.string()).optional(),
       permissions: permissionMap.optional(),
       joiningDate: optionalDateString,
@@ -408,6 +413,8 @@ export const schemas = {
       avatarUrl: optionalString,
       roleTitle: optionalString,
       showInCatalog: z.boolean().optional(),
+      attendanceEnabled: z.boolean().optional(),
+      attendanceEnrollmentPhotoUrl: optionalString,
       isArchived: z.boolean().optional(),
       serviceIds: z.array(z.string()).optional(),
       permissions: permissionMap.optional(),
@@ -1155,7 +1162,51 @@ export const schemas = {
       branchId: z.string().nullable().optional(),
       checkInAt: optionalDateString,
       checkOutAt: optionalDateString,
+      note: optionalString,
+      attendanceDate: optionalDateString,
+      status: z.enum(["PRESENT", "LATE", "HALF_DAY", "ABSENT", "LEAVE", "WORKING", "COMPLETED_SHIFT"]).optional(),
+      adminRemark: optionalString,
+      verificationMethod: z.enum(["MANUAL", "SELFIE_GPS", "GPS_ONLY"]).optional(),
+      geoStatus: z.enum(["INSIDE", "OUTSIDE", "NOT_CAPTURED"]).optional(),
+      checkInLatitude: z.number().min(-90).max(90).optional(),
+      checkInLongitude: z.number().min(-180).max(180).optional(),
+      checkInAccuracyMeters: z.number().min(0).optional(),
+      checkInSelfieUrl: optionalString,
+      checkOutLatitude: z.number().min(-90).max(90).optional(),
+      checkOutLongitude: z.number().min(-180).max(180).optional(),
+      checkOutAccuracyMeters: z.number().min(0).optional(),
+      checkOutSelfieUrl: optionalString
+    })
+  }),
+  attendanceSelfAction: z.object({
+    body: z.object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+      accuracyMeters: z.number().min(0).max(5000),
+      selfieUrl: optionalString,
       note: optionalString
+    })
+  }),
+  attendanceManualUpdate: z.object({
+    body: z.object({
+      attendanceDate: optionalDateString,
+      checkInAt: optionalDateString,
+      checkOutAt: optionalDateString,
+      status: z.enum(["PRESENT", "LATE", "HALF_DAY", "ABSENT", "LEAVE", "WORKING", "COMPLETED_SHIFT"]).optional(),
+      adminRemark: optionalString,
+      reason: z.string().min(3),
+      note: optionalString
+    })
+  }),
+  attendanceSettings: z.object({
+    body: z.object({
+      officeStartTime: z.string().regex(/^\d{2}:\d{2}$/),
+      officeEndTime: z.string().regex(/^\d{2}:\d{2}$/),
+      lateAfterTime: z.string().regex(/^\d{2}:\d{2}$/),
+      halfDayMinutes: z.number().int().min(30).max(1440),
+      minimumWorkingMinutes: z.number().int().min(30).max(1440),
+      checkoutSelfieRequired: z.boolean().optional(),
+      allowManualAttendanceEdits: z.boolean().optional()
     })
   }),
   leaveRequest: z.object({

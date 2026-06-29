@@ -4,10 +4,14 @@ import { requireSalonPermission } from "../../../middlewares/rbac.js";
 
 export const registerMyPageRoutes = (ownerRouter) => {
   ownerRouter.get("/my-dashboard", requireSalonPermission("myDashboard", "view"), async (req, res) => {
-    const [profile, scopedAppointments, notifications] = await Promise.all([
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+    const [profile, scopedAppointments, notifications, todayAttendance, salonSetting] = await Promise.all([
       prisma.userSalon.findFirst({
         where: { id: req.user.membershipId, salonId: req.salonId },
-        include: { serviceAssignments: { include: { service: true } } }
+        include: { branch: true, serviceAssignments: { include: { service: true } } }
       }),
       prisma.appointment.findMany({
         where: {
@@ -28,13 +32,28 @@ export const registerMyPageRoutes = (ownerRouter) => {
         include: { appointment: { include: { customer: true, branch: true } } },
         orderBy: { createdAt: "desc" },
         take: 8
+      }),
+      prisma.attendanceRecord.findFirst({
+        where: {
+          salonId: req.salonId,
+          userSalonId: req.user.membershipId,
+          attendanceDate: { gte: startOfDay, lt: endOfDay }
+        },
+        include: { branch: true },
+        orderBy: { createdAt: "desc" }
+      }),
+      prisma.salonSetting.findFirst({
+        where: { salonId: req.salonId, branchId: null }
       })
     ]);
     res.json({
       todayAppointments: scopedAppointments.filter((item) => new Date(item.startAt).toDateString() === new Date().toDateString()),
       recentAppointments: scopedAppointments.slice(0, 5),
       assignedServices: profile?.serviceAssignments || [],
-      notifications
+      notifications,
+      profile,
+      todayAttendance,
+      attendanceSettings: salonSetting?.advancedSettings?.attendanceSettings || null
     });
   });
 
@@ -91,7 +110,13 @@ export const registerMyPageRoutes = (ownerRouter) => {
       where: { id: req.user.membershipId, salonId: req.salonId },
       include: { user: true, branch: true, serviceAssignments: { include: { service: true } } }
     });
-    res.json(profile);
+    const attendanceHistory = await prisma.attendanceRecord.findMany({
+      where: { salonId: req.salonId, userSalonId: req.user.membershipId },
+      include: { branch: true },
+      orderBy: [{ attendanceDate: "desc" }, { checkInAt: "desc" }],
+      take: 20
+    });
+    res.json({ ...profile, attendanceHistory });
   });
 
   ownerRouter.patch("/my-profile", requireSalonPermission("myProfile", "edit"), async (req, res) => {

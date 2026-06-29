@@ -546,8 +546,9 @@ export const registerAppointmentRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/staff-schedule", requireSalonPermission("staffSchedule", "view"), async (req, res) => {
+    const branchId = normalizeBranchId(req.query.branchId);
     res.json(await prisma.staffSchedule.findMany({
-      where: { userSalon: { salonId: req.salonId } },
+      where: { userSalon: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) } },
       include: { userSalon: { include: { user: true, branch: true } } },
       orderBy: [{ userSalonId: "asc" }, { weekday: "asc" }]
     }));

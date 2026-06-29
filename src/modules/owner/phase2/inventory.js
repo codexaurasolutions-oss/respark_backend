@@ -266,8 +266,9 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/purchases/orders", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "view"), async (req, res) => {
+    const branchId = normalizeBranchId(req.query.branchId);
     res.json(await prisma.purchaseOrder.findMany({
-      where: { salonId: req.salonId },
+      where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) },
       include: { vendor: true, branch: true, items: { include: { product: true } } },
       orderBy: { orderedAt: "desc" }
     }));
@@ -469,12 +470,13 @@ export const registerInventoryRoutes = (ownerRouter) => {
 
   ownerRouter.get("/inventory/top-selling-items", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "view"), async (req, res) => {
     try {
+      const branchId = normalizeBranchId(req.query.branchId);
       const grouped = await prisma.invoiceItem.groupBy({
         by: ['productId'],
         where: {
           itemType: 'PRODUCT',
           productId: { not: null },
-          invoice: { salonId: req.salonId }
+          invoice: { salonId: req.salonId, ...(branchId ? { branchId } : {}) }
         },
         _sum: { qty: true },
         orderBy: { _sum: { qty: 'desc' } },

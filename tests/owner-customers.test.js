@@ -6,6 +6,10 @@ const prismaMock = {
   globalSetting: { findFirst: vi.fn() },
   subscription: { findFirst: vi.fn() },
   branch: { findFirst: vi.fn() },
+  invoiceItem: { findMany: vi.fn() },
+  payment: { findMany: vi.fn() },
+  salonSetting: { findFirst: vi.fn() },
+  customerNotification: { create: vi.fn() },
   customer: {
     count: vi.fn(),
     findFirst: vi.fn(),
@@ -48,6 +52,17 @@ describe("owner customers", () => {
       salonId: "salon-1",
       isActive: true
     });
+    prismaMock.invoiceItem.findMany.mockResolvedValue([]);
+    prismaMock.payment.findMany.mockResolvedValue([]);
+    prismaMock.salonSetting.findFirst.mockResolvedValue({
+      advancedSettings: {
+        notificationSettings: {
+          emailEnabled: false,
+          toggles: {}
+        }
+      }
+    });
+    prismaMock.customerNotification.create.mockResolvedValue({ id: "notification-1" });
     prismaMock.customer.count.mockResolvedValue(0);
     prismaMock.customer.findFirst.mockResolvedValue(null);
     prismaMock.customer.findMany.mockResolvedValue([]);

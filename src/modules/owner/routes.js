@@ -102,6 +102,7 @@ const createLoginUserForSalon = async (salonId, payload) => {
   const {
     name, email, password, salonRole, branchId: rawBranchId, customRoleId, permissions,
     phone, profileNote, avatarUrl, roleTitle, showInCatalog, serviceIds = [],
+    attendanceEnabled, attendanceEnrollmentPhotoUrl,
     joiningDate, designation, uanNumber, reportingToId, workingHours,
     bankName, bankBranch, accountNumber, ifscCode
   } = payload;
@@ -153,6 +154,9 @@ const createLoginUserForSalon = async (salonId, payload) => {
         avatarUrl: avatarUrl || null,
         roleTitle: roleTitle || null,
         showInCatalog: Boolean(showInCatalog),
+        attendanceEnabled: Boolean(attendanceEnabled),
+        attendanceEnrollmentPhotoUrl: attendanceEnrollmentPhotoUrl || null,
+        attendanceEnrollmentCapturedAt: attendanceEnrollmentPhotoUrl ? new Date() : null,
         permissions: resolvedPermissions,
         joiningDate: joiningDate ? new Date(joiningDate) : null,
         designation: designation || null,
@@ -967,7 +971,7 @@ ownerRouter.post("/customers", requireSalonPermission("customers", "create"), va
       }).catch(() => {});
 
       if (emailEnabled && customer.email) {
-        const { attemptCustomerTemplateEmail } = await import("../../../lib/emailNotifications.js");
+        const { attemptCustomerTemplateEmail } = await import("../../lib/emailNotifications.js");
         await attemptCustomerTemplateEmail({
           salonId: req.salonId,
           toEmail: customer.email,
@@ -1282,6 +1286,11 @@ ownerRouter.patch("/users/:id", requireSalonPermission("staff", "edit"), validat
         avatarUrl: req.body.avatarUrl ?? row.avatarUrl,
         roleTitle: req.body.roleTitle ?? row.roleTitle,
         showInCatalog: req.body.showInCatalog ?? row.showInCatalog,
+        attendanceEnabled: req.body.attendanceEnabled ?? row.attendanceEnabled,
+        attendanceEnrollmentPhotoUrl: req.body.attendanceEnrollmentPhotoUrl !== undefined ? (req.body.attendanceEnrollmentPhotoUrl || null) : row.attendanceEnrollmentPhotoUrl,
+        attendanceEnrollmentCapturedAt: req.body.attendanceEnrollmentPhotoUrl !== undefined
+          ? (req.body.attendanceEnrollmentPhotoUrl ? new Date() : null)
+          : row.attendanceEnrollmentCapturedAt,
         isArchived: req.body.isArchived ?? row.isArchived,
         permissions: resolvedPermissions,
         joiningDate: req.body.joiningDate !== undefined ? (req.body.joiningDate ? new Date(req.body.joiningDate) : null) : row.joiningDate,
@@ -1654,11 +1663,13 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
   startDate.setDate(startDate.getDate() - Math.max(days, periodDays));
   startDate.setHours(0,0,0,0);
 
+  const branchId = normalizeBranchId(req.query.branchId);
   const invoices = await prisma.invoice.findMany({
     where: {
       salonId: req.salonId,
       status: "PAID",
-      createdAt: { gte: startDate }
+      createdAt: { gte: startDate },
+      ...(branchId ? { branchId } : {})
     },
     include: {
       items: true
