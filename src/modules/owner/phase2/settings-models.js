@@ -12,21 +12,24 @@ const ensureArray = (value) => {
 
 export const registerSettingsModelRoutes = (ownerRouter) => {
   // ============ SHIFT MANAGEMENT ============
-  ownerRouter.get("/shifts", requireFeatureEnabled("inventory"), async (req, res) => {
+  ownerRouter.get("/shifts", requireFeatureEnabled("inventory"), requireSalonPermission("settings", "view"), async (req, res) => {
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
     const shifts = await prisma.shift.findMany({
-      where: { salonId: req.salonId },
+      where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) },
       include: { days: true, breaks: true },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
     });
     res.json(shifts);
   });
 
-  ownerRouter.post("/shifts", requireFeatureEnabled("inventory"), async (req, res) => {
+  ownerRouter.post("/shifts", requireFeatureEnabled("inventory"), requireSalonPermission("settings", "edit"), async (req, res) => {
     const { name, active = true, sameForAllDays = true, startTime, endTime, breakLabel, sortOrder = 0, days = [], breaks = [] } = req.body;
     if (!name) return res.status(400).json({ message: "name is required" });
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
     const shift = await prisma.shift.create({
       data: {
         salonId: req.salonId,
+        branchId,
         name,
         active,
         sameForAllDays,
@@ -44,7 +47,7 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
     res.status(201).json(shift);
   });
 
-  ownerRouter.patch("/shifts/:id", requireFeatureEnabled("inventory"), async (req, res) => {
+  ownerRouter.patch("/shifts/:id", requireFeatureEnabled("inventory"), requireSalonPermission("settings", "edit"), async (req, res) => {
     const shift = await prisma.shift.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!shift) return res.status(404).json({ message: "Shift not found" });
     const { name, active, sameForAllDays, startTime, endTime, breakLabel, sortOrder, days, breaks } = req.body;
@@ -92,7 +95,7 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
     res.json(updated);
   });
 
-  ownerRouter.delete("/shifts/:id", requireFeatureEnabled("inventory"), async (req, res) => {
+  ownerRouter.delete("/shifts/:id", requireFeatureEnabled("inventory"), requireSalonPermission("settings", "edit"), async (req, res) => {
     const shift = await prisma.shift.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!shift) return res.status(404).json({ message: "Shift not found" });
     await prisma.shift.delete({ where: { id: shift.id } });
@@ -101,8 +104,9 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
 
   // ============ TAX RATES ============
   ownerRouter.get("/tax-rates", requireSalonPermission("settings", "view"), async (req, res) => {
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
     const rates = await prisma.taxRate.findMany({
-      where: { salonId: req.salonId },
+      where: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
     });
     res.json(rates);
@@ -113,10 +117,11 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
       return res.status(400).json({ message: "label and rate are required" });
     }
     const code = String(req.body.code || req.body.label.toUpperCase().replace(/\s+/g, "").slice(0, 8));
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
     const taxRate = await prisma.taxRate.create({
       data: {
         salonId: req.salonId,
-        label: String(req.body.label),
+        branchId,
         code,
         rate: Number(req.body.rate),
         active: req.body.active !== false,
@@ -199,8 +204,9 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
 
   // ============ DESIGNATIONS ============
   ownerRouter.get("/designations", requireSalonPermission("settings", "view"), async (req, res) => {
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
     const designations = await prisma.designation.findMany({
-      where: { salonId: req.salonId },
+      where: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
     });
     res.json(designations);
@@ -208,9 +214,11 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
 
   ownerRouter.post("/designations", requireSalonPermission("settings", "edit"), async (req, res) => {
     if (!req.body?.name) return res.status(400).json({ message: "name is required" });
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
     const designation = await prisma.designation.create({
       data: {
         salonId: req.salonId,
+        branchId,
         name: String(req.body.name),
         description: req.body.description || null,
         active: req.body.active !== false,

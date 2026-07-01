@@ -1,16 +1,18 @@
 import { prisma } from "../../../lib/prisma.js";
-import { logCustomerTimeline } from "../../../lib/phase2.js";
+import { logCustomerTimeline, normalizeBranchId } from "../../../lib/phase2.js";
 import { createPosInvoice } from "../../../lib/pos.js";
 import { requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
 
 export const registerMembershipRoutes = (ownerRouter) => {
-  ownerRouter.get("/memberships/plans", async (req, res) => {
-    res.json(await prisma.membershipPlan.findMany({ where: { salonId: req.salonId, isActive: true }, include: { services: { include: { service: true } } } }));
+  ownerRouter.get("/memberships/plans", requireSalonPermission("memberships", "view"), async (req, res) => {
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    res.json(await prisma.membershipPlan.findMany({ where: { salonId: req.salonId, isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) }, include: { services: { include: { service: true } } } }));
   });
 
   ownerRouter.get("/memberships", requireSalonPermission("memberships", "view"), async (req, res) => {
-    res.json(await prisma.membershipPlan.findMany({ where: { salonId: req.salonId }, include: { services: { include: { service: true } } }, orderBy: { createdAt: "desc" } }));
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    res.json(await prisma.membershipPlan.findMany({ where: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) }, include: { services: { include: { service: true } } }, orderBy: { createdAt: "desc" } }));
   });
 
   ownerRouter.get("/memberships/:id", requireSalonPermission("memberships", "view"), async (req, res) => {
@@ -27,6 +29,7 @@ export const registerMembershipRoutes = (ownerRouter) => {
       const plan = await tx.membershipPlan.create({
         data: {
           salonId: req.salonId,
+          branchId: req.body.branchId || null,
           name: req.body.name,
           price: req.body.price,
           validityDays: req.body.validityDays,
@@ -58,6 +61,7 @@ export const registerMembershipRoutes = (ownerRouter) => {
       await tx.membershipPlan.update({
         where: { id: plan.id },
         data: {
+          branchId: req.body.branchId || null,
           name: req.body.name,
           price: req.body.price,
           validityDays: req.body.validityDays,
@@ -83,8 +87,27 @@ export const registerMembershipRoutes = (ownerRouter) => {
     res.json(updated);
   });
 
+  ownerRouter.delete("/memberships/:id", requireSalonPermission("memberships", "delete"), async (req, res) => {
+    try {
+      const plan = await prisma.membershipPlan.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+      if (!plan) return res.status(404).json({ message: "Membership plan not found" });
+      const assignedCount = await prisma.customerMembership.count({ where: { membershipPlanId: plan.id } });
+      if (assignedCount > 0) return res.status(400).json({ message: `Cannot delete: ${assignedCount} customer(s) have this plan assigned. Deactivate it instead.` });
+      const invoiceCount = await prisma.invoiceItem.count({ where: { membershipPlanId: plan.id } });
+      if (invoiceCount > 0) return res.status(400).json({ message: `Cannot delete: ${invoiceCount} invoice(s) reference this plan. Deactivate it instead.` });
+      await prisma.$transaction(async (tx) => {
+        await tx.membershipPlanService.deleteMany({ where: { membershipPlanId: plan.id } });
+        await tx.membershipPlan.delete({ where: { id: plan.id } });
+      });
+      res.json({ message: "Membership plan deleted" });
+    } catch (err) {
+      res.status(500).json({ message: err.message || "Could not delete membership plan" });
+    }
+  });
+
   ownerRouter.post("/memberships/assign", requireSalonPermission("memberships", "create"), validate(schemas.assignMembership), async (req, res) => {
     try {
+      const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
       let plan;
       if (req.body.isCustom || req.body.membershipPlanId === "CUSTOM") {
         plan = await prisma.membershipPlan.create({
@@ -154,7 +177,7 @@ export const registerMembershipRoutes = (ownerRouter) => {
           actorUser: req.user,
           body: {
             customerId: req.body.customerId,
-            branchId: req.body.branchId || null,
+            branchId,
             // Skip auto-creation of customerMembership since we already created it above (line 116)
             skipMembershipCreation: true,
             items: [{
@@ -317,7 +340,9 @@ export const registerMembershipRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/packages", requireSalonPermission("packages", "view"), async (req, res) => {
-    res.json(await prisma.package.findMany({ where: { salonId: req.salonId }, include: { services: { include: { service: true } } }, orderBy: { createdAt: "desc" } }));
+    const branchId = normalizeBranchId(req.query.branchId);
+    const where = { salonId: req.salonId, ...(branchId ? { branchId } : {}) };
+    res.json(await prisma.package.findMany({ where, include: { services: { include: { service: true } } }, orderBy: { createdAt: "desc" } }));
   });
 
   ownerRouter.get("/packages/:id", requireSalonPermission("packages", "view"), async (req, res) => {
@@ -330,10 +355,12 @@ export const registerMembershipRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/packages", requireSalonPermission("packages", "create"), validate(schemas.packagePlan), async (req, res) => {
+    const branchId = normalizeBranchId(req.body.branchId);
     const created = await prisma.$transaction(async (tx) => {
       const pack = await tx.package.create({
         data: {
           salonId: req.salonId,
+          branchId,
           name: req.body.name,
           price: req.body.price,
           totalSessions: req.body.totalSessions,
@@ -353,10 +380,12 @@ export const registerMembershipRoutes = (ownerRouter) => {
   ownerRouter.patch("/packages/:id", requireSalonPermission("packages", "edit"), validate(schemas.packagePlan), async (req, res) => {
     const pack = await prisma.package.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!pack) return res.status(404).json({ message: "Package not found" });
+    const branchId = normalizeBranchId(req.body.branchId !== undefined ? req.body.branchId : pack.branchId);
     const updated = await prisma.$transaction(async (tx) => {
       await tx.package.update({
         where: { id: pack.id },
         data: {
+          branchId,
           name: req.body.name,
           price: req.body.price,
           totalSessions: req.body.totalSessions,
@@ -374,8 +403,27 @@ export const registerMembershipRoutes = (ownerRouter) => {
     res.json(updated);
   });
 
+  ownerRouter.delete("/packages/:id", requireSalonPermission("packages", "delete"), async (req, res) => {
+    try {
+      const pack = await prisma.package.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+      if (!pack) return res.status(404).json({ message: "Package not found" });
+      const assignedCount = await prisma.customerPackage.count({ where: { packageId: pack.id } });
+      if (assignedCount > 0) return res.status(400).json({ message: `Cannot delete: ${assignedCount} customer(s) have this package assigned. Deactivate it instead.` });
+      const invoiceCount = await prisma.invoiceItem.count({ where: { packageId: pack.id } });
+      if (invoiceCount > 0) return res.status(400).json({ message: `Cannot delete: ${invoiceCount} invoice(s) reference this package. Deactivate it instead.` });
+      await prisma.$transaction(async (tx) => {
+        await tx.packageService.deleteMany({ where: { packageId: pack.id } });
+        await tx.package.delete({ where: { id: pack.id } });
+      });
+      res.json({ message: "Package deleted" });
+    } catch (err) {
+      res.status(500).json({ message: err.message || "Could not delete package" });
+    }
+  });
+
   ownerRouter.post("/packages/assign", requireSalonPermission("packages", "create"), validate(schemas.assignPackage), async (req, res) => {
     try {
+      const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
       let pack;
       if (req.body.isCustom || req.body.packageId === "CUSTOM") {
         pack = await prisma.package.create({
@@ -446,7 +494,7 @@ export const registerMembershipRoutes = (ownerRouter) => {
           actorUser: req.user,
           body: {
             customerId: req.body.customerId,
-            branchId: req.body.branchId || null,
+            branchId,
             // Skip auto-creation of customerPackage since we already created it above
             skipMembershipCreation: true,
             items: [{

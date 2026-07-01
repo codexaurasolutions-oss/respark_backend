@@ -133,8 +133,8 @@ export const validate = (schema) => (req, res, next) => {
 };
 
 const permissionMap = z.record(z.array(z.string()));
-const idSchema = z.string().min(8);
-const optionalString = z.string().optional();
+const idSchema = z.string().min(8).max(50);
+const optionalString = z.string().max(500).optional();
 const normalizeIndianPhone = (value) => {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
@@ -180,21 +180,21 @@ const optionalEmailLike = z.union([emailLikeSchema, z.literal("")]).optional();
 
 const invoiceItemSchema = z.object({
   itemType: z.enum(["SERVICE", "PRODUCT", "MEMBERSHIP", "PACKAGE", "GIFT_CARD"]).optional(),
-  serviceId: z.string().optional(),
-  productId: z.string().optional(),
-  membershipPlanId: z.string().optional(),
-  packageId: z.string().optional(),
-  giftCardId: z.string().optional(),
-  serviceName: z.string().min(1).optional(),
-  staffUserId: z.string().optional(),
-  staffName: z.string().optional(),
-  qty: z.number().positive(),
-  unitPrice: z.number().nonnegative().optional(),
-  taxPct: z.number().min(0).default(0),
-  packageSessionsUsed: z.number().int().min(0).optional(),
-  membershipWalletUsed: z.number().min(0).optional(),
-  validityDays: z.number().int().positive().optional(),
-  gcCode: z.string().optional(),
+  serviceId: z.string().max(50).optional(),
+  productId: z.string().max(50).optional(),
+  membershipPlanId: z.string().max(50).optional(),
+  packageId: z.string().max(50).optional(),
+  giftCardId: z.string().max(50).optional(),
+  serviceName: z.string().min(1).max(300).optional(),
+  staffUserId: z.string().max(50).optional(),
+  staffName: z.string().max(200).optional(),
+  qty: z.number().positive().max(99999),
+  unitPrice: z.number().nonnegative().max(9999999).optional(),
+  taxPct: z.number().min(0).max(100).default(0),
+  packageSessionsUsed: z.number().int().min(0).max(999).optional(),
+  membershipWalletUsed: z.number().min(0).max(9999999).optional(),
+  validityDays: z.number().int().positive().max(3650).optional(),
+  gcCode: z.string().max(50).optional(),
   isCustom: z.boolean().optional(),
   customServices: z.array(z.any()).optional(),
   customProducts: z.array(z.any()).optional(),
@@ -224,7 +224,7 @@ const appointmentServiceItemSchema = z.object({
 });
 
 export const schemas = {
-  register: z.object({ body: z.object({ name: z.string().min(2), email: emailLikeSchema, password: z.string().min(6), systemRole: z.enum(["SUPER_ADMIN", "SALON_USER"]).optional(), salonId: z.string().optional() }) }),
+  register: z.object({ body: z.object({ name: z.string().min(2), email: emailLikeSchema, password: z.string().min(6), salonId: z.string().optional() }) }),
   login: z.object({ body: z.object({ email: emailLikeSchema, password: z.string().min(6), loginAccessToken: z.string().optional() }) }),
   forgotPassword: z.object({ body: z.object({ email: emailLikeSchema }) }),
   validateResetToken: z.object({ body: z.object({ token: z.string().min(12) }) }),
@@ -304,57 +304,57 @@ export const schemas = {
   }),
   service: z.object({
     body: z.object({
-      name: z.string().min(2),
-      position: z.number().int().min(0).optional(),
-      price: z.number().nonnegative(),
-      salePrice: z.number().min(0).nullable().optional(),
-      durationMin: z.number().int().positive(),
+      name: z.string().trim().min(2).max(300),
+      position: z.number().int().min(0).max(9999).optional(),
+      price: z.number().nonnegative().max(9999999),
+      salePrice: z.number().min(0).max(9999999).nullable().optional(),
+      durationMin: z.number().int().positive().max(1440),
       branchId: z.string().optional(),
-      categoryId: z.string().nullable().optional(),
-      description: z.any().optional(),
+      categoryId: z.string().max(50).nullable().optional(),
+      description: z.string().max(5000).optional(),
       gender: z.enum(["MALE", "FEMALE", "UNISEX"]).optional(),
-      taxRate: z.number().min(0).optional(),
+      taxRate: z.number().min(0).max(100).optional(),
       onlineBookingEnabled: z.boolean().optional(),
-      commissionPct: z.number().min(0).optional(),
+      commissionPct: z.number().min(0).max(100).optional(),
       isFeatured: z.boolean().optional(),
       isPopular: z.boolean().optional(),
       hideFromCatalogue: z.boolean().optional(),
       nonDiscountable: z.boolean().optional(),
-      serviceTag: optionalString,
-      serviceRemainderDays: z.number().int().min(0).optional(),
-      consumables: z.array(z.object({ productId: z.string(), reqdQty: z.number().min(0) })).optional(),
-      taxes: z.array(z.object({ name: z.string().min(1), rate: z.number().min(0) })).optional()
+      serviceTag: z.string().max(100).optional(),
+      serviceRemainderDays: z.number().int().min(0).max(365).optional(),
+      consumables: z.array(z.object({ productId: z.string().max(50), reqdQty: z.number().min(0).max(9999) })).max(50).optional(),
+      taxes: z.array(z.object({ name: z.string().trim().min(1).max(100), rate: z.number().min(0).max(100) })).max(20).optional()
     })
   }),
   customer: z.object({
     body: z.object({
-      name: z.string().min(1),
+      name: z.string().trim().min(1).max(200),
       phone: requiredIndianPhoneSchema,
       email: optionalEmailLike,
       branchId: z.string().optional(),
-      gender: optionalString,
+      gender: z.enum(["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"]).optional().or(z.literal("")),
       dateOfBirth: optionalDateString,
       anniversary: optionalDateString,
-      source: optionalString,
-      tags: z.array(z.string()).optional(),
-      notes: optionalString,
-      preferences: optionalString,
-      preferredStaffId: z.string().optional(),
-      allergies: optionalString,
-      skinNotes: optionalString
+      source: z.string().max(100).optional(),
+      tags: z.array(z.string().max(50)).optional(),
+      notes: z.string().max(2000).optional(),
+      preferences: z.string().max(2000).optional(),
+      preferredStaffId: z.string().max(50).optional(),
+      allergies: z.string().max(2000).optional(),
+      skinNotes: z.string().max(2000).optional()
     })
   }),
   customerPatch: z.object({
     body: z.object({
-      name: z.string().min(2).optional(),
+      name: z.string().trim().min(2).max(200).optional(),
       phone: indianPhoneSchema.optional(),
       email: optionalEmailLike,
       branchId: z.string().optional(),
-      gender: optionalString,
+      gender: z.enum(["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"]).optional().or(z.literal("")),
       dateOfBirth: optionalDateString,
       anniversary: optionalDateString,
-      source: optionalString,
-      tags: z.array(z.string()).optional(),
+      source: z.string().max(100).optional(),
+      tags: z.array(z.string().max(50)).optional(),
       notes: optionalString,
       preferences: optionalString,
       preferredStaffId: z.string().optional(),
@@ -374,33 +374,33 @@ export const schemas = {
       type: z.enum(["call", "sms", "whatsapp", "email", "visit"])
     })
   }),
-  serviceCategory: z.object({ body: z.object({ name: z.string().min(2), parentId: z.string().nullable().optional() }) }),
+  serviceCategory: z.object({ body: z.object({ name: z.string().trim().min(2).max(200), parentId: z.string().max(50).nullable().optional(), branchId: z.string().max(50).nullable().optional() }) }),
   ownerUser: z.object({
     body: z.object({
-      name: z.string().min(2),
+      name: z.string().trim().min(2).max(200),
       email: emailLikeSchema,
-      password: z.string().min(6),
+      password: z.string().min(8).max(128),
       salonRole: z.enum(["SALON_OWNER", "MANAGER", "RECEPTIONIST", "STAFF", "INVENTORY_MANAGER", "ACCOUNTANT"]),
       branchId: z.string().optional(),
       customRoleId: z.string().optional(),
       phone: optionalIndianPhoneSchema,
-      profileNote: optionalString,
-      avatarUrl: optionalString,
-      roleTitle: optionalString,
+      profileNote: z.string().max(2000).optional(),
+      avatarUrl: z.string().max(2000).optional(),
+      roleTitle: z.string().trim().max(100).optional(),
       showInCatalog: z.boolean().optional(),
       attendanceEnabled: z.boolean().optional(),
-      attendanceEnrollmentPhotoUrl: optionalString,
+      attendanceEnrollmentPhotoUrl: z.string().max(2000).optional(),
       serviceIds: z.array(z.string()).optional(),
       permissions: permissionMap.optional(),
       joiningDate: optionalDateString,
-      designation: optionalString,
-      uanNumber: optionalString,
+      designation: z.string().trim().max(100).optional(),
+      uanNumber: z.string().trim().regex(/^\d{12}$/, "UAN must be exactly 12 digits").optional().or(z.literal("")),
       reportingToId: z.string().optional(),
-      workingHours: optionalString,
-      bankName: optionalString,
-      bankBranch: optionalString,
-      accountNumber: optionalString,
-      ifscCode: optionalString
+      workingHours: z.string().trim().max(100).optional(),
+      bankName: z.string().trim().max(200).optional(),
+      bankBranch: z.string().trim().max(200).optional(),
+      accountNumber: z.string().trim().regex(/^\d{9,18}$/, "Account number must be 9-18 digits").optional().or(z.literal("")),
+      ifscCode: z.string().trim().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code format").optional().or(z.literal(""))
     })
   }),
   userMembershipUpdate: z.object({
@@ -409,53 +409,53 @@ export const schemas = {
       branchId: z.string().nullable().optional(),
       customRoleId: z.string().nullable().optional(),
       phone: optionalIndianPhoneSchema,
-      profileNote: optionalString,
-      avatarUrl: optionalString,
-      roleTitle: optionalString,
+      profileNote: z.string().max(2000).optional(),
+      avatarUrl: z.string().max(2000).optional(),
+      roleTitle: z.string().trim().max(100).optional(),
       showInCatalog: z.boolean().optional(),
       attendanceEnabled: z.boolean().optional(),
-      attendanceEnrollmentPhotoUrl: optionalString,
+      attendanceEnrollmentPhotoUrl: z.string().max(2000).optional(),
       isArchived: z.boolean().optional(),
       serviceIds: z.array(z.string()).optional(),
       permissions: permissionMap.optional(),
       joiningDate: optionalDateString,
-      designation: optionalString,
-      uanNumber: optionalString,
+      designation: z.string().trim().max(100).optional(),
+      uanNumber: z.string().trim().regex(/^\d{12}$/, "UAN must be exactly 12 digits").optional().or(z.literal("")),
       reportingToId: z.string().nullable().optional(),
-      workingHours: optionalString,
-      bankName: optionalString,
-      bankBranch: optionalString,
-      accountNumber: optionalString,
-      ifscCode: optionalString
-    })
+      workingHours: z.string().trim().max(100).optional(),
+      bankName: z.string().trim().max(200).optional(),
+      bankBranch: z.string().trim().max(200).optional(),
+      accountNumber: z.string().trim().regex(/^\d{9,18}$/, "Account number must be 9-18 digits").optional().or(z.literal("")),
+      ifscCode: z.string().trim().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code format").optional().or(z.literal(""))
+    }).refine((body) => Object.keys(body).length > 0, { message: "At least one field is required" })
   }),
   invoice: z.object({
     body: z.object({
       customerId: idSchema,
       branchId: z.string().optional(),
-      appointmentId: z.string().optional(),
-      appliedMembershipId: z.string().optional(),
-      discount: z.number().min(0).default(0),
-      tax: z.number().min(0).default(0),
-      notes: z.string().optional(),
-      couponCode: z.string().optional(),
-      loyaltyPointsUsed: z.number().min(0).optional(),
-      giftVoucherCode: z.string().optional(),
-      items: z.array(invoiceItemSchema).min(1),
+      appointmentId: z.string().max(50).optional(),
+      appliedMembershipId: z.string().max(50).optional(),
+      discount: z.number().min(0).max(9999999).default(0),
+      tax: z.number().min(0).max(9999999).default(0),
+      notes: z.string().max(2000).optional(),
+      couponCode: z.string().max(50).optional(),
+      loyaltyPointsUsed: z.number().min(0).max(999999).optional(),
+      giftVoucherCode: z.string().max(50).optional(),
+      items: z.array(invoiceItemSchema).min(1).max(100),
       packageRedemptions: z.array(packageRedemptionSchema).optional(),
       payments: z.array(z.object({
         mode: paymentModeEnum,
-        amount: z.number().positive(),
-        note: z.string().optional()
-      })).default([])
+        amount: z.number().positive().max(9999999),
+        note: z.string().max(500).optional()
+      })).max(20).default([])
     })
   }),
   payment: z.object({
     body: z.object({
       invoiceId: idSchema,
-      amount: z.number().positive(),
+      amount: z.number().positive().max(9999999),
       mode: paymentModeEnum,
-      note: z.string().optional()
+      note: z.string().max(500).optional()
     })
   }),
   refundPayment: z.object({
@@ -757,6 +757,7 @@ export const schemas = {
       price: z.number().min(0),
       totalSessions: z.number().int().positive(),
       validityDays: z.number().int().positive(),
+      branchId: z.string().nullable().optional(),
       isActive: z.boolean().optional(),
       services: z.array(z.object({
         serviceId: idSchema,
@@ -1025,9 +1026,9 @@ export const schemas = {
     body: z.object({
       customerId: idSchema,
       branchId: z.string().nullable().optional(),
-      points: z.number().int(),
+      points: z.number().int().min(1).max(999999),
       type: z.enum(["ADJUST", "BONUS", "EXPIRE"]).default("ADJUST"),
-      note: optionalString
+      note: z.string().max(500).optional()
     })
   }),
   coupon: z.object({
@@ -1035,14 +1036,14 @@ export const schemas = {
       branchId: z.string().nullable().optional(),
       serviceId: z.string().nullable().optional(),
       productId: z.string().nullable().optional(),
-      code: z.string().min(2),
-      title: z.string().min(2),
-      description: optionalString,
+      code: z.string().trim().min(2).max(50),
+      title: z.string().trim().min(2).max(200),
+      description: z.string().max(1000).optional(),
       discountType: z.enum(["PERCENT", "FIXED"]),
-      discountValue: z.number().min(0),
-      minBillAmount: z.number().min(0).optional(),
-      usageLimit: z.number().int().min(0).optional(),
-      customerUsageLimit: z.number().int().min(0).optional(),
+      discountValue: z.number().min(0).max(9999999),
+      minBillAmount: z.number().min(0).max(9999999).optional(),
+      usageLimit: z.number().int().min(0).max(999999).optional(),
+      customerUsageLimit: z.number().int().min(0).max(999).optional(),
       startsAt: optionalDateString,
       endsAt: optionalDateString,
       isReferral: z.boolean().optional(),
@@ -1050,17 +1051,17 @@ export const schemas = {
       isBirthday: z.boolean().optional(),
       isFestival: z.boolean().optional(),
       isArchived: z.boolean().optional(),
-      notes: optionalString
+      notes: z.string().max(500).optional()
     })
   }),
   couponValidate: z.object({
     body: z.object({
-      code: z.string().min(2),
-      customerId: z.string().optional(),
+      code: z.string().trim().min(2).max(50),
+      customerId: z.string().max(50).optional(),
       branchId: z.string().nullable().optional(),
       serviceIds: z.array(idSchema).optional(),
       productIds: z.array(idSchema).optional(),
-      subtotal: z.number().min(0)
+      subtotal: z.number().min(0).max(9999999)
     })
   }),
   giftCard: z.object({
@@ -1068,13 +1069,13 @@ export const schemas = {
       customerId: z.string().nullable().optional(),
       soldInvoiceId: z.string().nullable().optional(),
       linkedCampaignId: z.string().nullable().optional(),
-      code: z.string().min(2),
-      title: z.string().min(2),
-      originalAmount: z.number().positive(),
-      balanceAmount: z.number().min(0).optional(),
+      code: z.string().trim().min(2).max(50),
+      title: z.string().trim().min(2).max(200),
+      originalAmount: z.number().positive().max(9999999),
+      balanceAmount: z.number().min(0).max(9999999).optional(),
       expiresAt: optionalDateString,
       isActive: z.boolean().optional(),
-      note: optionalString
+      note: z.string().max(500).optional()
     })
   }),
   giftCardRedeem: z.object({
@@ -1139,16 +1140,16 @@ export const schemas = {
   expense: z.object({
     body: z.object({
       branchId: z.string().nullable().optional(),
-      categoryId: z.string().nullable().optional(),
-      vendorId: z.string().nullable().optional(),
-      title: z.string().min(2),
-      amount: z.number().positive(),
+      categoryId: z.string().max(50).nullable().optional(),
+      vendorId: z.string().max(50).nullable().optional(),
+      title: z.string().trim().min(2).max(200),
+      amount: z.number().positive().max(9999999),
       expenseDate: requiredDateString,
       paymentMode: paymentModeEnum.optional(),
       status: z.enum(["PENDING", "APPROVED", "REJECTED", "PAID"]).optional(),
-      notes: optionalString,
-      receiptUrl: optionalString,
-      attachmentUrl: optionalString
+      notes: z.string().max(2000).optional(),
+      receiptUrl: z.string().max(2000).optional(),
+      attachmentUrl: z.string().max(2000).optional()
     })
   }),
   expenseApproval: z.object({

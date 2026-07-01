@@ -15,15 +15,47 @@ import { getCampaignAudience } from "../../lib/phase3.js";
 
 export const ownerRouter = Router();
 patchRouterForAsync(ownerRouter);
-ownerRouter.use(requireAuth, requireMaintenanceAccess, requireSalonContext);
 
 const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } });
+
+ownerRouter.use(requireAuth, requireMaintenanceAccess, requireSalonContext, (req, res, next) => {
+  if (req.user?.salonRole && req.user.salonRole !== "SALON_OWNER") {
+    if (!req.user.branchId) {
+      return res.status(403).json({ message: "No branch assigned. Contact your salon owner." });
+    }
+    req.query.branchId = req.user.branchId;
+    req.branchId = req.user.branchId;
+    if (req.body && typeof req.body === "object") {
+      req.body.branchId = req.user.branchId;
+    }
+  }
+  next();
+});
+
+const forceBranchForUploads = (req, res, next) => {
+  if (req.user?.salonRole && req.user.salonRole !== "SALON_OWNER" && req.user.branchId) {
+    if (req.body && typeof req.body === "object") {
+      req.body.branchId = req.user.branchId;
+    }
+  }
+  next();
+};
 
 const findScoped = (model, salonId, id) => prisma[model].findFirst({ where: { id, salonId } });
 const toAmount = (value) => Number(value || 0);
 const normalizeBranchId = (value) => (value ? String(value) : null);
-const withBranchFilter = (salonId, branchId) => ({ salonId, ...(branchId ? { branchId } : {}) });
-const paymentWhere = (salonId, branchId) => ({ salonId, ...(branchId ? { invoice: { is: { branchId } } } : {}) });
+const withBranchFilter = (salonId, branchId, req) => {
+  if (req?.user?.salonRole && req.user.salonRole !== "SALON_OWNER" && req.user.branchId) {
+    return { salonId, branchId: req.user.branchId };
+  }
+  return { salonId, ...(branchId ? { branchId } : {}) };
+};
+const paymentWhere = (salonId, branchId, req) => {
+  const branchFilter = req?.user?.salonRole && req.user.salonRole !== "SALON_OWNER" && req.user.branchId
+    ? { branchId: req.user.branchId }
+    : (branchId ? { branchId } : {});
+  return { salonId, invoice: { is: branchFilter } };
+};
 
 const getActivePlanForSalon = async (salonId) => {
   const subscription = await prisma.subscription.findFirst({
@@ -61,6 +93,7 @@ const buildCustomerData = (payload, salonId) => ({
   preferredStaffId: payload.preferredStaffId || null,
   allergies: payload.allergies || null,
   skinNotes: payload.skinNotes || null,
+  branchId: payload.branchId || null,
   ...(salonId ? { salonId } : {})
 });
 
@@ -83,6 +116,23 @@ const updateCustomerHandler = async (req, res) => {
   }));
 };
 
+const STAFF_SELF_SERVICE_DEFAULTS = {
+  myDashboard: ["view"],
+  myAttendance: ["view", "create", "edit"],
+  myAppointments: ["view"],
+  mySchedule: ["view"],
+  myCommission: ["view"],
+  myPayroll: ["view"],
+  myPerformance: ["view"],
+  myProfile: ["view", "edit"],
+  myLeaves: ["view", "create"],
+  attendance: ["view", "create", "edit"],
+  appointments: ["view"],
+  customers: ["view"],
+  feedback: ["view"],
+  branches: ["view"]
+};
+
 const resolveMembershipPermissions = async (salonId, customRoleId, explicitPermissions) => {
   let role = null;
   if (customRoleId) {
@@ -93,9 +143,15 @@ const resolveMembershipPermissions = async (salonId, customRoleId, explicitPermi
       throw error;
     }
   }
-  if (explicitPermissions) return explicitPermissions;
-  if (role) return role.permissions || {};
-  return {};
+  let base;
+  if (role) {
+    base = { ...STAFF_SELF_SERVICE_DEFAULTS, ...(role.permissions || {}) };
+  } else if (explicitPermissions && Object.keys(explicitPermissions).length > 0) {
+    base = { ...STAFF_SELF_SERVICE_DEFAULTS, ...explicitPermissions };
+  } else {
+    base = { ...STAFF_SELF_SERVICE_DEFAULTS };
+  }
+  return base;
 };
 
 const createLoginUserForSalon = async (salonId, payload) => {
@@ -108,6 +164,11 @@ const createLoginUserForSalon = async (salonId, payload) => {
   } = payload;
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { status: 400, body: { message: "Email already exists" } };
+
+  if (phone) {
+    const existingPhone = await prisma.userSalon.findFirst({ where: { salonId, phone, isArchived: false } });
+    if (existingPhone) return { status: 400, body: { message: "Another staff member already uses this phone number" } };
+  }
 
   const plan = await getActivePlanForSalon(salonId);
   if (plan) {
@@ -189,7 +250,7 @@ const createLoginUserForSalon = async (salonId, payload) => {
 
 ownerRouter.get("/dashboard", requireSalonPermission("dashboard", "view"), async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
-  const invoiceWhere = withBranchFilter(req.salonId, branchId);
+  const invoiceWhere = withBranchFilter(req.salonId, branchId, req);
   const serviceWhere = { salonId: req.salonId, isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
   const userWhere = { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
   const branchWhere = { salonId: req.salonId, isActive: true };
@@ -207,15 +268,15 @@ ownerRouter.get("/dashboard", requireSalonPermission("dashboard", "view"), async
   const activeAppointmentStatuses = ["PENDING", "CONFIRMED", "CHECKED_IN", "IN_PROGRESS"];
 
   const [customers, services, invoices, users, branches, recentInvoices, recentCustomers, allInvoices, recentPayments, todayAppointments, upcomingAppointments, inventoryProducts] = await Promise.all([
-    prisma.customer.count({ where: { salonId: req.salonId } }),
+    prisma.customer.count({ where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) } }),
     prisma.service.count({ where: serviceWhere }),
     prisma.invoice.count({ where: invoiceWhere }),
     prisma.userSalon.count({ where: userWhere }),
     prisma.branch.count({ where: branchWhere }),
     prisma.invoice.findMany({ where: invoiceWhere, take: 5, include: { customer: true, branch: true }, orderBy: { createdAt: "desc" } }),
-    prisma.customer.findMany({ where: { salonId: req.salonId }, take: 5, orderBy: { createdAt: "desc" } }),
+    prisma.customer.findMany({ where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) }, take: 5, orderBy: { createdAt: "desc" } }),
     prisma.invoice.findMany({ where: { ...invoiceWhere, status: { in: ["PAID", "PARTIAL"] } }, include: { branch: true } }),
-    prisma.payment.findMany({ where: paymentWhere(req.salonId, branchId), take: 5, include: { invoice: true }, orderBy: { createdAt: "desc" } }),
+    prisma.payment.findMany({ where: paymentWhere(req.salonId, branchId, req), take: 5, include: { invoice: true }, orderBy: { createdAt: "desc" } }),
     prisma.appointment.count({
       where: {
         ...appointmentWhere,
@@ -276,54 +337,56 @@ ownerRouter.get("/global-search", requireSalonPermission("customers", "view"), a
 
   const salonId = req.salonId;
   const term = { contains: q, mode: "insensitive" };
+  const branchId = normalizeBranchId(req.query.branchId);
+  const branchFilter = branchId ? { branchId } : {};
 
   const safe = (promise) => promise.catch(() => []);
 
   const [customers, services, products, staff, appointments, invoices, memberships, packages] = await Promise.all([
     safe(prisma.customer.findMany({
-      where: { salonId, OR: [{ name: term }, { phone: term }, { email: term }] },
+      where: { salonId, ...branchFilter, OR: [{ name: term }, { phone: term }, { email: term }] },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, phone: true, email: true }
     })),
     safe(prisma.service.findMany({
-      where: { salonId, isActive: true, OR: [{ name: term }, { serviceTag: term }] },
+      where: { salonId, isActive: true, ...branchFilter, OR: [{ name: term }, { serviceTag: term }] },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, price: true, category: { select: { name: true } } }
     })),
     safe(prisma.product.findMany({
-      where: { salonId, isActive: true, OR: [{ name: term }, { sku: term }] },
+      where: { salonId, isActive: true, ...branchFilter, OR: [{ name: term }, { sku: term }] },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, sku: true, sellingPrice: true, currentStock: true }
     })),
     safe(prisma.userSalon.findMany({
-      where: { salonId, user: { name: term } },
+      where: { salonId, ...branchFilter, user: { name: term } },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, user: { select: { name: true, email: true } }, salonRole: true }
     })),
     safe(prisma.appointment.findMany({
-      where: { salonId, OR: [{ title: term }, { customer: { name: term } }] },
+      where: { salonId, ...branchFilter, OR: [{ title: term }, { customer: { name: term } }] },
       take: 5,
       orderBy: { startAt: "desc" },
       select: { id: true, title: true, status: true, startAt: true, customer: { select: { name: true } } }
     })),
     safe(prisma.invoice.findMany({
-      where: { salonId, OR: [{ invoiceNumber: term }, { customer: { name: term } }] },
+      where: { salonId, ...branchFilter, OR: [{ invoiceNumber: term }, { customer: { name: term } }] },
       take: 5,
       orderBy: { createdAt: "desc" },
       select: { id: true, invoiceNumber: true, total: true, status: true, customer: { select: { name: true } } }
     })),
     safe(prisma.membershipPlan.findMany({
-      where: { salonId, isActive: true, name: term },
+      where: { salonId, isActive: true, ...branchFilter, name: term },
       take: 3,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, price: true, validityDays: true }
     })),
     safe(prisma.package.findMany({
-      where: { salonId, isActive: true, name: term },
+      where: { salonId, isActive: true, ...branchFilter, name: term },
       take: 3,
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, price: true }
@@ -357,13 +420,28 @@ ownerRouter.get("/branches", requireSalonPermission("branches", "view"), async (
   res.json(rows);
 });
 ownerRouter.post("/branches", requireSalonPermission("branches", "create"), validate(schemas.branch), async (req, res) => {
-  // Branches are unlimited — no plan-based cap.
-  res.status(201).json(await prisma.branch.create({ data: { ...req.body, email: req.body.email || null, salonId: req.salonId } }));
+  try {
+    res.status(201).json(await prisma.branch.create({ data: { ...req.body, email: req.body.email || null, salonId: req.salonId } }));
+  } catch (err) {
+    console.error("[BranchCreate]", err);
+    if (err?.code === "P2002") {
+      return res.status(409).json({ message: "A branch with this name already exists in your salon." });
+    }
+    res.status(400).json({ message: err?.message || "Could not save branch." });
+  }
 });
 ownerRouter.patch("/branches/:id", requireSalonPermission("branches", "edit"), validate(schemas.branch), async (req, res) => {
-  const row = await findScoped("branch", req.salonId, req.params.id);
-  if (!row) return res.status(404).json({ message: "Branch not found" });
-  res.json(await prisma.branch.update({ where: { id: req.params.id }, data: { ...req.body, email: req.body.email || null } }));
+  try {
+    const row = await findScoped("branch", req.salonId, req.params.id);
+    if (!row) return res.status(404).json({ message: "Branch not found" });
+    res.json(await prisma.branch.update({ where: { id: req.params.id }, data: { ...req.body, email: req.body.email || null } }));
+  } catch (err) {
+    console.error("[BranchUpdate]", err);
+    if (err?.code === "P2002") {
+      return res.status(409).json({ message: "A branch with this name already exists in your salon." });
+    }
+    res.status(400).json({ message: err?.message || "Could not update branch." });
+  }
 });
 ownerRouter.patch("/branches/:id/archive", requireSalonPermission("branches", "delete"), async (req, res) => {
   const row = await findScoped("branch", req.salonId, req.params.id);
@@ -372,16 +450,18 @@ ownerRouter.patch("/branches/:id/archive", requireSalonPermission("branches", "d
 });
 
 ownerRouter.get("/service-categories/export", requireSalonPermission("services", "view"), async (req, res) => {
+  const branchId = normalizeBranchId(req.query.branchId);
+  const serviceWhere = { isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
   const categories = await prisma.serviceCategory.findMany({
     where: { salonId: req.salonId, isActive: true, parentId: null },
     include: {
       children: {
         where: { isActive: true },
         include: {
-          services: { where: { isActive: true } }
+          services: { where: serviceWhere }
         }
       },
-      services: { where: { isActive: true } }
+      services: { where: serviceWhere }
     }
   });
 
@@ -421,7 +501,7 @@ ownerRouter.get("/service-categories/export", requireSalonPermission("services",
   res.send(csv);
 });
 
-ownerRouter.post("/service-categories/import", requireSalonPermission("services", "create"), upload.single("file"), async (req, res) => {
+ownerRouter.post("/service-categories/import", requireSalonPermission("services", "create"), upload.single("file"), forceBranchForUploads, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: "No file provided" });
   }
@@ -537,7 +617,8 @@ ownerRouter.post("/service-categories/import", requireSalonPermission("services"
             price,
             durationMin,
             taxRate,
-            commissionPct
+            commissionPct,
+            branchId: req.body.branchId || null
           }
         });
       }
@@ -557,7 +638,9 @@ ownerRouter.post("/service-categories/import", requireSalonPermission("services"
 });
 
 ownerRouter.get("/service-categories", requireSalonPermission("services", "view"), async (req, res) => {
-  res.json(await prisma.serviceCategory.findMany({ where: { salonId: req.salonId, isActive: true, parentId: null }, include: { children: { where: { isActive: true }, include: { services: { where: { isActive: true } } } }, services: { where: { isActive: true } }, }, orderBy: { createdAt: "desc" } }));
+  const branchId = normalizeBranchId(req.query.branchId);
+  const svcWhere = { isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
+  res.json(await prisma.serviceCategory.findMany({ where: { salonId: req.salonId, isActive: true, parentId: null }, include: { children: { where: { isActive: true }, include: { services: { where: svcWhere } } }, services: { where: svcWhere }, }, orderBy: { createdAt: "desc" } }));
 });
 ownerRouter.post("/service-categories", requireSalonPermission("services", "create"), async (req, res) => {
   const { name, parentId } = req.body;
@@ -675,8 +758,9 @@ ownerRouter.patch("/services/:id/archive", requireSalonPermission("services", "d
 
 ownerRouter.get("/customers/export", requireSalonPermission("customers", "view"), async (req, res) => {
   const { format } = req.query;
+  const branchId = normalizeBranchId(req.query.branchId);
   const customers = await prisma.customer.findMany({
-    where: { salonId: req.salonId },
+    where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) },
     orderBy: { name: "asc" }
   });
   
@@ -697,8 +781,8 @@ ownerRouter.get("/customers/export", requireSalonPermission("customers", "view")
   const csv = buildCsv(headers, rows);
   
   if (String(format).toLowerCase() === "xls" || String(format).toLowerCase() === "xlsx" || String(format).toLowerCase() === "excel") {
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.setHeader("Content-Disposition", "attachment; filename=\"customers-export.xlsx\"");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", "attachment; filename=\"customers-export.csv\"");
   } else {
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", "attachment; filename=\"customers-export.csv\"");
@@ -706,7 +790,7 @@ ownerRouter.get("/customers/export", requireSalonPermission("customers", "view")
   res.send(csv);
 });
 
-ownerRouter.post("/customers/import", requireSalonPermission("customers", "create"), upload.single("file"), async (req, res) => {
+ownerRouter.post("/customers/import", requireSalonPermission("customers", "create"), upload.single("file"), forceBranchForUploads, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: "No file provided" });
   }
@@ -839,7 +923,7 @@ ownerRouter.get("/customers", requireSalonPermission("customers", "view"), async
   const rows = await prisma.customer.findMany({
     where: {
       salonId: req.salonId,
-      ...(branchId ? { invoices: { some: { branchId } } } : {}),
+      ...(branchId ? { branchId } : {}),
       ...(query ? {
         OR: [
           { name: { contains: query, mode: "insensitive" } },
@@ -1031,7 +1115,7 @@ ownerRouter.get("/customers/:id", requireSalonPermission("customers", "view"), a
       where: { salonId: req.salonId, isArchived: false },
       include: { user: true }
     }),
-    prisma.invoiceItem.findMany({ where: { itemType: "ADVANCE" }, select: { invoiceId: true } }),
+    prisma.invoiceItem.findMany({ where: { itemType: "ADVANCE", invoice: { salonId: req.salonId } }, select: { invoiceId: true } }),
     prisma.payment.findMany({
       where: { salonId: req.salonId, mode: "ADVANCE" },
       select: { invoice: { select: { customerId: true } }, amount: true }
@@ -1262,6 +1346,10 @@ ownerRouter.post("/staff-users", requireSalonPermission("staff", "create"), vali
 ownerRouter.patch("/users/:id", requireSalonPermission("staff", "edit"), validate(schemas.userMembershipUpdate), async (req, res) => {
   const row = await prisma.userSalon.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
   if (!row) return res.status(404).json({ message: "User mapping not found" });
+  if (req.body.phone) {
+    const dup = await prisma.userSalon.findFirst({ where: { salonId: req.salonId, phone: req.body.phone, NOT: { id: req.params.id }, isArchived: false } });
+    if (dup) return res.status(400).json({ message: "Another staff member already uses this phone number" });
+  }
   const branchId = req.body.branchId === null ? null : normalizeBranchId(req.body.branchId ?? row.branchId);
   const customRoleId = req.body.customRoleId === null ? null : (req.body.customRoleId ?? row.customRoleId ?? null);
   if (branchId) await ensureBranch(req.salonId, branchId);
@@ -1345,9 +1433,44 @@ ownerRouter.patch("/users/:id", requireSalonPermission("staff", "edit"), validat
 ownerRouter.patch("/staff-users/:id", requireSalonPermission("staff", "edit"), validate(schemas.userMembershipUpdate), async (req, res) => {
   const row = await prisma.userSalon.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
   if (!row) return res.status(404).json({ message: "Staff mapping not found" });
+  if (req.body.phone) {
+    const dup = await prisma.userSalon.findFirst({ where: { salonId: req.salonId, phone: req.body.phone, NOT: { id: req.params.id }, isArchived: false } });
+    if (dup) return res.status(400).json({ message: "Another staff member already uses this phone number" });
+  }
   const branchId = req.body.branchId === null ? null : normalizeBranchId(req.body.branchId ?? row.branchId);
+  const customRoleId = req.body.customRoleId === null ? null : (req.body.customRoleId ?? row.customRoleId ?? null);
   if (branchId) await ensureBranch(req.salonId, branchId);
-  res.json(await prisma.userSalon.update({ where: { id: req.params.id }, data: { ...req.body, branchId } }));
+  const resolvedPermissions = await resolveMembershipPermissions(req.salonId, customRoleId, req.body.permissions);
+  const updated = await prisma.userSalon.update({
+    where: { id: req.params.id },
+    data: {
+      salonRole: req.body.salonRole ?? row.salonRole,
+      branchId,
+      customRoleId,
+      phone: req.body.phone ?? row.phone,
+      profileNote: req.body.profileNote ?? row.profileNote,
+      avatarUrl: req.body.avatarUrl ?? row.avatarUrl,
+      roleTitle: req.body.roleTitle ?? row.roleTitle,
+      showInCatalog: req.body.showInCatalog ?? row.showInCatalog,
+      attendanceEnabled: req.body.attendanceEnabled ?? row.attendanceEnabled,
+      attendanceEnrollmentPhotoUrl: req.body.attendanceEnrollmentPhotoUrl !== undefined ? (req.body.attendanceEnrollmentPhotoUrl || null) : row.attendanceEnrollmentPhotoUrl,
+      attendanceEnrollmentCapturedAt: req.body.attendanceEnrollmentPhotoUrl !== undefined
+        ? (req.body.attendanceEnrollmentPhotoUrl ? new Date() : null)
+        : row.attendanceEnrollmentCapturedAt,
+      isArchived: req.body.isArchived ?? row.isArchived,
+      permissions: resolvedPermissions,
+      joiningDate: req.body.joiningDate !== undefined ? (req.body.joiningDate ? new Date(req.body.joiningDate) : null) : row.joiningDate,
+      designation: req.body.designation !== undefined ? (req.body.designation || null) : row.designation,
+      uanNumber: req.body.uanNumber !== undefined ? (req.body.uanNumber || null) : row.uanNumber,
+      reportingToId: req.body.reportingToId !== undefined ? (req.body.reportingToId || null) : row.reportingToId,
+      workingHours: req.body.workingHours !== undefined ? (req.body.workingHours || null) : row.workingHours,
+      bankName: req.body.bankName !== undefined ? (req.body.bankName || null) : row.bankName,
+      bankBranch: req.body.bankBranch !== undefined ? (req.body.bankBranch || null) : row.bankBranch,
+      accountNumber: req.body.accountNumber !== undefined ? (req.body.accountNumber || null) : row.accountNumber,
+      ifscCode: req.body.ifscCode !== undefined ? (req.body.ifscCode || null) : row.ifscCode
+    }
+  });
+  res.json(updated);
 });
 ownerRouter.get("/roles-permissions", requireSalonPermission("staff", "view"), async (req, res) => {
   res.json(
@@ -1455,7 +1578,11 @@ ownerRouter.post("/support-tickets/:id/messages", requireSalonPermission("suppor
 });
 
 ownerRouter.get("/settings", requireSalonPermission("settings", "view"), async (req, res) => {
-  const row = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
+  const branchId = req.query.branchId ? String(req.query.branchId) : null;
+  let row = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId } });
+  if (!row && branchId) {
+    row = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
+  }
   res.json(row);
 });
 

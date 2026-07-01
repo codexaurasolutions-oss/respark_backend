@@ -4,12 +4,22 @@ import { attemptCustomerTemplateEmail } from "../../../lib/emailNotifications.js
 import { prisma } from "../../../lib/prisma.js";
 import { addInvoicePayment, addInvoiceTip, createPosInvoice, generatePaymentLink, getDayClosingSummary, logPaymentLinkPlaceholder, refundInvoice } from "../../../lib/pos.js";
 import { reverseInvoiceLoyalty, createStaffNotification, createCustomerNotification } from "../../../lib/phase4.js";
-import { attachBranchStock, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
+import { attachBranchStock, createStockMovement, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
 import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
 
-const withBranchFilter = (salonId, branchId) => ({ salonId, ...(branchId ? { branchId } : {}) });
-const paymentWhere = (salonId, branchId) => ({ salonId, ...(branchId ? { invoice: { is: { branchId } } } : {}) });
+const withBranchFilter = (salonId, branchId, req) => {
+  if (req?.user?.salonRole && req.user.salonRole !== "SALON_OWNER" && req.user.branchId) {
+    return { salonId, branchId: req.user.branchId };
+  }
+  return { salonId, ...(branchId ? { branchId } : {}) };
+};
+const paymentWhere = (salonId, branchId, req) => {
+  const branchFilter = req?.user?.salonRole && req.user.salonRole !== "SALON_OWNER" && req.user.branchId
+    ? { branchId: req.user.branchId }
+    : (branchId ? { branchId } : {});
+  return { salonId, invoice: { is: branchFilter } };
+};
 const sendRouteError = (res, error, fallbackMessage) => {
   const status = Number(error?.status || error?.response?.status || 500);
   return res.status(status).json({ message: error?.message || fallbackMessage });
@@ -60,6 +70,43 @@ const sendInvoiceAutomationEmails = async (salonId, invoice) => {
       title: "Your Invoice",
       message: `Your invoice ${invoice.invoiceNumber || ""} has been created. Total: ${invoice.total || 0}.`
     }).catch(() => {});
+  }
+
+  if (customerId && invoice?.appointmentId && isOn("appointmentInvoiceLink")) {
+    const invoiceLink = `/customer/invoices/${invoice.id}`;
+    await createCustomerNotification({
+      salonId,
+      customerId,
+      title: "Appointment invoice ready",
+      message: `Your appointment invoice ${invoice.invoiceNumber || ""} is ready to view.`,
+      linkUrl: invoiceLink
+    }).catch(() => {});
+    if (emailEnabled && toEmail) {
+      await attemptCustomerTemplateEmail({
+        salonId,
+        toEmail,
+        templateType: "invoice_template",
+        context: { invoiceId: invoice?.id, customerId }
+      }).catch(() => {});
+    }
+  }
+
+  if (customerId && invoice?.appointmentId && invoice?.status === "PAID" && isOn("combineFeedbackAndInvoiceSms")) {
+    await createCustomerNotification({
+      salonId,
+      customerId,
+      title: "Receipt and feedback",
+      message: `Invoice ${invoice.invoiceNumber || ""} is paid. Please review your visit when you have a moment.`,
+      linkUrl: `/customer/invoices/${invoice.id}`
+    }).catch(() => {});
+    if (emailEnabled && toEmail && isOn("appointmentFeedbackLink")) {
+      await attemptCustomerTemplateEmail({
+        salonId,
+        toEmail,
+        templateType: "feedback_request_template",
+        context: { invoiceId: invoice?.id, customerId }
+      }).catch(() => {});
+    }
   }
 
   const [soldMemberships, soldPackages] = await Promise.all([
@@ -136,10 +183,10 @@ export const registerBillingRoutes = (ownerRouter) => {
     next();
   }, async (req, res) => {
     const branchId = normalizeBranchId(req.query.branchId);
-    const params = branchId ? { OR: [{ branchId }, { branchId: null }, { branchId: "" }] } : {};
+    const params = branchId ? { OR: [{ branchId }, { branchId: null }] } : {};
     const [customers, branches, services, staffUsers, products, memberships, packages, coupons, giftCards, settings, advanceTimeline] = await Promise.all([
       prisma.customer.findMany({
-        where: { salonId: req.salonId }, 
+        where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) }, 
         orderBy: { createdAt: "desc" },
         include: {
           memberships: { 
@@ -167,7 +214,7 @@ export const registerBillingRoutes = (ownerRouter) => {
         where: {
           salonId: req.salonId,
           isActive: true,
-          ...(branchId ? { OR: [{ branchId }, { branchId: null }, { branchId: "" }, { stockMovements: { some: { branchId } } }] } : {})
+          ...(branchId ? { branchId } : {})
         },
         include: { category: true, branch: true },
         orderBy: { createdAt: "desc" }
@@ -217,7 +264,7 @@ export const registerBillingRoutes = (ownerRouter) => {
     // AND a payment with mode = 'ADVANCE'. We subtract these to get the remaining available advance.
     const advanceInvoiceIds = new Set(
       (await prisma.invoiceItem.findMany({
-        where: { itemType: "ADVANCE" },
+        where: { itemType: "ADVANCE", invoice: { salonId: req.salonId } },
         select: { invoiceId: true }
       })).map(i => i.invoiceId)
     );
@@ -306,10 +353,9 @@ export const registerBillingRoutes = (ownerRouter) => {
       end.setHours(23, 59, 59, 999);
       dateFilter.lte = end;
     }
-    console.log("FETCHING INVOICES FOR SALON:", req.salonId, "BRANCH:", branchId, "DATE:", dateFilter);
     const result = await prisma.invoice.findMany({
       where: {
-        ...withBranchFilter(req.salonId, branchId),
+        ...withBranchFilter(req.salonId, branchId, req),
         ...(status ? { status } : {}),
         ...(Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {}),
         ...(q ? {
@@ -326,7 +372,6 @@ export const registerBillingRoutes = (ownerRouter) => {
       },
       orderBy: { createdAt: "desc" }
     });
-    console.log("INVOICES FOUND:", result.length);
     res.json(result);
   });
 
@@ -345,7 +390,7 @@ export const registerBillingRoutes = (ownerRouter) => {
     
     const rows = await prisma.invoice.findMany({
       where: {
-        ...withBranchFilter(req.salonId, branchId),
+        ...withBranchFilter(req.salonId, branchId, req),
         ...(Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {})
       },
       select: { status: true }
@@ -370,8 +415,9 @@ export const registerBillingRoutes = (ownerRouter) => {
   });
 
   ownerRouter.patch("/invoices/:id", requireSalonPermission("invoices", "edit"), attachSalonSettings, async (req, res) => {
+    const staffBranchFilter = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? { branchId: req.user.branchId } : {};
     const existingInvoice = await prisma.invoice.findFirst({
-      where: { id: req.params.id, salonId: req.salonId },
+      where: { id: req.params.id, salonId: req.salonId, ...staffBranchFilter },
       include: {
         items: true,
         payments: true,
@@ -505,6 +551,21 @@ export const registerBillingRoutes = (ownerRouter) => {
 
       const updatedInvoice = await prisma.$transaction(async (tx) => {
         const keepIds = sanitizedItems.map((item) => item.id).filter(Boolean);
+        const removedItems = existingInvoice.items.filter((item) => !keepIds.includes(item.id));
+        for (const removed of removedItems) {
+          if (removed.itemType === "PRODUCT" && removed.productId) {
+            await createStockMovement(tx, {
+              salonId: req.salonId,
+              branchId: existingInvoice.branchId,
+              productId: removed.productId,
+              quantity: Number(removed.qty || 1),
+              movementType: "PRODUCT_RETURN",
+              createdByUserId: req.user.id,
+              referenceType: "INVOICE_EDIT",
+              referenceId: existingInvoice.id
+            });
+          }
+        }
         await tx.invoiceItem.deleteMany({
           where: {
             invoiceId: existingInvoice.id,
@@ -524,6 +585,34 @@ export const registerBillingRoutes = (ownerRouter) => {
           };
 
           if (item.id) {
+            const existingItem = existingInvoice.items.find((i) => i.id === item.id);
+            if (existingItem && existingItem.itemType === "PRODUCT" && existingItem.productId) {
+              const oldQty = Number(existingItem.qty || 1);
+              const newQty = Number(item.qty || 1);
+              if (newQty < oldQty) {
+                await createStockMovement(tx, {
+                  salonId: req.salonId,
+                  branchId: existingInvoice.branchId,
+                  productId: existingItem.productId,
+                  quantity: oldQty - newQty,
+                  movementType: "PRODUCT_RETURN",
+                  createdByUserId: req.user.id,
+                  referenceType: "INVOICE_EDIT",
+                  referenceId: existingInvoice.id
+                });
+              } else if (newQty > oldQty) {
+                await createStockMovement(tx, {
+                  salonId: req.salonId,
+                  branchId: existingInvoice.branchId,
+                  productId: existingItem.productId,
+                  quantity: newQty - oldQty,
+                  movementType: "SOLD",
+                  createdByUserId: req.user.id,
+                  referenceType: "INVOICE_EDIT",
+                  referenceId: existingInvoice.id
+                });
+              }
+            }
             await tx.invoiceItem.update({
               where: { id: item.id },
               data: payload
@@ -608,12 +697,27 @@ export const registerBillingRoutes = (ownerRouter) => {
   });
 
   ownerRouter.patch("/invoices/:id/cancel", requireSalonPermission("invoices", "edit"), async (req, res) => {
-    const invoice = await prisma.invoice.findFirst({ where: { id: req.params.id, salonId: req.salonId }, include: { payments: true, customer: true, branch: true } });
+    const staffBranchFilter = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? { branchId: req.user.branchId } : {};
+    const invoice = await prisma.invoice.findFirst({ where: { id: req.params.id, salonId: req.salonId, ...staffBranchFilter }, include: { payments: true, customer: true, branch: true, items: true } });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
     if (invoice.status === "CANCELLED") return res.status(400).json({ message: "Invoice already cancelled" });
     if (invoice.payments.some((payment) => payment.amount > 0)) return res.status(400).json({ message: "Paid invoice requires refund flow instead of cancel" });
     await prisma.$transaction(async (tx) => {
       await tx.invoice.update({ where: { id: invoice.id }, data: { status: "CANCELLED", balanceAmount: 0 } });
+      for (const item of invoice.items) {
+        if (item.itemType === "PRODUCT" && item.productId) {
+          await createStockMovement(tx, {
+            salonId: req.salonId,
+            branchId: invoice.branchId,
+            productId: item.productId,
+            quantity: Number(item.qty || 1),
+            movementType: "PRODUCT_RETURN",
+            createdByUserId: req.user.id,
+            referenceType: "CANCEL",
+            referenceId: invoice.id
+          });
+        }
+      }
       await reverseInvoiceLoyalty(tx, invoice, req.user);
     });
     await attemptCustomerTemplateEmail({
@@ -626,6 +730,11 @@ export const registerBillingRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/payments", requireSalonPermission("payments", "create"), validate(schemas.payment), async (req, res) => {
+    const staffBranchFilter = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? { branchId: req.user.branchId } : {};
+    const preCheck = await prisma.invoice.findFirst({
+      where: { id: req.body.invoiceId, salonId: req.salonId, ...staffBranchFilter }
+    });
+    if (!preCheck) return res.status(404).json({ message: "Invoice not found" });
     const payment = await addInvoicePayment({
       salonId: req.salonId,
       invoiceId: req.body.invoiceId,
@@ -671,7 +780,7 @@ export const registerBillingRoutes = (ownerRouter) => {
     const type = String(req.query.type || "").trim();
     res.json(await prisma.payment.findMany({
       where: {
-        ...paymentWhere(req.salonId, branchId),
+        ...paymentWhere(req.salonId, branchId, req),
         ...(mode ? { mode } : {}),
         ...(type ? { type } : {}),
         ...(q ? {
@@ -746,39 +855,24 @@ export const registerBillingRoutes = (ownerRouter) => {
     });
   });
 
+
   ownerRouter.get("/pos/day-closing", requireFeatureEnabled("pos"), requireSalonPermission("payments", "view"), async (req, res) => {
     const branchId = normalizeBranchId(req.query.branchId);
     res.json(await getDayClosingSummary({ salonId: req.salonId, branchId, date: req.query.date ? String(req.query.date) : undefined }));
   });
 
-  
-  ownerRouter.get("/invoices/:id", requireSalonPermission("invoices", "view"), async (req, res) => {
-    try {
-      const inv = await prisma.invoice.findFirst({
-        where: { id: req.params.id, salonId: req.salonId },
-        include: { 
-          customer: true, 
-          items: true, 
-          payments: true, 
-          branch: true 
-        }
-      });
-      if (!inv) return res.status(404).json({ message: "Invoice not found" });
-      res.json(inv);
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  });
+const escapeHtml = (str) => {
+  if (!str) return "";
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+};
 
 const sanitizeInvoicePhone = (phone) => {
   if (!phone) return "";
   let clean = phone.trim();
-  if (clean.startsWith("+92")) {
-    return "+91" + clean.slice(3);
-  }
-  if (clean.startsWith("92") && clean.length > 10) {
-    return "+91" + clean.slice(2);
-  }
+  if (clean.startsWith("0091")) clean = clean.slice(4);
+  else if (clean.startsWith("91") && clean.length > 10) clean = clean.slice(2);
+  else if (clean.startsWith("0")) clean = clean.slice(1);
+  if (/^\d{10}$/.test(clean)) return `+91${clean}`;
   return clean;
 };
 
@@ -799,7 +893,7 @@ const sanitizeInvoicePhone = (phone) => {
       const amt = Number(item.lineTotal || rate * qty);
       return `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed #e2e8f0;">
         <div style="flex:1;">
-          <div style="font-weight:600;color:#0f172a;font-size:13px;">${item.serviceName || "Item"}</div>
+          <div style="font-weight:600;color:#0f172a;font-size:13px;">${escapeHtml(item.serviceName || "Item")}</div>
           <div style="font-size:11px;color:#94a3b8;margin-top:3px;font-family:'Courier New',monospace;">${qty} &times; ${fmt(rate)}</div>
         </div>
         <div style="font-weight:700;color:#0f172a;font-size:13px;text-align:right;min-width:80px;font-family:'Courier New',monospace;">${fmt(amt)}</div>
@@ -835,9 +929,9 @@ const sanitizeInvoicePhone = (phone) => {
 <div style="width:380px;max-width:100%;background:#fff;border-radius:16px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.35);overflow:hidden;">
   <div style="padding:0 24px 24px;">
     <div style="text-align:center;padding:20px 0 4px;">
-      <div style="font-size:26px;font-weight:900;letter-spacing:3px;color:#0f172a;">${salonName.toUpperCase()}</div>
+      <div style="font-size:26px;font-weight:900;letter-spacing:3px;color:#0f172a;">${escapeHtml(salonName.toUpperCase())}</div>
       <div style="font-size:9px;letter-spacing:3.5px;color:#94a3b8;margin-top:4px;text-transform:uppercase;font-weight:600;">Hair &middot; Lifestyle &middot; Care</div>
-      ${inv.branch?.address ? `<div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.6;">${inv.branch.address}${inv.branch?.phone ? `<br>${sanitizeInvoicePhone(inv.branch.phone)}` : ""}</div>` : ""}
+      ${inv.branch?.address ? `<div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.6;">${escapeHtml(inv.branch.address)}${inv.branch?.phone ? `<br>${sanitizeInvoicePhone(inv.branch.phone)}` : ""}</div>` : ""}
     </div>
     <div style="border-top:1px dashed #cbd5e1;margin:14px 0;"></div>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">
@@ -849,7 +943,7 @@ const sanitizeInvoicePhone = (phone) => {
     <div style="border-top:1px dashed #cbd5e1;margin:14px 0;"></div>
     <div style="margin-bottom:4px;">
       <div style="font-size:9px;color:#94a3b8;letter-spacing:2.5px;text-transform:uppercase;font-weight:700;">Bill To</div>
-      <div style="font-weight:700;font-size:14px;color:#0f172a;margin-top:2px;">${inv.customer?.name || "Walk-in Customer"}</div>
+      <div style="font-weight:700;font-size:14px;color:#0f172a;margin-top:2px;">${escapeHtml(inv.customer?.name || "Walk-in Customer")}</div>
       ${inv.customer?.phone ? `<div style="font-size:11px;color:#64748b;margin-top:1px;font-family:'Courier New',monospace;">${sanitizeInvoicePhone(inv.customer.phone)}</div>` : ""}
     </div>
     <div style="border-top:1px dashed #cbd5e1;margin:14px 0;"></div>
@@ -1155,7 +1249,8 @@ const sanitizeInvoicePhone = (phone) => {
 
   ownerRouter.post("/advance-payments", requireSalonPermission("customers", "edit"), async (req, res) => {
     try {
-    const { customerId, amount, mode, remark, branchId } = req.body;
+    const { customerId, amount, mode, remark } = req.body;
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
     if (!customerId || !amount || Number(amount) <= 0) {
       return res.status(400).json({ message: "Customer and a positive amount are required" });
     }
