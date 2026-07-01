@@ -11,12 +11,16 @@ const getCatalogSettingsRow = async (salonId, branchId = null) =>
 
 export const registerCatalogRoutes = (ownerRouter) => {
   ownerRouter.get("/catalog/settings", requireFeatureEnabled("digitalCatalog"), requireSalonPermission("catalog", "view"), async (req, res) => {
-    const row = await getCatalogSettingsRow(req.salonId, null);
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    const effectiveBranchId = req.user?.salonRole && req.user.salonRole !== "SALON_OWNER" && req.user.branchId
+      ? req.user.branchId
+      : branchId;
+    const row = await getCatalogSettingsRow(req.salonId, effectiveBranchId);
     res.json(row);
   });
 
   ownerRouter.post("/catalog/settings", requireFeatureEnabled("digitalCatalog"), requireSalonPermission("catalog", "edit"), validate(schemas.catalogSettings), async (req, res) => {
-    const branchId = req.body.branchId || null;
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
     const existing = await getCatalogSettingsRow(req.salonId, branchId);
     const payload = {
       catalogEnabled: req.body.catalogEnabled ?? true,
@@ -65,6 +69,7 @@ export const registerCatalogRoutes = (ownerRouter) => {
     res.json(await prisma.catalogOffer.findMany({ where: { salonId: req.salonId }, orderBy: { createdAt: "desc" } }));
   });
   ownerRouter.post("/catalog/offers", requireFeatureEnabled("digitalCatalog"), requireSalonPermission("catalog", "create"), validate(schemas.catalogOffer), async (req, res) => {
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
     res.status(201).json(await prisma.catalogOffer.create({
       data: {
         salonId: req.salonId,
@@ -73,7 +78,7 @@ export const registerCatalogRoutes = (ownerRouter) => {
         imageUrl: req.body.imageUrl || null,
         ctaLabel: req.body.ctaLabel || null,
         ctaUrl: req.body.ctaUrl || null,
-        branchId: req.body.branchId || null,
+        branchId,
         startsAt: req.body.startsAt ? new Date(req.body.startsAt) : null,
         endsAt: req.body.endsAt ? new Date(req.body.endsAt) : null,
         isActive: req.body.isActive ?? true

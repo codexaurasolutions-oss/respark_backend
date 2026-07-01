@@ -153,10 +153,11 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/inventory/stock-movements", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "edit"), validate(schemas.stockMovement), async (req, res) => {
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
     const sign = ["STOCK_OUT", "CONSUMABLE_USAGE"].includes(req.body.movementType) ? -1 : 1;
     const movement = await prisma.$transaction((tx) => createStockMovement(tx, {
       salonId: req.salonId,
-      branchId: req.body.branchId || null,
+      branchId,
       productId: req.body.productId,
       quantity: sign * req.body.quantity,
       movementType: req.body.movementType,
@@ -211,7 +212,8 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/purchases/vendors", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "create"), validate(schemas.vendor), async (req, res) => {
-    res.status(201).json(await prisma.vendor.create({ data: { salonId: req.salonId, ...req.body, branchId: req.body.branchId || null, email: req.body.email || null } }));
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
+    res.status(201).json(await prisma.vendor.create({ data: { salonId: req.salonId, name: req.body.name, phone: req.body.phone || null, email: req.body.email || null, address: req.body.address || null, notes: req.body.notes || null, branchId } }));
   });
 
   ownerRouter.patch("/purchases/vendors/:id", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), validate(schemas.vendor), async (req, res) => {
@@ -228,6 +230,8 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/purchases/vendors/:vendorId/items", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "view"), async (req, res) => {
+    const vendor = await prisma.vendor.findFirst({ where: { id: req.params.vendorId, salonId: req.salonId } });
+    if (!vendor) return res.status(404).json({ message: "Vendor not found" });
     res.json(await prisma.vendorItem.findMany({
       where: { vendorId: req.params.vendorId },
       include: { product: true },
@@ -236,6 +240,8 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/purchases/vendors/:vendorId/items", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), validate(schemas.vendorItem), async (req, res) => {
+    const vendor = await prisma.vendor.findFirst({ where: { id: req.params.vendorId, salonId: req.salonId } });
+    if (!vendor) return res.status(404).json({ message: "Vendor not found" });
     res.status(201).json(await prisma.vendorItem.create({
       data: {
         vendorId: req.params.vendorId,
@@ -247,6 +253,8 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.patch("/purchases/vendor-items/:id", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), async (req, res) => {
+    const vendorItem = await prisma.vendorItem.findFirst({ where: { id: req.params.id }, include: { vendor: true } });
+    if (!vendorItem || vendorItem.vendor?.salonId !== req.salonId) return res.status(404).json({ message: "Vendor item not found" });
     res.json(await prisma.vendorItem.update({
       where: { id: req.params.id },
       data: {
@@ -275,6 +283,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/purchases/orders", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "create"), validate(schemas.purchaseOrder), async (req, res) => {
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
     const order = await prisma.$transaction(async (tx) => {
       const orderNumber = await nextNumber(tx, "purchaseOrder", req.salonId, "PO");
       const totalCost = req.body.items.reduce((sum, item) => sum + toAmount(item.unitCost) * toAmount(item.quantityOrdered), 0);
@@ -282,7 +291,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
       return tx.purchaseOrder.create({
         data: {
           salonId: req.salonId,
-          branchId: req.body.branchId,
+          branchId,
           vendorId: req.body.vendorId,
           createdByUserId: req.user.id,
           orderNumber,
@@ -436,9 +445,10 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/purchases/reconciliation", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), validate(schemas.stockReconciliation), async (req, res) => {
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
     const result = await prisma.$transaction(async (tx) => {
       const reconciliation = await tx.stockReconciliation.create({
-        data: { salonId: req.salonId, branchId: req.body.branchId, note: req.body.note || null }
+        data: { salonId: req.salonId, branchId, note: req.body.note || null }
       });
       for (const item of req.body.items) {
         const product = await tx.product.findFirst({ where: { id: item.productId, salonId: req.salonId } });

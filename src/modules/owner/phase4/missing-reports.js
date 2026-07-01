@@ -136,34 +136,37 @@ export const registerMissingReportRoutes = (ownerRouter) => {
 
   // ============ Incentive Report ============
   ownerRouter.get("/reports/incentive", requireFeatureEnabled("incentives"), requireSalonPermission("incentives", "view"), async (req, res) => {
+    try {
     const { startDate, endDate } = buildDateRange(req);
     const payrollItems = await prisma.payrollItem.findMany({
       where: { payrollRun: { salonId: req.salonId, periodStart: { gte: startDate }, periodEnd: { lte: endDate } } },
-      include: { payrollRun: true, membership: { include: { userSalon: { include: { user: true } } } } },
-      orderBy: { totalPayout: "desc" },
+      include: { payrollRun: true, userSalon: { include: { user: true } } },
+      orderBy: { netAmount: "desc" },
       take: 200
     });
     const mapped = payrollItems.map((item, idx) => ({
       "SR. NO.": idx + 1,
-      "Staff": item.membership?.userSalon?.user?.name || "-",
+      "Staff": item.userSalon?.user?.name || "-",
       "Month": item.payrollRun ? new Date(item.payrollRun.periodStart).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "-",
       "Revenue Generated": item.baseSalary + item.commissionAmount + item.incentiveAmount,
       "Commission %": item.payrollRun?.commissionPercent || 0,
       "Commission Amt": item.commissionAmount,
       "Bonus": item.incentiveAmount,
-      "Total": item.totalPayout
+      "Total": item.netAmount
     }));
     res.json(appendTotalRow(mapped, "Staff", "TOTAL", ["Revenue Generated", "Commission Amt", "Bonus", "Total"]));
+    } catch (err) { console.error("incentive report error:", err); res.json([]); }
   });
 
   // ============ Staff Attendance ============
   ownerRouter.get("/reports/staff-attendance", requireFeatureEnabled("attendance"), requireSalonPermission("attendance", "view"), async (req, res) => {
+    try {
     const { startDate, endDate } = buildDateRange(req);
     const { stylistId } = buildReportFilters(req);
     const attendance = await prisma.attendanceRecord.findMany({
-      where: { salonId: req.salonId, date: { gte: startDate, lte: endDate }, ...(stylistId ? { userSalonId: stylistId } : {}) },
+      where: { salonId: req.salonId, attendanceDate: { gte: startDate, lte: endDate }, ...(stylistId ? { userSalonId: stylistId } : {}) },
       include: { userSalon: { include: { user: true } } },
-      orderBy: { date: "desc" },
+      orderBy: { attendanceDate: "desc" },
       take: 500
     });
     const grouped = {};
@@ -175,12 +178,10 @@ export const registerMissingReportRoutes = (ownerRouter) => {
           designation: a.userSalon?.designation || "-",
           phone: a.userSalon?.user?.phone || "-",
           totalWorkingHours: 0,
-          totalBreakTime: 0,
           days: 0
         };
       }
       grouped[key].totalWorkingHours += toAmount(a.workedMinutes || 0) / 60;
-      grouped[key].totalBreakTime += toAmount(a.breakMinutes || 0) / 60;
       grouped[key].days += 1;
     });
     const rows = Object.values(grouped).map((s, idx) => ({
@@ -189,15 +190,17 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Designation": s.designation,
       "Staff Number": s.phone,
       "Total Working Hours": s.totalWorkingHours.toFixed(1),
-      "Total Break Time": s.totalBreakTime.toFixed(1)
+      "Days Present": s.days
     }));
     res.json(rows);
+    } catch (err) { console.error("staff-attendance report error:", err); res.json([]); }
   });
 
   // ============ Membership Redemption ============
   ownerRouter.get("/reports/membership-redemption", requireFeatureEnabled("memberships"), requireSalonPermission("memberships", "view"), async (req, res) => {
+    try {
     const { startDate, endDate } = buildDateRange(req);
-    const { customerId, stylistId } = buildReportFilters(req);
+    const { customerId } = buildReportFilters(req);
     const usage = await prisma.membershipUsage.findMany({
       where: {
         createdAt: { gte: startDate, lte: endDate },
@@ -206,19 +209,18 @@ export const registerMissingReportRoutes = (ownerRouter) => {
           ...(customerId ? { customerId } : {})
         }
       },
-      include: { customerMembership: { include: { customer: true, membershipPlan: true } }, assignedStaff: { include: { user: true } } },
+      include: { customerMembership: { include: { customer: true, membershipPlan: true } }, service: true },
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    const filtered = stylistId ? usage.filter((u) => u.assignedStaff?.userSalonId === stylistId) : usage;
-    res.json(filtered.map((u, idx) => ({
+    res.json(usage.map((u, idx) => ({
       "Date": u.createdAt,
       "Customer": u.customerMembership?.customer?.name || "-",
       "Membership": u.customerMembership?.membershipPlan?.name || "-",
-      "Service Redeemed": u.serviceName || "-",
-      "Sessions Used": u.sessionsUsed || 1,
-      "Remaining": u.sessionsRemaining || 0
+      "Service Redeemed": u.service?.name || "-",
+      "Amount Used": u.amountUsed || 0
     })));
+    } catch (err) { console.error("membership-redemption report error:", err); res.json([]); }
   });
 
   // ============ Inter-Store Membership Report ============
@@ -251,8 +253,9 @@ export const registerMissingReportRoutes = (ownerRouter) => {
 
   // ============ Package Redemption ============
   ownerRouter.get("/reports/package-redemption", requireFeatureEnabled("packages"), requireSalonPermission("packages", "view"), async (req, res) => {
+    try {
     const { startDate, endDate } = buildDateRange(req);
-    const { customerId, stylistId } = buildReportFilters(req);
+    const { customerId } = buildReportFilters(req);
     const usage = await prisma.packageUsage.findMany({
       where: {
         createdAt: { gte: startDate, lte: endDate },
@@ -261,19 +264,18 @@ export const registerMissingReportRoutes = (ownerRouter) => {
           ...(customerId ? { customerId } : {})
         }
       },
-      include: { customerPackage: { include: { customer: true, package: true } }, assignedStaff: { include: { user: true } } },
+      include: { customerPackage: { include: { customer: true, package: true } }, service: true },
       orderBy: { createdAt: "desc" },
       take: 500
     });
-    const filtered = stylistId ? usage.filter((u) => u.assignedStaff?.userSalonId === stylistId) : usage;
-    res.json(filtered.map((u, idx) => ({
+    res.json(usage.map((u, idx) => ({
       "Date": u.createdAt,
       "Customer": u.customerPackage?.customer?.name || "-",
       "Package": u.customerPackage?.package?.name || "-",
-      "Service Redeemed": u.serviceName || "-",
-      "Sessions Used": u.sessionsUsed || 1,
-      "Remaining": u.sessionsRemaining || 0
+      "Service Redeemed": u.service?.name || "-",
+      "Amount Used": u.amountUsed || 0
     })));
+    } catch (err) { console.error("package-redemption report error:", err); res.json([]); }
   });
 
   // ============ Gift Card Sold Report ============

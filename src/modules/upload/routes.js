@@ -20,16 +20,36 @@ const storage = multer.diskStorage({
   }
 });
 
+const ALLOWED_MIMES = [
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
+  "application/pdf"
+];
+const ALLOWED_EXTS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".pdf"];
+
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: function (req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_MIMES.includes(file.mimetype) || !ALLOWED_EXTS.includes(ext)) {
+      return cb(new Error("Only image files (JPG, PNG, GIF, WebP, SVG) and PDFs are allowed"));
+    }
+    cb(null, true);
+  }
 });
 
-uploadRouter.post("/", upload.single("image"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: "No image file provided" });
-  }
-
-  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-  res.json({ url: fileUrl });
+uploadRouter.post("/", (req, res, next) => {
+  upload.single("image")(req, res, (err) => {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ message: "File too large. Maximum size is 5MB." });
+      }
+      return res.status(400).json({ message: err.message || "Invalid file type" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    res.json({ url: fileUrl });
+  });
 });

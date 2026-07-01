@@ -689,7 +689,13 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
     }
 
     for (const redemption of body.packageRedemptions || []) {
-      const customerPackage = await ensureActiveCustomerPackage(salonId, redemption.customerPackageId);
+      const customerPackage = await tx.customerPackage.findUnique({
+        where: { id: redemption.customerPackageId },
+        include: { package: true }
+      });
+      if (!customerPackage || customerPackage.status !== "ACTIVE") {
+        throw Object.assign(new Error("Customer package not found or not active"), { status: 400 });
+      }
       const sessionsUsed = Number(redemption.sessionsUsed || 1);
       if (customerPackage.remainingSessions < sessionsUsed) {
         const error = new Error(`Package ${customerPackage.package.name} does not have enough sessions`);
@@ -715,6 +721,10 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
     }
 
     if (coupon && couponDiscount > 0) {
+      const freshCoupon = await tx.coupon.findUnique({ where: { id: coupon.id } });
+      if (freshCoupon.usageLimit != null && freshCoupon.usageCount >= freshCoupon.usageLimit) {
+        throw Object.assign(new Error("Coupon usage limit reached (concurrent use detected)"), { status: 400 });
+      }
       await tx.couponRedemption.create({
         data: {
           salonId,
@@ -753,6 +763,9 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
     let runningLoyaltyBalance = Number(currentCustomer?.loyaltyPoints || 0);
     if (loyaltyDiscount > 0) {
       const redeemedPoints = Number(body.loyaltyPointsUsed || 0);
+      if (runningLoyaltyBalance < redeemedPoints) {
+        throw Object.assign(new Error("Insufficient loyalty points (concurrent redemption detected)"), { status: 400 });
+      }
       runningLoyaltyBalance -= redeemedPoints;
       await tx.customer.update({
         where: { id: body.customerId },
@@ -855,7 +868,7 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       where: { id: invoice.id },
       include: { items: true, customer: true, branch: true, payments: true }
     });
-  });
+  }, { timeout: 30000 });
 };
 
 export const addInvoicePayment = async ({ salonId, invoiceId, amount, mode, note, actorUser }) => {
@@ -1012,6 +1025,17 @@ export const refundInvoice = async ({ salonId, invoiceId, amount, note, actorUse
       where: { soldInvoiceId: invoice.id },
       data: { status: "CANCELLED" }
     });
+
+    const giftCardRedemptions = await tx.giftCardRedemption.findMany({ where: { invoiceId: invoice.id } });
+    for (const gcRedemption of giftCardRedemptions) {
+      const giftCard = await tx.giftCard.findUnique({ where: { id: gcRedemption.giftCardId } });
+      if (giftCard) {
+        await tx.giftCard.update({
+          where: { id: giftCard.id },
+          data: { balanceAmount: toAmount(giftCard.balanceAmount) + toAmount(gcRedemption.amountUsed) }
+        });
+      }
+    }
 
     await reverseInvoiceLoyalty(tx, invoice, actorUser);
 

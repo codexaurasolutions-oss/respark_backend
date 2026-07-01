@@ -718,6 +718,29 @@ export const registerBillingRoutes = (ownerRouter) => {
           });
         }
       }
+      const packageUsages = await tx.packageUsage.findMany({ where: { invoiceId: invoice.id } });
+      for (const usage of packageUsages) {
+        const cp = await tx.customerPackage.findUnique({ where: { id: usage.customerPackageId } });
+        if (cp) {
+          await tx.customerPackage.update({ where: { id: cp.id }, data: { remainingSessions: cp.remainingSessions + usage.sessionsUsed, status: "ACTIVE" } });
+        }
+      }
+      const membershipUsages = await tx.membershipUsage.findMany({ where: { invoiceId: invoice.id } });
+      for (const usage of membershipUsages) {
+        const cm = await tx.customerMembership.findUnique({ where: { id: usage.customerMembershipId } });
+        if (cm && usage.amountUsed) {
+          await tx.customerMembership.update({ where: { id: cm.id }, data: { remainingWalletValue: toAmount(cm.remainingWalletValue) + toAmount(usage.amountUsed) } });
+        }
+      }
+      await tx.customerMembership.updateMany({ where: { soldInvoiceId: invoice.id }, data: { status: "CANCELLED" } });
+      await tx.customerPackage.updateMany({ where: { soldInvoiceId: invoice.id }, data: { status: "CANCELLED" } });
+      const giftCardRedemptions = await tx.giftCardRedemption.findMany({ where: { invoiceId: invoice.id } });
+      for (const gcRedemption of giftCardRedemptions) {
+        const gc = await tx.giftCard.findUnique({ where: { id: gcRedemption.giftCardId } });
+        if (gc) {
+          await tx.giftCard.update({ where: { id: gc.id }, data: { balanceAmount: toAmount(gc.balanceAmount) + toAmount(gcRedemption.amountUsed) } });
+        }
+      }
       await reverseInvoiceLoyalty(tx, invoice, req.user);
     });
     await attemptCustomerTemplateEmail({

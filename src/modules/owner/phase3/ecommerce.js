@@ -1,7 +1,8 @@
 import { prisma } from "../../../lib/prisma.js";
 import { getNotificationToggles } from "../../../lib/emailAutomation.js";
+import { attemptCustomerTemplateEmail } from "../../../lib/emailNotifications.js";
 import { convertOrderToInvoice, createOnlineOrder, reverseOrderStock } from "../../../lib/phase3.js";
-import { createStaffNotification } from "../../../lib/phase4.js";
+import { createCustomerNotification, createStaffNotification } from "../../../lib/phase4.js";
 import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
 
@@ -107,10 +108,13 @@ export const registerEcommerceRoutes = (ownerRouter) => {
       });
 
       // Customer in-app notification — gated by toggle
-      const { isOn } = await getNotificationToggles(req.salonId).catch(() => ({ isOn: () => true }));
+      const { isOn, emailEnabled } = await getNotificationToggles(req.salonId).catch(() => ({ isOn: () => true, emailEnabled: true }));
       const toggleKey = req.body.status === "CONFIRMED" ? "orderConfirmed"
         : req.body.status === "CANCELLED" ? "orderRejected"
         : "messageForOrders";
+      const customer = row.customerId
+        ? await tx.customer.findUnique({ where: { id: row.customerId }, select: { email: true } })
+        : null;
 
       if (row.customerId && isOn("messageForOrders") && isOn(toggleKey)) {
         await tx.customerNotification.create({
@@ -134,6 +138,42 @@ export const registerEcommerceRoutes = (ownerRouter) => {
           type: "ORDER",
           linkUrl: `/admin/orders/${row.id}`
         }).catch(() => {});
+      }
+
+      if (row.customerId && order.invoiceId && isOn("messageForOrders") && isOn("orderInvoiceLink")) {
+        await createCustomerNotification({
+          salonId: req.salonId,
+          customerId: row.customerId,
+          title: `Invoice ready for ${order.orderNumber}`,
+          message: "Your order invoice is ready to view.",
+          linkUrl: `/customer/invoices/${order.invoiceId}`
+        }).catch(() => {});
+        if (emailEnabled && customer?.email) {
+          await attemptCustomerTemplateEmail({
+            salonId: req.salonId,
+            toEmail: customer.email,
+            templateType: "invoice_template",
+            context: { invoiceId: order.invoiceId, customerId: row.customerId }
+          }).catch(() => {});
+        }
+      }
+
+      if (row.customerId && req.body.status === "COMPLETED" && isOn("messageForOrders") && isOn("orderFeedbackLink")) {
+        await createCustomerNotification({
+          salonId: req.salonId,
+          customerId: row.customerId,
+          title: `How was order ${order.orderNumber}?`,
+          message: "Your order is complete. Please share your feedback.",
+          linkUrl: `/customer/orders/${row.id}`
+        }).catch(() => {});
+        if (emailEnabled && customer?.email) {
+          await attemptCustomerTemplateEmail({
+            salonId: req.salonId,
+            toEmail: customer.email,
+            templateType: "feedback_request_template",
+            context: { customerId: row.customerId }
+          }).catch(() => {});
+        }
       }
 
       return tx.onlineOrder.findUnique({ where: { id: row.id }, include: includeOrder });
@@ -188,10 +228,41 @@ export const registerEcommerceRoutes = (ownerRouter) => {
     res.json(updated);
   });
   ownerRouter.post("/orders/:id/convert-to-invoice", requireFeatureEnabled("onlineOrders"), requireSalonPermission("orders", "edit"), async (req, res) => {
-    res.status(201).json(await convertOrderToInvoice({ salonId: req.salonId, orderId: req.params.id, actorUser: req.user }));
+    const invoice = await convertOrderToInvoice({ salonId: req.salonId, orderId: req.params.id, actorUser: req.user });
+    const { isOn, emailEnabled } = await getNotificationToggles(req.salonId, invoice.branchId || null).catch(() => ({ isOn: () => true, emailEnabled: true }));
+    if (invoice.customerId && isOn("messageForOrders") && isOn("orderInvoiceLink")) {
+      await createCustomerNotification({
+        salonId: req.salonId,
+        customerId: invoice.customerId,
+        title: `Invoice ${invoice.invoiceNumber} ready`,
+        message: "Your online order invoice is ready to view.",
+        linkUrl: `/customer/invoices/${invoice.id}`
+      }).catch(() => {});
+      if (emailEnabled && invoice.customer?.email) {
+        await attemptCustomerTemplateEmail({
+          salonId: req.salonId,
+          toEmail: invoice.customer.email,
+          templateType: "invoice_template",
+          context: { invoiceId: invoice.id, customerId: invoice.customerId }
+        }).catch(() => {});
+      }
+    }
+    res.status(201).json(invoice);
   });
 
   ownerRouter.post("/orders", requireFeatureEnabled("onlineOrders"), requireSalonPermission("orders", "create"), validate(schemas.createOrder), async (req, res) => {
-    res.status(201).json(await createOnlineOrder({ salonId: req.salonId, body: req.body, actorName: req.user.name, source: "OWNER_PANEL" }));
+    const order = await createOnlineOrder({ salonId: req.salonId, body: req.body, actorName: req.user.name, source: "OWNER_PANEL" });
+    const { isOn } = await getNotificationToggles(req.salonId, order.branchId || null).catch(() => ({ isOn: () => true }));
+    if ((order.couponCode || order.giftCardCode) && isOn("onlineRedeemablePurchaseToOwner")) {
+      await createStaffNotification({
+        salonId: req.salonId,
+        userSalonId: null,
+        title: "Online redeemable purchase",
+        message: `Order ${order.orderNumber} used ${order.couponCode ? `coupon ${order.couponCode}` : `gift card ${order.giftCardCode}`}.`,
+        type: "ORDER",
+        linkUrl: `/admin/orders/${order.id}`
+      }).catch(() => {});
+    }
+    res.status(201).json(order);
   });
 };

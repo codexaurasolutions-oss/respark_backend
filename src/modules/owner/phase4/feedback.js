@@ -20,8 +20,9 @@ export const registerFeedbackRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/feedback/reports", requireFeatureEnabled("feedback"), requireSalonPermission("feedback", "view"), async (req, res) => {
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
     const rows = await prisma.customerFeedback.findMany({
-      where: { salonId: req.salonId },
+      where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) },
       include: { branch: true, service: true, staffUserSalon: { include: { user: true } } }
     });
     const averageRating = rows.length ? rows.reduce((sum, row) => sum + row.rating, 0) / rows.length : 0;
@@ -54,6 +55,9 @@ export const registerFeedbackRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/feedback", requireFeatureEnabled("feedback"), requireSalonPermission("feedback", "create"), async (req, res) => {
+    if (!req.body?.customerId || req.body?.rating === undefined) {
+      return res.status(400).json({ message: "customerId and rating are required" });
+    }
     const row = await prisma.customerFeedback.create({
       data: {
         salonId: req.salonId,
@@ -149,5 +153,22 @@ export const registerFeedbackRoutes = (ownerRouter) => {
       summary: "Feedback follow-up note added"
     });
     res.json(updated);
+  });
+
+  ownerRouter.delete("/feedback/:id", requireFeatureEnabled("feedback"), requireSalonPermission("feedback", "delete"), async (req, res) => {
+    const row = await prisma.customerFeedback.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!row) return res.status(404).json({ message: "Feedback not found" });
+    await prisma.customerFeedback.delete({ where: { id: row.id } });
+    await createAuditLog({
+      salonId: req.salonId,
+      actorUserId: req.user.userId,
+      actorMembershipId: req.user.membershipId,
+      module: "FEEDBACK",
+      action: "FEEDBACK_DELETED",
+      entityType: "CustomerFeedback",
+      entityId: row.id,
+      summary: "Feedback entry deleted"
+    });
+    res.json({ message: "Feedback deleted" });
   });
 };

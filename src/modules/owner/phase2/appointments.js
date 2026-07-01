@@ -295,7 +295,7 @@ export const registerAppointmentRoutes = (ownerRouter) => {
 
       const updated = await fetchAppointment(req.salonId, existing.id);
       void dispatchAppointmentEvent(req.salonId, existing.id, {
-        toggleKey: "appointmentConfirmedToCustomer",
+        toggleKey: "appointmentRescheduledToCustomer",
         templateType: "appointment_confirmation",
         staffToggleKey: "appointmentMsgToStaff",
         staffTitle: "Appointment Updated",
@@ -311,6 +311,8 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     try {
       const appointment = await prisma.appointment.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
       if (!appointment) return res.status(404).json({ message: "Appointment not found" });
+      const fullAppointment = await fetchAppointment(req.salonId, appointment.id);
+      if (!canAccessAppointment(req, fullAppointment)) return res.status(403).json({ message: "You can only delete your assigned appointments" });
 
       await prisma.$transaction(async (tx) => {
         const apptServices = await tx.appointmentService.findMany({ where: { appointmentId: appointment.id } });

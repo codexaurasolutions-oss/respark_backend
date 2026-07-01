@@ -98,10 +98,13 @@ export const registerCommunicationRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/whatsapp/settings", requireFeatureEnabled("whatsapp"), requireSalonPermission("whatsapp", "view"), async (req, res) => {
-    res.json(await prisma.whatsAppSetting.findFirst({ where: { salonId: req.salonId } }));
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    const row = await prisma.whatsAppSetting.findFirst({ where: { salonId: req.salonId, branchId: branchId || null } });
+    res.json(row);
   });
   ownerRouter.post("/whatsapp/settings", requireFeatureEnabled("whatsapp"), requireSalonPermission("whatsapp", "edit"), validate(schemas.whatsappSettings), async (req, res) => {
-    const existing = await prisma.whatsAppSetting.findFirst({ where: { salonId: req.salonId } });
+    const branchId = req.body.branchId || null;
+    const existing = await prisma.whatsAppSetting.findFirst({ where: { salonId: req.salonId, branchId } });
     const data = {
       providerName: req.body.providerName || null,
       senderName: req.body.senderName || null,
@@ -113,7 +116,7 @@ export const registerCommunicationRoutes = (ownerRouter) => {
     };
     res.json(existing
       ? await prisma.whatsAppSetting.update({ where: { id: existing.id }, data })
-      : await prisma.whatsAppSetting.create({ data: { salonId: req.salonId, ...data } }));
+      : await prisma.whatsAppSetting.create({ data: { salonId: req.salonId, branchId, ...data } }));
   });
 
   ownerRouter.get("/whatsapp/logs", requireFeatureEnabled("whatsapp"), requireSalonPermission("whatsapp", "view"), async (req, res) => {

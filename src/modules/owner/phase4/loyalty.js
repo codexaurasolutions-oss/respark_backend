@@ -17,7 +17,8 @@ const withDates = (start, end) => (
 
 export const registerLoyaltyRoutes = (ownerRouter) => {
   ownerRouter.get("/loyalty/rules", requireFeatureEnabled("loyalty"), requireSalonPermission("loyalty", "view"), async (req, res) => {
-    res.json(await prisma.loyaltyRule.findMany({ where: { salonId: req.salonId }, orderBy: { updatedAt: "desc" } }));
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    res.json(await prisma.loyaltyRule.findMany({ where: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) }, orderBy: { updatedAt: "desc" } }));
   });
 
   ownerRouter.post("/loyalty/rules", requireFeatureEnabled("loyalty"), requireSalonPermission("loyalty", "create"), validate(schemas.loyaltyRule), async (req, res) => {
@@ -89,9 +90,11 @@ export const registerLoyaltyRoutes = (ownerRouter) => {
   ownerRouter.get("/loyalty/transactions", requireFeatureEnabled("loyalty"), requireSalonPermission("loyalty", "view"), async (req, res) => {
     const start = req.query.start ? String(req.query.start) : null;
     const end = req.query.end ? String(req.query.end) : null;
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
     res.json(await prisma.loyaltyTransaction.findMany({
       where: {
         salonId: req.salonId,
+        ...(branchId ? { branchId } : {}),
         ...(req.query.customerId ? { customerId: String(req.query.customerId) } : {}),
         ...withDates(start, end)
       },
@@ -129,10 +132,14 @@ export const registerLoyaltyRoutes = (ownerRouter) => {
   ownerRouter.get("/loyalty/reports", requireFeatureEnabled("loyalty"), requireSalonPermission("loyalty", "view"), async (req, res) => {
     const start = req.query.start ? String(req.query.start) : null;
     const end = req.query.end ? String(req.query.end) : null;
-    const where = { salonId: req.salonId, ...withDates(start, end) };
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    const where = { salonId: req.salonId, ...(branchId ? { branchId } : {}), ...withDates(start, end) };
+    const topCustomerWhere = branchId
+      ? { salonId: req.salonId, invoices: { some: { branchId } } }
+      : { salonId: req.salonId };
     const [transactions, topCustomers] = await Promise.all([
       prisma.loyaltyTransaction.findMany({ where, include: { customer: true }, orderBy: { createdAt: "desc" } }),
-      prisma.customer.findMany({ where: { salonId: req.salonId }, orderBy: { loyaltyPoints: "desc" }, take: 10 })
+      prisma.customer.findMany({ where: topCustomerWhere, orderBy: { loyaltyPoints: "desc" }, take: 10 })
     ]);
 
     const summary = transactions.reduce((acc, row) => {
@@ -151,10 +158,11 @@ export const registerLoyaltyRoutes = (ownerRouter) => {
   ownerRouter.get("/customers/:id/loyalty", requireFeatureEnabled("loyalty"), requireSalonPermission("customers", "view"), async (req, res) => {
     const customer = await prisma.customer.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!customer) return res.status(404).json({ message: "Customer not found" });
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
     const [rule, history, validBalance] = await Promise.all([
       getActiveLoyaltyRule(req.salonId),
       prisma.loyaltyTransaction.findMany({
-        where: { salonId: req.salonId, customerId: customer.id },
+        where: { salonId: req.salonId, customerId: customer.id, ...(branchId ? { branchId } : {}) },
         include: { invoice: true, order: true },
         orderBy: { createdAt: "desc" }
       }),

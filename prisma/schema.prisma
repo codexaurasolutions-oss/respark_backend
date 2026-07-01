@@ -504,6 +504,13 @@ model Branch {
   payrollRuns      PayrollRun[]
   loyaltyRules     LoyaltyRule[]
   coupons          Coupon[]
+  packages         Package[]
+  shifts           Shift[]
+  membershipPlans  MembershipPlan[]
+  giftCards        GiftCard[]
+  designations     Designation[]
+  taxRates         TaxRate[]
+  whatsAppSettings  WhatsAppSetting[]
 }
 
 model ServiceCategory {
@@ -579,6 +586,7 @@ model ServiceTax {
 model Customer {
   id               String               @id @default(cuid())
   salonId          String
+  branchId         String?
   userId           String?              @unique
   name             String
   phone            String
@@ -1040,6 +1048,7 @@ model StockReconciliationItem {
 model MembershipPlan {
   id                  String                  @id @default(cuid())
   salonId             String
+  branchId            String?
   name                String
   price               Decimal                 @db.Decimal(10, 2)
   validityDays        Int
@@ -1055,9 +1064,13 @@ model MembershipPlan {
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
   salon               Salon                   @relation(fields: [salonId], references: [id])
+  branch              Branch?                 @relation(fields: [branchId], references: [id])
   services            MembershipPlanService[]
   customers           CustomerMembership[]
   invoiceItems        InvoiceItem[]
+
+  @@index([salonId])
+  @@index([branchId])
 }
 
 model MembershipPlanService {
@@ -1105,6 +1118,7 @@ model MembershipUsage {
 model Package {
   id            String           @id @default(cuid())
   salonId       String
+  branchId      String?
   name          String
   price         Decimal          @db.Decimal(10, 2)
   totalSessions Int
@@ -1114,6 +1128,7 @@ model Package {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   salon         Salon            @relation(fields: [salonId], references: [id])
+  branch        Branch?          @relation(fields: [branchId], references: [id])
   services      PackageService[]
   customers     CustomerPackage[]
   invoiceItems  InvoiceItem[]
@@ -1652,6 +1667,7 @@ model CouponRedemption {
 model GiftCard {
   id                  String      @id @default(cuid())
   salonId             String
+  branchId            String?
   issuedToCustomerId  String?
   soldInvoiceId       String?
   createdByMembershipId String?
@@ -1666,6 +1682,7 @@ model GiftCard {
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   salon               Salon       @relation(fields: [salonId], references: [id])
+  branch              Branch?     @relation(fields: [branchId], references: [id])
   issuedToCustomer    Customer?   @relation("GiftCardIssuedTo", fields: [issuedToCustomerId], references: [id])
   soldInvoice         Invoice?    @relation(fields: [soldInvoiceId], references: [id])
   createdByMembership UserSalon?  @relation("GiftCardCreatedBy", fields: [createdByMembershipId], references: [id])
@@ -1673,6 +1690,8 @@ model GiftCard {
   redemptions         GiftCardRedemption[]
 
   @@unique([salonId, code])
+  @@index([salonId])
+  @@index([branchId])
 }
 
 model GiftCardRedemption {
@@ -1791,6 +1810,7 @@ model AttendanceRecord {
   checkInAt             DateTime
   checkOutAt            DateTime?
   workedMinutes         Int?
+  overtimeMinutes       Int?                        @default(0)
   checkInLatitude       Decimal?                    @db.Decimal(10, 7)
   checkInLongitude      Decimal?                    @db.Decimal(10, 7)
   checkInAccuracyMeters Decimal?                    @db.Decimal(8, 2)
@@ -1812,7 +1832,7 @@ model AttendanceRecord {
   manualEditedByMembership UserSalon?               @relation("AttendanceManualEditedBy", fields: [manualEditedByMembershipId], references: [id])
 
   @@index([salonId, attendanceDate])
-  @@index([salonId, userSalonId, attendanceDate])
+  @@unique([salonId, userSalonId, attendanceDate])
 }
 
 model LeaveRequest {
@@ -1968,6 +1988,7 @@ model CampaignConversion {
 model WhatsAppSetting {
   id                 String   @id @default(cuid())
   salonId            String
+  branchId           String?
   providerName       String?
   senderName         String?
   apiUrl             String?
@@ -1978,8 +1999,9 @@ model WhatsAppSetting {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   salon              Salon    @relation(fields: [salonId], references: [id])
+  branch             Branch?  @relation(fields: [branchId], references: [id])
 
-  @@unique([salonId])
+  @@unique([salonId, branchId])
 }
 
 model WhatsAppAutomation {
@@ -2024,6 +2046,7 @@ model WhatsAppLog {
 model Shift {
   id              String     @id @default(cuid())
   salonId         String
+  branchId        String?
   name            String
   active          Boolean    @default(true)
   sameForAllDays  Boolean    @default(true)
@@ -2034,10 +2057,12 @@ model Shift {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   salon           Salon      @relation(fields: [salonId], references: [id])
+  branch          Branch?    @relation(fields: [branchId], references: [id])
   days            ShiftDay[]
   breaks          ShiftBreak[]
 
   @@index([salonId])
+  @@index([branchId])
 }
 
 model ShiftDay {
@@ -2066,6 +2091,7 @@ model ShiftBreak {
 model TaxRate {
   id             String   @id @default(cuid())
   salonId        String
+  branchId       String?
   label          String
   code           String
   rate           Decimal  @db.Decimal(5, 2)
@@ -2075,9 +2101,11 @@ model TaxRate {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   salon          Salon    @relation(fields: [salonId], references: [id])
+  branch         Branch?  @relation(fields: [branchId], references: [id])
 
   @@unique([salonId, code])
   @@index([salonId])
+  @@index([branchId])
 }
 
 // Feedback Type - replaces feedbackSetting.types JSON
@@ -2100,6 +2128,7 @@ model FeedbackType {
 model Designation {
   id          String   @id @default(cuid())
   salonId     String
+  branchId    String?
   name        String
   description String?
   active      Boolean  @default(true)
@@ -2107,9 +2136,11 @@ model Designation {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   salon       Salon    @relation(fields: [salonId], references: [id])
+  branch      Branch?  @relation(fields: [branchId], references: [id])
 
   @@unique([salonId, name])
   @@index([salonId])
+  @@index([branchId])
 }
 
 // Referral Rule - replaces referralSettings JSON

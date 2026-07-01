@@ -361,14 +361,26 @@ export const registerOperationsRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/expenses/accounts/injections", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "create"), async (req, res) => {
+    const { accountMode, paymentMode, amount, note } = req.body || {};
+    if (!accountMode || !["CASH", "BANK", "WALLET"].includes(String(accountMode))) {
+      return res.status(400).json({ message: "accountMode must be CASH, BANK, or WALLET" });
+    }
+    if (!paymentMode || !["CASH", "CARD", "UPI", "BANK_TRANSFER", "WALLET", "ONLINE"].includes(String(paymentMode))) {
+      return res.status(400).json({ message: "Invalid paymentMode" });
+    }
+    const numAmount = Number(amount);
+    if (!Number.isFinite(numAmount) || numAmount <= 0 || numAmount > 9999999) {
+      return res.status(400).json({ message: "Amount must be a positive number (max 9999999)" });
+    }
+    const sanitizedNote = String(note || "").trim().slice(0, 500);
     const injections = getInjections();
     const newInjection = {
       id: "inj-" + crypto.randomUUID(),
       salonId: req.salonId,
-      accountMode: req.body.accountMode,
-      paymentMode: req.body.paymentMode,
-      amount: Number(req.body.amount),
-      note: req.body.note,
+      accountMode: String(accountMode),
+      paymentMode: String(paymentMode),
+      amount: numAmount,
+      note: sanitizedNote,
       createdAt: new Date().toISOString()
     };
     injections.push(newInjection);

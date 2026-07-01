@@ -126,12 +126,26 @@ const resolveMessageTemplate = async (salonId, templateType) => {
   });
 };
 
+const areNotificationEmailsEnabled = async (salonId) => {
+  if (!salonId) return true;
+  const setting = await prisma.salonSetting.findFirst({
+    where: { salonId, branchId: null },
+    select: { advancedSettings: true }
+  });
+  return setting?.advancedSettings?.notificationSettings?.emailEnabled !== false;
+};
+
 export const attemptCustomerTemplateEmail = async ({ salonId, toEmail, templateType, context = {} }) => {
   if (!toEmail) {
     return { skipped: true, reason: "missing-recipient" };
   }
 
   try {
+    const emailEnabled = await areNotificationEmailsEnabled(salonId);
+    if (!emailEnabled) {
+      return { skipped: true, reason: "email-alerts-disabled" };
+    }
+
     const template = await resolveMessageTemplate(salonId, templateType);
     if (!template?.content) {
       return { skipped: true, reason: "missing-template" };

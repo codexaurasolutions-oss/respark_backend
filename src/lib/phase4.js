@@ -2,6 +2,15 @@ import { prisma } from "./prisma.js";
 
 const toNumber = (value) => Number(value || 0);
 
+const areInWebNotificationsEnabled = async (salonId) => {
+  if (!salonId) return true;
+  const setting = await prisma.salonSetting.findFirst({
+    where: { salonId, branchId: null },
+    select: { advancedSettings: true }
+  });
+  return setting?.advancedSettings?.notificationSettings?.pushEnabled !== false;
+};
+
 export const createAuditLog = async ({
   salonId = null,
   actorUserId = null,
@@ -36,17 +45,21 @@ export const createStaffNotification = async ({
   type = null,
   linkUrl = null,
   metadata = null
-}) => prisma.notification.create({
-  data: {
-    salonId,
-    userSalonId,
-    title,
-    message,
-    type,
-    linkUrl,
-    metadata
-  }
-});
+}) => {
+  const enabled = await areInWebNotificationsEnabled(salonId);
+  if (!enabled) return { skipped: true, reason: "in-web-alerts-disabled" };
+  return prisma.notification.create({
+    data: {
+      salonId,
+      userSalonId,
+      title,
+      message,
+      type,
+      linkUrl,
+      metadata
+    }
+  });
+};
 
 export const createCustomerNotification = async ({
   salonId,
@@ -54,15 +67,19 @@ export const createCustomerNotification = async ({
   title,
   message,
   linkUrl = null
-}) => prisma.customerNotification.create({
-  data: {
-    salonId,
-    customerId,
-    title,
-    message,
-    linkUrl
-  }
-});
+}) => {
+  const enabled = await areInWebNotificationsEnabled(salonId);
+  if (!enabled) return { skipped: true, reason: "in-web-alerts-disabled" };
+  return prisma.customerNotification.create({
+    data: {
+      salonId,
+      customerId,
+      title,
+      message,
+      linkUrl
+    }
+  });
+};
 
 export const getActiveLoyaltyRule = async (salonId, branchId = null) => {
   const exact = branchId
@@ -160,13 +177,11 @@ export const recordLoyaltyTransaction = async ({
       const isReferralTransaction = type === "BONUS" || (note && /refer/i.test(note));
 
       if (toggles.loyaltyEarning !== false) {
-        await prisma.customerNotification.create({
-          data: {
-            salonId,
-            customerId,
-            title: "\uD83C\uDF1F Loyalty Points Earned!",
-            message: `You earned ${points} loyalty points! Your new balance is ${nextBalance} points.`
-          }
+        await createCustomerNotification({
+          salonId,
+          customerId,
+          title: "\uD83C\uDF1F Loyalty Points Earned!",
+          message: `You earned ${points} loyalty points! Your new balance is ${nextBalance} points.`
         }).catch(() => {});
 
         if (emailEnabled) {
@@ -184,13 +199,11 @@ export const recordLoyaltyTransaction = async ({
       }
 
       if (isReferralTransaction && toggles.referrerRewardSMS !== false) {
-        await prisma.customerNotification.create({
-          data: {
-            salonId,
-            customerId,
-            title: "\uD83C\uDF89 Referral Reward Received!",
-            message: `You earned ${points} bonus points for referring a friend! Balance: ${nextBalance} pts.`
-          }
+        await createCustomerNotification({
+          salonId,
+          customerId,
+          title: "\uD83C\uDF89 Referral Reward Received!",
+          message: `You earned ${points} bonus points for referring a friend! Balance: ${nextBalance} pts.`
         }).catch(() => {});
 
         if (emailEnabled) {

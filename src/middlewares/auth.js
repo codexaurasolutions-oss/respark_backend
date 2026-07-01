@@ -4,6 +4,9 @@ import { defaultOwnerPermissions } from "../lib/permissions.js";
 
 export const authMiddleware = async (req, res, next) => {
   try {
+    if (req.path.startsWith("/api/v1/public") || req.path.startsWith("/api/v1/auth") || req.path.startsWith("/uploads")) {
+      return next();
+    }
     let token = null;
     const header = req.headers.authorization;
     if (header && header.startsWith("Bearer ")) {
@@ -11,7 +14,7 @@ export const authMiddleware = async (req, res, next) => {
     } else if (req.query.token) {
       token = req.query.token;
     }
-    if (!token) return next();
+    if (!token) return res.status(401).json({ message: "Authentication required" });
     const decoded = verifyAccessToken(token);
 
     const user = await prisma.user.findUnique({
@@ -84,6 +87,7 @@ export const authMiddleware = async (req, res, next) => {
       membershipId: membership?.id || null,
       salonId: resolvedSalonId,
       salonRole: membership?.salonRole || null,
+      branchId: membership?.branchId || null,
       permissions: mergedPermissions,
       featureFlags: mergedFeatureFlags,
       accessControlSettings,

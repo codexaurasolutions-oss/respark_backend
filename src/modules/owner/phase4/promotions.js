@@ -69,7 +69,8 @@ const buildGiftCardData = (body, giftCardSettings) => {
 
 export const registerPromotionRoutes = (ownerRouter) => {
   ownerRouter.get("/coupons", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "view"), async (req, res) => {
-    res.json(await prisma.coupon.findMany({ where: { salonId: req.salonId }, include: { branch: true, service: true, product: true }, orderBy: { createdAt: "desc" } }));
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    res.json(await prisma.coupon.findMany({ where: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) }, include: { branch: true, service: true, product: true }, orderBy: { createdAt: "desc" } }));
   });
 
   ownerRouter.post("/coupons", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "create"), validate(schemas.coupon), async (req, res) => {
@@ -134,8 +135,9 @@ export const registerPromotionRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/coupons/reports", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "view"), async (req, res) => {
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
     const [coupons, redemptions] = await Promise.all([
-      prisma.coupon.findMany({ where: { salonId: req.salonId }, orderBy: { createdAt: "desc" } }),
+      prisma.coupon.findMany({ where: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) }, orderBy: { createdAt: "desc" } }),
       prisma.couponRedemption.findMany({
         where: { salonId: req.salonId },
         include: { coupon: true, customer: true, invoice: true, order: true },
@@ -150,7 +152,8 @@ export const registerPromotionRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/gift-cards", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "view"), async (req, res) => {
-    res.json(await prisma.giftCard.findMany({ where: { salonId: req.salonId }, include: { issuedToCustomer: true, soldInvoice: true, redemptions: true }, orderBy: { createdAt: "desc" } }));
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    res.json(await prisma.giftCard.findMany({ where: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) }, include: { issuedToCustomer: true, soldInvoice: true, redemptions: true }, orderBy: { createdAt: "desc" } }));
   });
 
   ownerRouter.post("/gift-cards", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "create"), validate(schemas.giftCard), async (req, res) => {
@@ -160,6 +163,7 @@ export const registerPromotionRoutes = (ownerRouter) => {
     const row = await prisma.giftCard.create({
       data: {
         salonId: req.salonId,
+        branchId: req.body.branchId || null,
         issuedToCustomerId: req.body.customerId || null,
         soldInvoiceId: req.body.soldInvoiceId || null,
         linkedCampaignId: req.body.linkedCampaignId || null,
@@ -232,7 +236,7 @@ export const registerPromotionRoutes = (ownerRouter) => {
     res.json(row);
   });
 
-  ownerRouter.get("/customers/:id/gift-cards", async (req, res) => {
+  ownerRouter.get("/customers/:id/gift-cards", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "view"), async (req, res) => {
     const rows = await prisma.giftCard.findMany({
       where: { issuedToCustomerId: req.params.id, salonId: req.salonId },
       orderBy: { createdAt: "desc" }
@@ -243,6 +247,9 @@ export const registerPromotionRoutes = (ownerRouter) => {
   ownerRouter.patch("/gift-cards/:id", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "edit"), async (req, res) => {
     const row = await prisma.giftCard.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!row) return res.status(404).json({ message: "Gift card not found" });
+    const newOriginal = req.body.originalAmount != null ? Number(req.body.originalAmount) : Number(row.originalAmount);
+    const newBalance = req.body.balanceAmount != null ? Number(req.body.balanceAmount) : Number(row.balanceAmount);
+    if (newBalance > newOriginal) return res.status(400).json({ message: "Balance cannot exceed original amount" });
     const updated = await prisma.giftCard.update({
       where: { id: row.id },
       data: {

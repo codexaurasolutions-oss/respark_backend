@@ -9,8 +9,10 @@ const toDate = (value) => (value ? new Date(value) : null);
 export const registerEnquiryRoutes = (ownerRouter) => {
   ownerRouter.get("/enquiries", requireFeatureEnabled("enquiries"), requireSalonPermission("enquiries", "view"), async (req, res) => {
     const allAccess = (req.user.permissions?.enquiries || []).includes("view");
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
     const where = {
       salonId: req.salonId,
+      ...(branchId ? { interestedBranchId: branchId } : {}),
       ...(req.query.status ? { status: String(req.query.status) } : {}),
       ...(!allAccess && req.user.membershipId ? { assignedToMembershipId: req.user.membershipId } : {})
     };
@@ -71,7 +73,8 @@ export const registerEnquiryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/enquiries/reports", requireFeatureEnabled("enquiries"), requireSalonPermission("enquiries", "view"), async (req, res) => {
-    const rows = await prisma.enquiry.findMany({ where: { salonId: req.salonId }, include: { interestedBranch: true, interestedService: true } });
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    const rows = await prisma.enquiry.findMany({ where: { salonId: req.salonId, ...(branchId ? { interestedBranchId: branchId } : {}) }, include: { interestedBranch: true, interestedService: true } });
     const statusBreakdown = rows.reduce((acc, row) => {
       acc[row.status] = (acc[row.status] || 0) + 1;
       return acc;
@@ -161,21 +164,27 @@ export const registerEnquiryRoutes = (ownerRouter) => {
     if (req.body.dueAt) {
       await prisma.enquiry.update({ where: { id: enquiry.id }, data: { followUpAt: new Date(req.body.dueAt) } });
     }
-    await attemptCustomerTemplateEmail({
-      salonId: req.salonId,
-      toEmail: enquiry.email || "",
-      templateType: "enquiry_follow_up",
-      context: {
-        customer_name: enquiry.name,
-        salon_name: "Skillify ERP"
-      }
-    });
+    if (enquiry.email) {
+      await attemptCustomerTemplateEmail({
+        salonId: req.salonId,
+        toEmail: enquiry.email,
+        templateType: "enquiry_follow_up",
+        context: {
+          customer_name: enquiry.name,
+          salon_name: "Skillify ERP"
+        }
+      });
+    }
     res.status(201).json(row);
   });
 
   ownerRouter.post("/enquiries/:id/convert-to-customer", requireFeatureEnabled("enquiries"), requireSalonPermission("enquiries", "edit"), async (req, res) => {
     const enquiry = await prisma.enquiry.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!enquiry) return res.status(404).json({ message: "Enquiry not found" });
+    if (enquiry.phone) {
+      const existing = await prisma.customer.findFirst({ where: { salonId: req.salonId, phone: enquiry.phone } });
+      if (existing) return res.status(409).json({ message: "A customer with this phone already exists", customerId: existing.id });
+    }
     const customer = await prisma.customer.create({
       data: {
         salonId: req.salonId,

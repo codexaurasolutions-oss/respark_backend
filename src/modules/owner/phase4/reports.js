@@ -2,6 +2,7 @@ import { prisma } from "../../../lib/prisma.js";
 import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
 
 const toNumber = (value) => Number(value || 0);
+const normalizeBranchId = (value) => (value ? String(value) : null);
 
 const parseDateWhere = (query, field = "createdAt") => {
   const start = query.start ? new Date(String(query.start)) : null;
@@ -11,15 +12,21 @@ const parseDateWhere = (query, field = "createdAt") => {
     : {};
 };
 
+const branchScope = (req) => {
+  const branchId = normalizeBranchId(req.query.branchId);
+  return branchId ? { branchId } : {};
+};
+
 export const registerAdvancedReportRoutes = (ownerRouter) => {
   ownerRouter.get("/reports/advanced", requireFeatureEnabled("advancedReports"), requireSalonPermission("advancedReports", "view"), async (req, res) => {
+    const bs = branchScope(req);
     const [expenses, payrollRuns, feedback, enquiries, couponRedemptions, giftCardRedemptions] = await Promise.all([
-      prisma.expense.findMany({ where: { salonId: req.salonId, ...parseDateWhere(req.query, "expenseDate") } }),
-      prisma.payrollRun.findMany({ where: { salonId: req.salonId, ...parseDateWhere(req.query) } }),
-      prisma.customerFeedback.findMany({ where: { salonId: req.salonId, ...parseDateWhere(req.query) } }),
-      prisma.enquiry.findMany({ where: { salonId: req.salonId, ...parseDateWhere(req.query) } }),
-      prisma.couponRedemption.findMany({ where: { salonId: req.salonId, ...parseDateWhere(req.query) } }),
-      prisma.giftCardRedemption.findMany({ where: { salonId: req.salonId, ...parseDateWhere(req.query) } })
+      prisma.expense.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query, "expenseDate") } }),
+      prisma.payrollRun.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) } }),
+      prisma.customerFeedback.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) } }),
+      prisma.enquiry.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) } }),
+      prisma.couponRedemption.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) } }),
+      prisma.giftCardRedemption.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) } })
     ]);
     res.json({
       summaryCards: {
@@ -34,9 +41,10 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/reports/profit-loss", requireFeatureEnabled("advancedReports"), requireSalonPermission("advancedReports", "view"), async (req, res) => {
+    const bs = branchScope(req);
     const [invoices, expenses] = await Promise.all([
-      prisma.invoice.findMany({ where: { salonId: req.salonId, status: { not: "CANCELLED" }, ...parseDateWhere(req.query) } }),
-      prisma.expense.findMany({ where: { salonId: req.salonId, status: { in: ["APPROVED", "PAID"] }, ...parseDateWhere(req.query, "expenseDate") } })
+      prisma.invoice.findMany({ where: { salonId: req.salonId, ...bs, status: { not: "CANCELLED" }, ...parseDateWhere(req.query) } }),
+      prisma.expense.findMany({ where: { salonId: req.salonId, ...bs, status: { in: ["APPROVED", "PAID"] }, ...parseDateWhere(req.query, "expenseDate") } })
     ]);
     const revenue = invoices.reduce((sum, row) => sum + toNumber(row.total), 0);
     const costs = expenses.reduce((sum, row) => sum + toNumber(row.amount), 0);
@@ -44,8 +52,9 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/reports/campaign-roi", requireFeatureEnabled("campaigns"), requireSalonPermission("campaignAnalytics", "view"), async (req, res) => {
+    const bs = branchScope(req);
     const campaigns = await prisma.campaign.findMany({
-      where: { salonId: req.salonId },
+      where: { salonId: req.salonId, ...bs },
       include: { conversions: true, logs: true },
       orderBy: { createdAt: "desc" }
     });
@@ -59,11 +68,13 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/reports/payroll", requireFeatureEnabled("payroll"), requireSalonPermission("payroll", "view"), async (req, res) => {
-    res.json(await prisma.payrollRun.findMany({ where: { salonId: req.salonId, ...parseDateWhere(req.query) }, include: { items: { include: { userSalon: { include: { user: true } } } } }, orderBy: { createdAt: "desc" } }));
+    const bs = branchScope(req);
+    res.json(await prisma.payrollRun.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) }, include: { items: { include: { userSalon: { include: { user: true } } } } }, orderBy: { createdAt: "desc" } }));
   });
 
   ownerRouter.get("/reports/tax", requireFeatureEnabled("advancedReports"), requireSalonPermission("advancedReports", "view"), async (req, res) => {
-    const invoices = await prisma.invoice.findMany({ where: { salonId: req.salonId, status: { not: "CANCELLED" }, ...parseDateWhere(req.query) }, orderBy: { createdAt: "desc" } });
+    const bs = branchScope(req);
+    const invoices = await prisma.invoice.findMany({ where: { salonId: req.salonId, ...bs, status: { not: "CANCELLED" }, ...parseDateWhere(req.query) }, orderBy: { createdAt: "desc" } });
     res.json({
       taxCollected: invoices.reduce((sum, row) => sum + toNumber(row.tax), 0),
       rows: invoices.map((row) => ({ invoiceNumber: row.invoiceNumber, total: row.total, tax: row.tax, createdAt: row.createdAt }))
@@ -72,12 +83,13 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
 
   ownerRouter.get("/reports/export", requireFeatureEnabled("advancedReports"), requireSalonPermission("advancedReports", "view"), async (req, res) => {
     const moduleKey = String(req.query.module || "profit-loss");
+    const bs = branchScope(req);
     let rows = [];
     if (moduleKey === "expenses") {
-      rows = await prisma.expense.findMany({ where: { salonId: req.salonId }, orderBy: { expenseDate: "desc" } });
+      rows = await prisma.expense.findMany({ where: { salonId: req.salonId, ...bs }, orderBy: { expenseDate: "desc" } });
     } else if (moduleKey === "campaigns") {
       rows = await prisma.campaign.findMany({
-        where: { salonId: req.salonId },
+        where: { salonId: req.salonId, ...bs },
         include: { conversions: true, logs: true },
         orderBy: { createdAt: "desc" }
       });
@@ -94,7 +106,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
       }));
     } else if (moduleKey === "loyalty") {
       rows = await prisma.loyaltyTransaction.findMany({
-        where: { salonId: req.salonId },
+        where: { salonId: req.salonId, ...bs },
         include: { customer: true, invoice: true },
         orderBy: { createdAt: "desc" }
       });
@@ -109,7 +121,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
       }));
     } else if (moduleKey === "coupons") {
       rows = await prisma.couponRedemption.findMany({
-        where: { salonId: req.salonId },
+        where: { salonId: req.salonId, ...bs },
         include: { coupon: true, customer: true, invoice: true, order: true },
         orderBy: { createdAt: "desc" }
       });
@@ -124,7 +136,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
       }));
     } else if (moduleKey === "gift-cards") {
       rows = await prisma.giftCardRedemption.findMany({
-        where: { salonId: req.salonId },
+        where: { salonId: req.salonId, ...bs },
         include: { giftCard: true, customer: true, invoice: true, order: true },
         orderBy: { createdAt: "desc" }
       });
@@ -139,7 +151,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
       }));
     } else if (moduleKey === "feedback") {
       rows = await prisma.customerFeedback.findMany({
-        where: { salonId: req.salonId },
+        where: { salonId: req.salonId, ...bs },
         include: { customer: true, branch: true, service: true },
         orderBy: { createdAt: "desc" }
       });
@@ -155,7 +167,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
       }));
     } else if (moduleKey === "enquiries") {
       rows = await prisma.enquiry.findMany({
-        where: { salonId: req.salonId },
+        where: { salonId: req.salonId, ...bs },
         include: { interestedBranch: true, assignedToMembership: { include: { user: true } }, interestedService: true },
         orderBy: { createdAt: "desc" }
       });
@@ -171,10 +183,10 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
         createdAt: row.createdAt
       }));
     } else if (moduleKey === "payroll") {
-      rows = await prisma.payrollRun.findMany({ where: { salonId: req.salonId }, orderBy: { createdAt: "desc" } });
+      rows = await prisma.payrollRun.findMany({ where: { salonId: req.salonId, ...bs }, orderBy: { createdAt: "desc" } });
     } else if (moduleKey === "tax") {
       rows = await prisma.invoice.findMany({
-        where: { salonId: req.salonId, status: { not: "CANCELLED" } },
+        where: { salonId: req.salonId, ...bs, status: { not: "CANCELLED" } },
         orderBy: { createdAt: "desc" }
       });
       rows = rows.map((row) => ({
@@ -184,7 +196,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
         createdAt: row.createdAt
       }));
     } else {
-      rows = await prisma.invoice.findMany({ where: { salonId: req.salonId }, orderBy: { createdAt: "desc" } });
+      rows = await prisma.invoice.findMany({ where: { salonId: req.salonId, ...bs }, orderBy: { createdAt: "desc" } });
     }
 
     const csv = [
