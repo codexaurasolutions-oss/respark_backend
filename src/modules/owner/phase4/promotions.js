@@ -41,6 +41,9 @@ const buildCouponData = (body, couponSettings) => {
     isBirthday: body.isBirthday ?? false,
     isFestival: body.isFestival ?? false,
     isArchived: body.isArchived ?? false,
+    partnerCreditType: body.partnerCreditType || null,
+    partnerCreditValue: body.partnerCreditValue != null ? toRuleNumber(body.partnerCreditValue) : null,
+    partnerCustomerId: body.partnerCustomerId || null,
     notes: body.notes || null
   };
 };

@@ -742,6 +742,36 @@ export const registerBillingRoutes = (ownerRouter) => {
         }
       }
       await reverseInvoiceLoyalty(tx, invoice, req.user);
+
+      if (invoice.referralCode && invoice.partnerCreditsEarned) {
+        const referralCoupon = await tx.coupon.findFirst({
+          where: { salonId: req.salonId, code: invoice.referralCode, isReferral: true },
+        });
+        if (referralCoupon && referralCoupon.partnerCustomerId) {
+          const wallet = await tx.affiliateCreditWallet.findUnique({
+            where: { salonId_partnerId: { salonId: req.salonId, partnerId: referralCoupon.partnerCustomerId } },
+          });
+          if (wallet) {
+            const creditsToReverse = Number(invoice.partnerCreditsEarned);
+            if (creditsToReverse > 0) {
+              await tx.affiliateCreditWallet.update({
+                where: { id: wallet.id },
+                data: { balance: { decrement: creditsToReverse }, totalEarned: { decrement: creditsToReverse } },
+              });
+              await tx.affiliateCreditTransaction.create({
+                data: {
+                  salonId: req.salonId,
+                  walletId: wallet.id,
+                  type: "MANUAL_ADJUSTMENT",
+                  amount: creditsToReverse,
+                  invoiceId: invoice.id,
+                  note: `Reversed from invoice ${invoice.invoiceNumber} cancellation (full)`,
+                },
+              });
+            }
+          }
+        }
+      }
     });
     await attemptCustomerTemplateEmail({
       salonId: req.salonId,

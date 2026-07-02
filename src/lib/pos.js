@@ -204,6 +204,7 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       itemDrafts.push({
         itemType,
         serviceId: service.id,
+        categoryId: service.categoryId || null,
         staffUserSalonId: staffMembership?.id || null,
         serviceName: service.name,
         staffName: staffMembership?.user.name || item.staffName || null,
@@ -443,6 +444,45 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       : Math.min(subtotal, toAmount(coupon.discountValue));
   }
 
+  let referralCouponEligibleServiceIds = [];
+  let referralCouponEligibleCategoryIds = [];
+  let partnerCreditsEarned = 0;
+
+  if (coupon && coupon.isReferral) {
+    const couponWithScope = await prisma.coupon.findUnique({
+      where: { id: coupon.id },
+      include: {
+        eligibleCategories: true,
+        eligibleServices: true,
+      },
+    });
+    referralCouponEligibleServiceIds = couponWithScope.eligibleServices.map((e) => e.serviceId);
+    referralCouponEligibleCategoryIds = couponWithScope.eligibleCategories.map((e) => e.categoryId);
+
+    const hasServiceScope = referralCouponEligibleServiceIds.length > 0;
+    const hasCategoryScope = referralCouponEligibleCategoryIds.length > 0;
+    const isGlobal = !hasServiceScope && !hasCategoryScope;
+
+    if (coupon.partnerCreditType && coupon.partnerCreditValue != null) {
+      for (const item of itemDrafts) {
+        let isEligible = isGlobal;
+        if (!isEligible && item.serviceId) {
+          isEligible = referralCouponEligibleServiceIds.includes(item.serviceId);
+          if (!isEligible && hasCategoryScope && item.categoryId) {
+            isEligible = referralCouponEligibleCategoryIds.includes(item.categoryId);
+          }
+        }
+        if (isEligible) {
+          const lineTotal = toAmount(item.unitPrice) * Number(item.qty || 1);
+          const credits = coupon.partnerCreditType === "PERCENT"
+            ? Math.min(lineTotal, lineTotal * (toNumber(coupon.partnerCreditValue) / 100))
+            : toNumber(coupon.partnerCreditValue);
+          partnerCreditsEarned += credits;
+        }
+      }
+    }
+  }
+
   const loyaltyRule = body.loyaltyPointsUsed
     ? await prisma.loyaltyRule.findFirst({
         where: { salonId, isActive: true, OR: [{ branchId: body.branchId || null }, { branchId: null }] },
@@ -549,6 +589,8 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         couponCode: coupon?.code || null,
         giftVoucherCode: giftCard?.code || null,
         loyaltyPointsUsed: loyaltyDiscount > 0 ? Number(body.loyaltyPointsUsed || 0) : null,
+        referralCode: coupon?.isReferral ? coupon.code : null,
+        partnerCreditsEarned: partnerCreditsEarned > 0 ? partnerCreditsEarned : null,
         items: {
           create: itemDrafts.map((item) => ({
             serviceName: item.serviceName,
@@ -731,13 +773,35 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
           couponId: coupon.id,
           customerId: body.customerId,
           invoiceId: invoice.id,
-          amountSaved: couponDiscount
+          amountSaved: couponDiscount,
+          partnerCreditsEarned: partnerCreditsEarned > 0 ? partnerCreditsEarned : null,
         }
       });
       await tx.coupon.update({
         where: { id: coupon.id },
         data: { usageCount: { increment: 1 } }
       });
+    }
+
+    if (coupon && coupon.isReferral && partnerCreditsEarned > 0) {
+      const referralCouponFull = await tx.coupon.findUnique({ where: { id: coupon.id } });
+      if (referralCouponFull && referralCouponFull.partnerCustomerId) {
+        const wallet = await tx.affiliateCreditWallet.upsert({
+          where: { salonId_partnerId: { salonId, partnerId: referralCouponFull.partnerCustomerId } },
+          create: { salonId, partnerId: referralCouponFull.partnerCustomerId, balance: partnerCreditsEarned, totalEarned: partnerCreditsEarned, totalRedeemed: 0 },
+          update: { balance: { increment: partnerCreditsEarned }, totalEarned: { increment: partnerCreditsEarned } },
+        });
+        await tx.affiliateCreditTransaction.create({
+          data: {
+            salonId,
+            walletId: wallet.id,
+            type: "EARN",
+            amount: partnerCreditsEarned,
+            invoiceId: invoice.id,
+            note: `Earned from coupon ${coupon.code} on invoice ${invoice.invoiceNumber}`,
+          },
+        });
+      }
     }
 
     if (giftCard && giftCardPayment > 0) {
@@ -1038,6 +1102,42 @@ export const refundInvoice = async ({ salonId, invoiceId, amount, note, actorUse
     }
 
     await reverseInvoiceLoyalty(tx, invoice, actorUser);
+
+    if (invoice.referralCode && invoice.partnerCreditsEarned) {
+      const referralCoupon = await tx.coupon.findFirst({
+        where: { salonId, code: invoice.referralCode, isReferral: true },
+      });
+      if (referralCoupon && referralCoupon.partnerCustomerId) {
+        const wallet = await tx.affiliateCreditWallet.findUnique({
+          where: { salonId_partnerId: { salonId, partnerId: referralCoupon.partnerCustomerId } },
+        });
+        if (wallet) {
+          const refundProportion = toAmount(invoice.total) > 0
+            ? Math.min(1, toAmount(amount) / toAmount(invoice.total))
+            : 1;
+          const creditsToReverse = Math.min(
+            Number(invoice.partnerCreditsEarned),
+            Math.round(Number(invoice.partnerCreditsEarned) * refundProportion * 100) / 100
+          );
+          if (creditsToReverse > 0) {
+            await tx.affiliateCreditWallet.update({
+              where: { id: wallet.id },
+              data: { balance: { decrement: creditsToReverse }, totalEarned: { decrement: creditsToReverse } },
+            });
+            await tx.affiliateCreditTransaction.create({
+              data: {
+                salonId,
+                walletId: wallet.id,
+                type: "MANUAL_ADJUSTMENT",
+                amount: creditsToReverse,
+                invoiceId: invoice.id,
+                note: `Reversed from invoice ${invoice.invoiceNumber} refund (${Math.round(refundProportion * 100)}% of credits)`,
+              },
+            });
+          }
+        }
+      }
+    }
 
     const nextRefundAmount = toAmount(invoice.refundAmount) + toAmount(amount);
     const nextStatus = normalizeStatus(toAmount(invoice.paidAmount), toAmount(invoice.total), nextRefundAmount, false);

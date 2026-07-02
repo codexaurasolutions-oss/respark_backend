@@ -1339,5 +1339,48 @@ export const schemas = {
       message: z.string().min(2),
       linkUrl: optionalString
     })
+  }),
+  createReferralCoupon: z.object({
+    body: z.object({
+      branchId: z.string().nullable().optional(),
+      code: z.string().trim().min(1).max(50),
+      title: z.string().trim().min(1).max(200),
+      description: optionalString,
+      discountType: z.enum(["PERCENT", "FIXED"]),
+      discountValue: z.coerce.number().min(0).max(999999),
+      minBillAmount: z.coerce.number().min(0).max(9999999).optional().nullable(),
+      usageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
+      customerUsageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
+      startsAt: z.string().optional().nullable(),
+      endsAt: z.string().optional().nullable(),
+      partnerCreditType: z.enum(["PERCENT", "FIXED"]).optional().nullable(),
+      partnerCreditValue: z.coerce.number().min(0).max(999999).optional().nullable(),
+      partnerCustomerId: z.string().optional().nullable(),
+      categoryIds: z.array(z.string()).optional(),
+      serviceIds: z.array(z.string()).optional(),
+      notes: optionalString,
+    })
+  }),
+  updateReferralCoupon: z.object({
+    params: z.object({ couponId: z.string().min(1) }),
+    body: z.object({
+      code: z.string().trim().min(1).max(50).optional(),
+      title: z.string().trim().min(1).max(200).optional(),
+      description: optionalString,
+      discountType: z.enum(["PERCENT", "FIXED"]).optional(),
+      discountValue: z.coerce.number().min(0).max(999999).optional(),
+      minBillAmount: z.coerce.number().min(0).max(9999999).optional().nullable(),
+      usageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
+      customerUsageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
+      startsAt: z.string().optional().nullable(),
+      endsAt: z.string().optional().nullable(),
+      partnerCreditType: z.enum(["PERCENT", "FIXED"]).optional().nullable(),
+      partnerCreditValue: z.coerce.number().min(0).max(999999).optional().nullable(),
+      partnerCustomerId: z.string().optional().nullable(),
+      categoryIds: z.array(z.string()).optional(),
+      serviceIds: z.array(z.string()).optional(),
+      isArchived: z.boolean().optional(),
+      notes: optionalString,
+    })
   })
 };

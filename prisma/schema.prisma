@@ -157,6 +157,25 @@ enum CouponDiscountType {
   FIXED
 }
 
+enum PartnerCreditType {
+  PERCENT
+  FIXED
+}
+
+enum AffiliateCreditTxnType {
+  EARN
+  REDEEM_SERVICE
+  CASH_WITHDRAWAL
+  MANUAL_ADJUSTMENT
+}
+
+enum PayoutRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
 enum FeedbackStatus {
   NEW
   REVIEWED
@@ -335,6 +354,9 @@ model Salon {
   referralCodes       ReferralCode[]
   taxSlabs            TaxSlab[]
   pnlCategories       PnlCategory[]
+  affiliateWallets    AffiliateCreditWallet[]
+  affiliateTransactions AffiliateCreditTransaction[]
+  payoutRequests      CreditPayoutRequest[]
 }
 
 model UserSalon {
@@ -524,6 +546,7 @@ model ServiceCategory {
   parent    ServiceCategory? @relation("CategoryTree", fields: [parentId], references: [id])
   children  ServiceCategory[] @relation("CategoryTree")
   services  Service[]
+  referralCouponCategories ReferralCouponCategory[]
 }
 
 model Service {
@@ -562,6 +585,7 @@ model Service {
   enquiries            Enquiry[]
   consumables          ServiceConsumable[]
   taxes                ServiceTax[]
+  referralCouponServices ReferralCouponService[]
 }
 
 model ServiceConsumable {
@@ -627,6 +651,9 @@ model Customer {
   whatsappLogs        WhatsAppLog[]
   referralCodes       ReferralCode[]
   referralReferees    ReferralCode[]       @relation("ReferralReferee")
+  affiliateWallets    AffiliateCreditWallet[] @relation("AffiliateWalletPartner")
+  payoutRequests      CreditPayoutRequest[] @relation("AffiliatePayoutPartner")
+  partnerCoupons      Coupon[]             @relation("PartnerCoupons")
 
   @@unique([salonId, phone])
 }
@@ -650,6 +677,8 @@ model Invoice {
   couponCode           String?
   giftVoucherCode      String?
   loyaltyPointsUsed    Int?
+  referralCode         String?
+  partnerCreditsEarned Decimal?            @db.Decimal(10, 2)
   paymentLinkToken     String?               @unique
   paymentLinkStatus    String?
   paymentLinkExpiresAt DateTime?
@@ -668,7 +697,8 @@ model Invoice {
   giftCardRedemptions  GiftCardRedemption[]
   feedback             CustomerFeedback[]
   giftCardsSold        GiftCard[]
-  campaignConversions  CampaignConversion[]
+   campaignConversions  CampaignConversion[]
+   affiliateTransactions AffiliateCreditTransaction[]
 }
 
 model InvoiceItem {
@@ -1635,33 +1665,40 @@ model Coupon {
   isFestival         Boolean             @default(false)
   isArchived         Boolean             @default(false)
   notes              String?
+  partnerCreditType  PartnerCreditType?
+  partnerCreditValue Decimal?            @db.Decimal(10, 2)
+  partnerCustomerId  String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   salon              Salon               @relation(fields: [salonId], references: [id])
   branch             Branch?             @relation(fields: [branchId], references: [id])
   service            Service?            @relation(fields: [serviceId], references: [id])
   product            Product?            @relation(fields: [productId], references: [id])
+  partnerCustomer    Customer?           @relation("PartnerCoupons", fields: [partnerCustomerId], references: [id])
   assignedCoupons    CustomerCoupon[]
   redemptions        CouponRedemption[]
   campaigns          Campaign[]          @relation("CampaignLinkedCoupon")
+  eligibleCategories ReferralCouponCategory[]
+  eligibleServices   ReferralCouponService[]
 
   @@unique([salonId, code])
 }
 
 model CouponRedemption {
-  id           String      @id @default(cuid())
-  salonId      String
-  couponId     String
-  customerId   String?
-  invoiceId    String?
-  orderId      String?
-  amountSaved  Decimal     @db.Decimal(10, 2)
-  createdAt    DateTime    @default(now())
-  salon        Salon       @relation(fields: [salonId], references: [id])
-  coupon       Coupon      @relation(fields: [couponId], references: [id])
-  customer     Customer?   @relation(fields: [customerId], references: [id])
-  invoice      Invoice?    @relation(fields: [invoiceId], references: [id])
-  order        OnlineOrder? @relation(fields: [orderId], references: [id])
+  id                   String      @id @default(cuid())
+  salonId              String
+  couponId             String
+  customerId           String?
+  invoiceId            String?
+  orderId              String?
+  amountSaved          Decimal     @db.Decimal(10, 2)
+  partnerCreditsEarned Decimal?    @db.Decimal(10, 2)
+  createdAt            DateTime    @default(now())
+  salon                Salon       @relation(fields: [salonId], references: [id])
+  coupon               Coupon      @relation(fields: [couponId], references: [id])
+  customer             Customer?   @relation(fields: [customerId], references: [id])
+  invoice              Invoice?    @relation(fields: [invoiceId], references: [id])
+  order                OnlineOrder? @relation(fields: [orderId], references: [id])
 }
 
 model GiftCard {
@@ -2182,7 +2219,88 @@ model ReferralCode {
   @@index([salonId, customerId])
 }
 
-// Tax Slab (PNL Income Tax) - replaces pnlIncomeTaxes JSON
+// Referral Coupon — eligible categories join table
+model ReferralCouponCategory {
+  id         String          @id @default(cuid())
+  couponId   String
+  categoryId String
+  coupon     Coupon          @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  category   ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, categoryId])
+  @@index([categoryId])
+}
+
+// Referral Coupon — eligible services join table
+model ReferralCouponService {
+  id        String   @id @default(cuid())
+  couponId  String
+  serviceId String
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, serviceId])
+  @@index([serviceId])
+}
+
+// Affiliate Credit Wallet — partner wallet balance
+model AffiliateCreditWallet {
+  id             String   @id @default(cuid())
+  salonId        String
+  partnerId      String   // customerId of the partner
+  balance        Decimal  @default(0) @db.Decimal(12, 2)
+  totalEarned    Decimal  @default(0) @db.Decimal(12, 2)
+  totalRedeemed  Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  salon          Salon                   @relation(fields: [salonId], references: [id])
+  partner        Customer                @relation("AffiliateWalletPartner", fields: [partnerId], references: [id])
+  transactions   AffiliateCreditTransaction[]
+  payoutRequests CreditPayoutRequest[]
+
+  @@unique([salonId, partnerId])
+  @@index([salonId, partnerId])
+}
+
+// Affiliate Credit Transaction — ledger for wallet activity
+model AffiliateCreditTransaction {
+  id             String                  @id @default(cuid())
+  salonId        String
+  walletId       String
+  type           AffiliateCreditTxnType
+  amount         Decimal                 @db.Decimal(12, 2)
+  invoiceId      String?
+  note           String?
+  createdAt      DateTime                @default(now())
+  salon          Salon                   @relation(fields: [salonId], references: [id])
+  wallet         AffiliateCreditWallet   @relation(fields: [walletId], references: [id])
+  invoice        Invoice?                @relation(fields: [invoiceId], references: [id])
+
+  @@index([salonId, walletId])
+  @@index([walletId])
+}
+
+// Credit Payout Request — cash withdrawal requests
+model CreditPayoutRequest {
+  id               String              @id @default(cuid())
+  salonId          String
+  walletId         String
+  partnerId        String
+  creditsRedeemed  Decimal             @db.Decimal(12, 2)
+  cashAmount       Decimal             @db.Decimal(12, 2)
+  conversionRatio  Decimal             @default(0.50) @db.Decimal(5, 2)
+  status           PayoutRequestStatus @default(PENDING)
+  approvedBy       String?
+  approvedAt       DateTime?
+  rejectionReason  String?
+  createdAt        DateTime            @default(now())
+  salon            Salon               @relation(fields: [salonId], references: [id])
+  wallet           AffiliateCreditWallet @relation(fields: [walletId], references: [id])
+  partner          Customer            @relation("AffiliatePayoutPartner", fields: [partnerId], references: [id])
+
+  @@index([salonId, status])
+  @@index([walletId])
+}
 model TaxSlab {
   id        String   @id @default(cuid())
   salonId   String

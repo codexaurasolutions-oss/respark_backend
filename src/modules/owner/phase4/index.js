@@ -6,6 +6,7 @@ import { registerMissingReportRoutes } from "./missing-reports.js";
 import { registerOperationsRoutes } from "./operations.js";
 import { registerPromotionRoutes } from "./promotions.js";
 import { registerAdvancedReportRoutes } from "./reports.js";
+import { registerReferralRoutes } from "./referrals.js";
 
 export const registerPhase4OwnerRoutes = (ownerRouter) => {
   registerLoyaltyRoutes(ownerRouter);
@@ -16,4 +17,5 @@ export const registerPhase4OwnerRoutes = (ownerRouter) => {
   registerCommunicationRoutes(ownerRouter);
   registerAdvancedReportRoutes(ownerRouter);
   registerMissingReportRoutes(ownerRouter);
+  registerReferralRoutes(ownerRouter);
 };
