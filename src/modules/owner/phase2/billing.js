@@ -700,8 +700,8 @@ export const registerBillingRoutes = (ownerRouter) => {
     const staffBranchFilter = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? { branchId: req.user.branchId } : {};
     const invoice = await prisma.invoice.findFirst({ where: { id: req.params.id, salonId: req.salonId, ...staffBranchFilter }, include: { payments: true, customer: true, branch: true, items: true } });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
-    if (invoice.status === "CANCELLED") return res.status(400).json({ message: "Invoice already cancelled" });
-    if (invoice.payments.some((payment) => payment.amount > 0)) return res.status(400).json({ message: "Paid invoice requires refund flow instead of cancel" });
+    if (invoice.status === "CANCELLED" || invoice.status === "REFUNDED") return res.status(400).json({ message: "Invoice already cancelled or refunded" });
+    if (invoice.payments.some((payment) => payment.amount > 0 && payment.type !== "TIP")) return res.status(400).json({ message: "Paid invoice requires refund flow instead of cancel" });
     await prisma.$transaction(async (tx) => {
       await tx.invoice.update({ where: { id: invoice.id }, data: { status: "CANCELLED", balanceAmount: 0 } });
       for (const item of invoice.items) {
@@ -744,12 +744,14 @@ export const registerBillingRoutes = (ownerRouter) => {
       await reverseInvoiceLoyalty(tx, invoice, req.user);
 
       if (invoice.couponCode) {
-        const redemption = await tx.couponRedemption.findFirst({ where: { invoiceId: invoice.id } });
-        if (redemption) {
+        const redemptions = await tx.couponRedemption.findMany({ where: { invoiceId: invoice.id } });
+        for (const redemption of redemptions) {
           await tx.couponRedemption.delete({ where: { id: redemption.id } });
+        }
+        if (redemptions.length > 0) {
           await tx.coupon.update({
             where: { salonId_code: { salonId: req.salonId, code: invoice.couponCode } },
-            data: { usageCount: { decrement: 1 } }
+            data: { usageCount: { decrement: redemptions.length } }
           }).catch(() => {});
         }
       }
@@ -763,22 +765,25 @@ export const registerBillingRoutes = (ownerRouter) => {
             where: { salonId_partnerId: { salonId: req.salonId, partnerId: referralCoupon.partnerCustomerId } },
           });
           if (wallet) {
-            const creditsToReverse = Math.min(Number(invoice.partnerCreditsEarned), toAmount(wallet.balance));
+            const creditsToReverse = Number(invoice.partnerCreditsEarned);
             if (creditsToReverse > 0) {
-              await tx.affiliateCreditWallet.update({
-                where: { id: wallet.id },
-                data: { balance: { decrement: creditsToReverse }, totalEarned: { decrement: creditsToReverse } },
-              });
-              await tx.affiliateCreditTransaction.create({
-                data: {
-                  salonId: req.salonId,
-                  walletId: wallet.id,
-                  type: "MANUAL_ADJUSTMENT",
-                  amount: creditsToReverse,
-                  invoiceId: invoice.id,
-                  note: `Reversed from invoice ${invoice.invoiceNumber} cancellation (full)`,
-                },
-              });
+              const balanceReduction = Math.min(creditsToReverse, toAmount(wallet.balance));
+              if (balanceReduction > 0) {
+                await tx.affiliateCreditWallet.update({
+                  where: { id: wallet.id },
+                  data: { balance: { decrement: balanceReduction }, totalEarned: { decrement: balanceReduction } },
+                });
+                await tx.affiliateCreditTransaction.create({
+                  data: {
+                    salonId: req.salonId,
+                    walletId: wallet.id,
+                    type: "MANUAL_ADJUSTMENT",
+                    amount: balanceReduction,
+                    invoiceId: invoice.id,
+                    note: `Reversed from invoice ${invoice.invoiceNumber} cancellation. Credits earned: ${creditsToReverse}, reversed: ${balanceReduction}`,
+                  },
+                });
+              }
             }
           }
         }
@@ -790,6 +795,8 @@ export const registerBillingRoutes = (ownerRouter) => {
       for (const redemption of affiliateServiceRedemptions) {
         const creditsToRestore = Number(redemption.amount || 0);
         if (creditsToRestore <= 0) continue;
+        const redeemWallet = await tx.affiliateCreditWallet.findUnique({ where: { id: redemption.walletId } });
+        if (!redeemWallet) continue;
         await tx.affiliateCreditWallet.update({
           where: { id: redemption.walletId },
           data: {
@@ -814,7 +821,7 @@ export const registerBillingRoutes = (ownerRouter) => {
       toEmail: invoice.customer?.email || "",
       templateType: "invoice_cancel_template",
       context: { invoiceId: invoice.id, customerId: invoice.customerId }
-    });
+    }).catch(() => {});
     res.json({ message: "Invoice cancelled and loyalty points reversed" });
   });
 

@@ -32,8 +32,9 @@ const normalizePhone = (value) => {
   if (!raw) return "";
   let digits = raw.replace(/\D/g, "");
   if (digits.startsWith("0091")) digits = digits.slice(4);
-  else if (digits.startsWith("91") && digits.length > 10) digits = digits.slice(2);
+  else if (digits.startsWith("91") && digits.length > 12) digits = digits.slice(2);
   else if (digits.startsWith("0") && digits.length === 11) digits = digits.slice(1);
+  if (digits.length !== 10) return "";
   return `+91${digits}`;
 };
 
@@ -308,6 +309,9 @@ export const registerReferralRoutes = (ownerRouter) => {
           await tx.referralCouponCategory.deleteMany({ where: { couponId } });
           await tx.referralCouponService.deleteMany({ where: { couponId } });
           await tx.couponRedemption.deleteMany({ where: { couponId } });
+          if (coupon.code) {
+            await tx.referralCode.deleteMany({ where: { salonId, code: coupon.code } });
+          }
           await tx.coupon.delete({ where: { id: couponId } });
         });
 
@@ -420,7 +424,7 @@ export const registerReferralRoutes = (ownerRouter) => {
             serviceId: item.serviceId || null,
             productId: item.productId || null,
             name: item.name || "Item",
-            qty: Number(item.qty || 1),
+            qty: Math.max(1, Number(item.qty || 1)),
             unitPrice: toNumber(item.unitPrice),
             discount: 0,
             partnerCredits: 0,
@@ -448,7 +452,7 @@ export const registerReferralRoutes = (ownerRouter) => {
               serviceId: item.serviceId || null,
               productId: item.productId || null,
               name: item.name || "Item",
-              qty: Number(item.qty || 1),
+              qty: Math.max(1, Number(item.qty || 1)),
               unitPrice: toNumber(item.unitPrice),
               isEligible,
               discount: 0,
@@ -811,6 +815,9 @@ export const registerReferralRoutes = (ownerRouter) => {
 
         if (payout.status !== "PENDING" && status !== "PAID") {
           return res.status(400).json({ message: `Cannot change status from ${payout.status} to ${status}` });
+        }
+        if (payout.status === "REJECTED" && status === "PAID") {
+          return res.status(400).json({ message: "Cannot pay a rejected payout" });
         }
 
         const result = await prisma.$transaction(async (tx) => {
