@@ -213,7 +213,7 @@ export const registerReferralRoutes = (ownerRouter) => {
           const updateData = {};
           if (b.code != null) updateData.code = b.code.trim().toUpperCase();
           if (b.title != null) updateData.title = b.title.trim();
-          if (b.description != null) updateData.description = b.description;
+          if (b.description !== undefined) updateData.description = b.description || null;
           if (b.discountType != null) updateData.discountType = b.discountType;
           if (b.discountValue != null) updateData.discountValue = toNumber(b.discountValue);
           if (b.minBillAmount !== undefined) updateData.minBillAmount = b.minBillAmount != null ? toNumber(b.minBillAmount) : null;

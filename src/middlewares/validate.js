@@ -1351,12 +1351,12 @@ export const schemas = {
       branchId: z.string().nullable().optional(),
       code: z.string().trim().max(50).optional(),
       title: z.string().trim().min(1).max(200),
-      description: optionalString,
+      description: optionalString.nullable(),
       discountType: z.enum(["PERCENT", "FIXED"]),
       discountValue: z.coerce.number().min(0).max(999999),
       minBillAmount: z.coerce.number().min(0).max(9999999).optional().nullable(),
-      usageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
-      customerUsageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
+      usageLimit: z.coerce.number().int().min(0).max(999999).optional().nullable(),
+      customerUsageLimit: z.coerce.number().int().min(0).max(999999).optional().nullable(),
       startsAt: z.string().optional().nullable(),
       endsAt: z.string().optional().nullable(),
       partnerCreditType: z.enum(["PERCENT", "FIXED"]).optional().nullable(),
@@ -1364,7 +1364,7 @@ export const schemas = {
       partnerCustomerId: z.string().optional().nullable(),
       categoryIds: z.array(z.string()).optional(),
       serviceIds: z.array(z.string()).optional(),
-      notes: optionalString,
+      notes: optionalString.nullable(),
     })
   }),
   onboardReferralPartner: z.object({
@@ -1375,19 +1375,19 @@ export const schemas = {
       phone: optionalString,
       email: optionalEmailLike,
       title: z.string().trim().max(200).optional(),
-      description: optionalString,
+      description: optionalString.nullable(),
       discountType: z.enum(["PERCENT", "FIXED"]).default("PERCENT"),
       discountValue: z.coerce.number().min(0).max(999999).default(10),
       minBillAmount: z.coerce.number().min(0).max(9999999).optional().nullable(),
-      usageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
-      customerUsageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
+      usageLimit: z.coerce.number().int().min(0).max(999999).optional().nullable(),
+      customerUsageLimit: z.coerce.number().int().min(0).max(999999).optional().nullable(),
       startsAt: z.string().optional().nullable(),
       endsAt: z.string().optional().nullable(),
       partnerCreditType: z.enum(["PERCENT", "FIXED"]).default("PERCENT"),
       partnerCreditValue: z.coerce.number().min(0).max(999999).default(5),
       categoryIds: z.array(z.string()).optional(),
       serviceIds: z.array(z.string()).optional(),
-      notes: optionalString
+      notes: optionalString.nullable()
     }).refine((body) => Boolean(body.partnerCustomerId || (body.name && body.phone)), {
       message: "Select an existing partner or provide partner name and phone"
     })
@@ -1397,12 +1397,12 @@ export const schemas = {
     body: z.object({
       code: z.string().trim().min(1).max(50).optional(),
       title: z.string().trim().min(1).max(200).optional(),
-      description: optionalString,
+      description: optionalString.nullable(),
       discountType: z.enum(["PERCENT", "FIXED"]).optional(),
       discountValue: z.coerce.number().min(0).max(999999).optional(),
       minBillAmount: z.coerce.number().min(0).max(9999999).optional().nullable(),
-      usageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
-      customerUsageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
+      usageLimit: z.coerce.number().int().min(0).max(999999).optional().nullable(),
+      customerUsageLimit: z.coerce.number().int().min(0).max(999999).optional().nullable(),
       startsAt: z.string().optional().nullable(),
       endsAt: z.string().optional().nullable(),
       partnerCreditType: z.enum(["PERCENT", "FIXED"]).optional().nullable(),
@@ -1411,7 +1411,7 @@ export const schemas = {
       categoryIds: z.array(z.string()).optional(),
       serviceIds: z.array(z.string()).optional(),
       isArchived: z.boolean().optional(),
-      notes: optionalString,
+      notes: optionalString.nullable(),
     })
   })
 };
