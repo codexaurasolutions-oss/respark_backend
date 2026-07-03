@@ -56,6 +56,21 @@ export const registerReferralRoutes = (ownerRouter) => {
   const prefix = "/owner/referrals";
 
   // ──────────────────────────────────────────────────────────────
+  // 0. GET NEXT AUTO-GENERATED AFFILIATE CODE
+  // ──────────────────────────────────────────────────────────────
+  ownerRouter.get(
+    `${prefix}/coupons/next-code`,
+    requireSalonPermission("couponsGiftCards", "view"),
+    async (req, res, next) => {
+      try {
+        const salonId = req.salonId;
+        const code = await buildAffiliateCode(prisma, salonId);
+        res.json({ code });
+      } catch (err) { next(err); }
+    }
+  );
+
+  // ──────────────────────────────────────────────────────────────
   // 1. CREATE REFERRAL COUPON (with category/service eligibility)
   // ──────────────────────────────────────────────────────────────
   ownerRouter.post(
