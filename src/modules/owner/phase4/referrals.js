@@ -17,14 +17,24 @@ const readAffiliateRatios = async (tx, salonId) => {
 
 const buildAffiliateCode = async (tx, salonId) => {
   const coupons = await tx.coupon.findMany({
-    where: { salonId, isReferral: true, code: { startsWith: "A" } },
+    where: { salonId, code: { startsWith: "A" } },
     select: { code: true }
   });
   const max = coupons.reduce((highest, row) => {
     const match = String(row.code || "").match(/^A(\d+)$/i);
     return match ? Math.max(highest, Number(match[1])) : highest;
-  }, 9);
+  }, 0);
   return `A${max + 1}`;
+};
+
+const normalizePhone = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("0091")) digits = digits.slice(4);
+  else if (digits.startsWith("91") && digits.length > 10) digits = digits.slice(2);
+  else if (digits.startsWith("0") && digits.length === 11) digits = digits.slice(1);
+  return `+91${digits}`;
 };
 
 const ensureAffiliateArtifacts = async (tx, { salonId, partnerId, code }) => {
@@ -127,7 +137,8 @@ export const registerReferralRoutes = (ownerRouter) => {
             partner = await tx.customer.findFirst({ where: { id: partnerId, salonId } });
             if (!partner) throw Object.assign(new Error("Partner customer not found"), { status: 404 });
           } else {
-            const phone = String(b.phone || "").trim();
+            const phone = normalizePhone(b.phone);
+            if (!phone) throw Object.assign(new Error("Valid phone number is required"), { status: 400 });
             partner = await tx.customer.findFirst({ where: { salonId, phone } });
             if (!partner) {
               partner = await tx.customer.create({
@@ -211,7 +222,12 @@ export const registerReferralRoutes = (ownerRouter) => {
 
         await prisma.$transaction(async (tx) => {
           const updateData = {};
-          if (b.code != null) updateData.code = b.code.trim().toUpperCase();
+          if (b.code != null) {
+            const newCode = b.code.trim().toUpperCase();
+            const dup = await tx.coupon.findFirst({ where: { salonId, code: newCode, id: { not: couponId } } });
+            if (dup) throw Object.assign(new Error("Coupon code already exists"), { status: 400 });
+            updateData.code = newCode;
+          }
           if (b.title != null) updateData.title = b.title.trim();
           if (b.description !== undefined) updateData.description = b.description || null;
           if (b.discountType != null) updateData.discountType = b.discountType;
@@ -305,7 +321,7 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.get(
     `${prefix}/coupons`,
-    requireSalonPermission("couponsGiftCards", "edit"),
+    requireSalonPermission("couponsGiftCards", "view"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;
@@ -445,7 +461,7 @@ export const registerReferralRoutes = (ownerRouter) => {
           if (isGlobal || item.isEligible) {
             const lineTotal = item.unitPrice * item.qty;
             const lineDiscount = coupon.discountType === "PERCENT"
-              ? lineTotal * (toNumber(coupon.discountValue) / 100)
+              ? Math.min(lineTotal, lineTotal * (toNumber(coupon.discountValue) / 100))
               : Math.min(lineTotal, toNumber(coupon.discountValue));
             item.discount = lineDiscount;
             totalEligibleAmount += lineTotal;
@@ -453,12 +469,16 @@ export const registerReferralRoutes = (ownerRouter) => {
 
             if (coupon.partnerCreditType && coupon.partnerCreditValue != null) {
               const credits = coupon.partnerCreditType === "PERCENT"
-                ? lineTotal * (toNumber(coupon.partnerCreditValue) / 100)
+                ? Math.min(lineTotal, lineTotal * (toNumber(coupon.partnerCreditValue) / 100))
                 : toNumber(coupon.partnerCreditValue);
               item.partnerCredits = credits;
               totalPartnerCredits += credits;
             }
           }
+        }
+
+        if (coupon.minBillAmount != null && totalEligibleAmount < toNumber(coupon.minBillAmount)) {
+          return res.status(400).json({ message: `Minimum bill amount of ₹${coupon.minBillAmount} not reached. Current eligible amount: ₹${totalEligibleAmount.toFixed(2)}` });
         }
 
         const ratios = await readAffiliateRatios(prisma, salonId);
@@ -479,7 +499,7 @@ export const registerReferralRoutes = (ownerRouter) => {
           totalDiscount,
           totalPartnerCredits,
           partnerCreditNote: totalPartnerCredits > 0
-            ? `${totalPartnerCredits.toFixed(2)} credits will be deposited to partner wallet. 1 credit = ₹1 for services, ₹0.50 for cash.`
+            ? `${totalPartnerCredits.toFixed(2)} credits will be deposited to partner wallet. 1 credit = ₹${ratios.service} for services, ₹${ratios.cash} for cash.`
             : null,
         });
       } catch (err) { next(err); }
@@ -503,6 +523,10 @@ export const registerReferralRoutes = (ownerRouter) => {
         });
 
         if (!wallet) {
+          const partnerExists = await prisma.customer.findFirst({ where: { id: partnerId, salonId } });
+          if (!partnerExists) {
+            return res.status(404).json({ message: "Partner not found" });
+          }
           wallet = await prisma.affiliateCreditWallet.create({
             data: { salonId, partnerId, balance: 0, totalEarned: 0, totalRedeemed: 0 },
           });
@@ -665,9 +689,15 @@ export const registerReferralRoutes = (ownerRouter) => {
             where: { id: wallet.id },
           });
 
-          if (freshWallet.balance < credits) {
+          const pendingPayouts = await tx.creditPayoutRequest.findMany({
+            where: { walletId: wallet.id, status: "PENDING" }
+          });
+          const lockedCredits = pendingPayouts.reduce((sum, p) => sum + Number(p.creditsRedeemed), 0);
+          const availableCredits = Number(freshWallet.balance) - lockedCredits;
+
+          if (credits > availableCredits) {
             throw Object.assign(
-              new Error(`Insufficient credits. Available: ${freshWallet.balance}, requested: ${credits}`),
+              new Error(`Insufficient available credits. Available: ${availableCredits}, pending: ${lockedCredits}, requested: ${credits}`),
               { status: 400 }
             );
           }
