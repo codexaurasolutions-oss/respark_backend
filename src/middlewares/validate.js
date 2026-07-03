@@ -1044,12 +1044,12 @@ export const schemas = {
       productId: z.string().nullable().optional(),
       code: z.string().trim().min(2).max(50),
       title: z.string().trim().min(2).max(200),
-      description: z.string().max(1000).optional(),
+      description: z.string().max(1000).nullable().optional(),
       discountType: z.enum(["PERCENT", "FIXED"]),
       discountValue: z.number().min(0).max(9999999),
       minBillAmount: z.number().min(0).max(9999999).optional(),
-      usageLimit: z.number().int().min(0).max(999999).optional(),
-      customerUsageLimit: z.number().int().min(0).max(999).optional(),
+      usageLimit: z.number().int().min(0).max(999999).nullable().optional(),
+      customerUsageLimit: z.number().int().min(0).max(999).nullable().optional(),
       startsAt: optionalDateString,
       endsAt: optionalDateString,
       isReferral: z.boolean().optional(),
@@ -1057,7 +1057,7 @@ export const schemas = {
       isBirthday: z.boolean().optional(),
       isFestival: z.boolean().optional(),
       isArchived: z.boolean().optional(),
-      notes: z.string().max(500).optional()
+      notes: z.string().max(500).nullable().optional()
     })
   }),
   couponValidate: z.object({
