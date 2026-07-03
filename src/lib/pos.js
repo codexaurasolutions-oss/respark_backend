@@ -1190,7 +1190,8 @@ export const refundInvoice = async ({ salonId, invoiceId, amount, note, actorUse
             : 1;
           const creditsToReverse = Math.min(
             Number(invoice.partnerCreditsEarned),
-            Math.round(Number(invoice.partnerCreditsEarned) * refundProportion * 100) / 100
+            Math.round(Number(invoice.partnerCreditsEarned) * refundProportion * 100) / 100,
+            toAmount(wallet.balance)
           );
           if (creditsToReverse > 0) {
             await tx.affiliateCreditWallet.update({
@@ -1209,6 +1210,41 @@ export const refundInvoice = async ({ salonId, invoiceId, amount, note, actorUse
             });
           }
         }
+      }
+    }
+
+    const affiliateServiceRedemptions = await tx.affiliateCreditTransaction.findMany({
+      where: { invoiceId: invoice.id, type: "REDEEM_SERVICE" }
+    });
+    for (const redemption of affiliateServiceRedemptions) {
+      const creditsToRestore = Math.round(Number(redemption.amount || 0) * (toAmount(invoice.total) > 0 ? Math.min(1, toAmount(amount) / toAmount(invoice.total)) : 1) * 100) / 100;
+      if (creditsToRestore <= 0) continue;
+      const rWallet = await tx.affiliateCreditWallet.findUnique({ where: { id: redemption.walletId } });
+      if (!rWallet) continue;
+      await tx.affiliateCreditWallet.update({
+        where: { id: redemption.walletId },
+        data: { balance: { increment: creditsToRestore }, totalRedeemed: { decrement: creditsToRestore } }
+      });
+      await tx.affiliateCreditTransaction.create({
+        data: {
+          salonId,
+          walletId: redemption.walletId,
+          type: "MANUAL_ADJUSTMENT",
+          amount: creditsToRestore,
+          invoiceId: invoice.id,
+          note: `Restored affiliate service credits from invoice ${invoice.invoiceNumber} refund`
+        }
+      });
+    }
+
+    if (invoice.couponCode) {
+      const redemption = await tx.couponRedemption.findFirst({ where: { invoiceId: invoice.id } });
+      if (redemption) {
+        await tx.couponRedemption.delete({ where: { id: redemption.id } });
+        await tx.coupon.update({
+          where: { salonId_code: { salonId, code: invoice.couponCode } },
+          data: { usageCount: { decrement: 1 } }
+        }).catch(() => {});
       }
     }
 

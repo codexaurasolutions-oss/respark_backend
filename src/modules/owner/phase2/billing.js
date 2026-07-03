@@ -743,6 +743,17 @@ export const registerBillingRoutes = (ownerRouter) => {
       }
       await reverseInvoiceLoyalty(tx, invoice, req.user);
 
+      if (invoice.couponCode) {
+        const redemption = await tx.couponRedemption.findFirst({ where: { invoiceId: invoice.id } });
+        if (redemption) {
+          await tx.couponRedemption.delete({ where: { id: redemption.id } });
+          await tx.coupon.update({
+            where: { salonId_code: { salonId: req.salonId, code: invoice.couponCode } },
+            data: { usageCount: { decrement: 1 } }
+          }).catch(() => {});
+        }
+      }
+
       if (invoice.referralCode && invoice.partnerCreditsEarned) {
         const referralCoupon = await tx.coupon.findFirst({
           where: { salonId: req.salonId, code: invoice.referralCode, isReferral: true },
@@ -752,7 +763,7 @@ export const registerBillingRoutes = (ownerRouter) => {
             where: { salonId_partnerId: { salonId: req.salonId, partnerId: referralCoupon.partnerCustomerId } },
           });
           if (wallet) {
-            const creditsToReverse = Number(invoice.partnerCreditsEarned);
+            const creditsToReverse = Math.min(Number(invoice.partnerCreditsEarned), toAmount(wallet.balance));
             if (creditsToReverse > 0) {
               await tx.affiliateCreditWallet.update({
                 where: { id: wallet.id },
