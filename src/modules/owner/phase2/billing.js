@@ -703,7 +703,8 @@ export const registerBillingRoutes = (ownerRouter) => {
     if (invoice.status === "CANCELLED" || invoice.status === "REFUNDED") return res.status(400).json({ message: "Invoice already cancelled or refunded" });
     if (invoice.payments.some((payment) => payment.amount > 0 && payment.type !== "TIP")) return res.status(400).json({ message: "Paid invoice requires refund flow instead of cancel" });
     await prisma.$transaction(async (tx) => {
-      await tx.invoice.update({ where: { id: invoice.id }, data: { status: "CANCELLED", balanceAmount: 0 } });
+      await tx.invoice.update({ where: { id: invoice.id }, data: { status: "CANCELLED", balanceAmount: 0, loyaltyPointsUsed: 0 } });
+      await tx.payment.deleteMany({ where: { invoiceId: invoice.id, amount: 0 } });
       for (const item of invoice.items) {
         if (item.itemType === "PRODUCT" && item.productId) {
           await createStockMovement(tx, {

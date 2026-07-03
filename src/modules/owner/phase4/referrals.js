@@ -17,7 +17,7 @@ const readAffiliateRatios = async (tx, salonId) => {
 
 const buildAffiliateCode = async (tx, salonId) => {
   const coupons = await tx.coupon.findMany({
-    where: { salonId, code: { startsWith: "A" } },
+    where: { salonId, code: { startsWith: "A", mode: "insensitive" } },
     select: { code: true }
   });
   const max = coupons.reduce((highest, row) => {
@@ -66,6 +66,13 @@ export const registerReferralRoutes = (ownerRouter) => {
       try {
         const salonId = req.salonId;
         const b = req.body;
+
+        if (b.partnerCreditType && !b.partnerCreditValue && b.partnerCreditValue !== 0) {
+          return res.status(400).json({ message: "Partner credit value is required when credit type is set" });
+        }
+        if (b.partnerCreditValue != null && b.partnerCreditValue > 0 && !b.partnerCreditType) {
+          return res.status(400).json({ message: "Partner credit type is required when credit value is set" });
+        }
 
         const coupon = await prisma.$transaction(async (tx) => {
           const code = b.code?.trim() ? b.code.trim().toUpperCase() : await buildAffiliateCode(tx, salonId);
@@ -221,14 +228,12 @@ export const registerReferralRoutes = (ownerRouter) => {
           return res.status(404).json({ message: "Referral coupon not found" });
         }
 
+        if (b.code != null) {
+          return res.status(400).json({ message: "Coupon code cannot be changed after creation" });
+        }
+
         await prisma.$transaction(async (tx) => {
           const updateData = {};
-          if (b.code != null) {
-            const newCode = b.code.trim().toUpperCase();
-            const dup = await tx.coupon.findFirst({ where: { salonId, code: newCode, id: { not: couponId } } });
-            if (dup) throw Object.assign(new Error("Coupon code already exists"), { status: 400 });
-            updateData.code = newCode;
-          }
           if (b.title != null) updateData.title = b.title.trim();
           if (b.description !== undefined) updateData.description = b.description || null;
           if (b.discountType != null) updateData.discountType = b.discountType;
@@ -368,8 +373,11 @@ export const registerReferralRoutes = (ownerRouter) => {
         const salonId = req.salonId;
         const { code, branchId, itemDrafts, customerId } = req.body;
 
-        if (!code) {
+        if (!code || typeof code !== "string") {
           return res.status(400).json({ message: "Coupon code is required" });
+        }
+        if (itemDrafts && !Array.isArray(itemDrafts)) {
+          return res.status(400).json({ message: "itemDrafts must be an array" });
         }
 
         const coupon = await prisma.coupon.findFirst({

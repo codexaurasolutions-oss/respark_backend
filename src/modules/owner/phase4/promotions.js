@@ -104,6 +104,9 @@ export const registerPromotionRoutes = (ownerRouter) => {
     ensureProgramEnabled(couponSettings, "Coupons");
     const row = await prisma.coupon.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!row) return res.status(404).json({ message: "Coupon not found" });
+    if (row.isReferral) {
+      return res.status(400).json({ message: "Referral coupons cannot be edited from here. Use the referral management page." });
+    }
     const updated = await prisma.coupon.update({
       where: { id: row.id },
       data: buildCouponData(req.body, couponSettings)
