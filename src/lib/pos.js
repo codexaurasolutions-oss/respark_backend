@@ -12,6 +12,10 @@ const normalizeStatus = (paidAmount, total, refundAmount = 0, cancelled = false)
 };
 
 const toNumber = (value) => Number(value || 0);
+const getAffiliateServiceCreditValue = (advancedSettings = {}) => {
+  const value = toAmount(advancedSettings?.referralSettings?.affiliateServiceCreditValue);
+  return value > 0 ? value : 1;
+};
 
 export const createInvoiceNumber = async (tx, salonId, branchId) => {
   // Concurrency-safe invoice number generation: append a short random suffix to
@@ -108,12 +112,14 @@ const createPaymentRows = async (tx, salonId, invoiceId, payments) => {
   return tx.payment.findMany({ where: { invoiceId } });
 };
 
-const buildInvoiceNotes = ({ notes, couponCode, giftVoucherCode, loyaltyPointsUsed }) => {
+const buildInvoiceNotes = ({ notes, couponCode, giftVoucherCode, loyaltyPointsUsed, affiliateCreditRedemptions }) => {
   const lines = [];
   if (notes) lines.push(notes);
   if (couponCode) lines.push(`Coupon applied: ${couponCode}`);
   if (giftVoucherCode) lines.push(`Gift card applied: ${giftVoucherCode}`);
   if (Number(loyaltyPointsUsed || 0) > 0) lines.push(`Loyalty points redeemed: ${Number(loyaltyPointsUsed)}`);
+  const affiliateCredits = (affiliateCreditRedemptions || []).reduce((sum, row) => sum + toAmount(row.amount), 0);
+  if (affiliateCredits > 0) lines.push(`Affiliate credits redeemed: ${affiliateCredits}`);
   return lines.join("\n").trim() || null;
 };
 
@@ -131,6 +137,7 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
   const allowEditConsumable = advancedSettings.allowEditConsumable !== false;
   const membershipSettings = {};
   const inclusiveTax = advancedSettings?.taxMapping?.inclusiveTax === true;
+  const affiliateServiceCreditValue = getAffiliateServiceCreditValue(advancedSettings);
 
   if (!allowFutureBackdatedBills && body.invoiceDate) {
     const invoiceDate = new Date(body.invoiceDate);
@@ -462,18 +469,20 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
     const hasServiceScope = referralCouponEligibleServiceIds.length > 0;
     const hasCategoryScope = referralCouponEligibleCategoryIds.length > 0;
     const isGlobal = !hasServiceScope && !hasCategoryScope;
+    let eligibleSubtotal = 0;
 
-    if (coupon.partnerCreditType && coupon.partnerCreditValue != null) {
-      for (const item of itemDrafts) {
-        let isEligible = isGlobal;
-        if (!isEligible && item.serviceId) {
-          isEligible = referralCouponEligibleServiceIds.includes(item.serviceId);
-          if (!isEligible && hasCategoryScope && item.categoryId) {
-            isEligible = referralCouponEligibleCategoryIds.includes(item.categoryId);
-          }
+    for (const item of itemDrafts) {
+      let isEligible = isGlobal;
+      if (!isEligible && item.serviceId) {
+        isEligible = referralCouponEligibleServiceIds.includes(item.serviceId);
+        if (!isEligible && hasCategoryScope && item.categoryId) {
+          isEligible = referralCouponEligibleCategoryIds.includes(item.categoryId);
         }
-        if (isEligible) {
-          const lineTotal = toAmount(item.unitPrice) * Number(item.qty || 1);
+      }
+      if (isEligible) {
+        const lineTotal = toAmount(item.unitPrice) * Number(item.qty || 1);
+        eligibleSubtotal += lineTotal;
+        if (coupon.partnerCreditType && coupon.partnerCreditValue != null) {
           const credits = coupon.partnerCreditType === "PERCENT"
             ? Math.min(lineTotal, lineTotal * (toNumber(coupon.partnerCreditValue) / 100))
             : toNumber(coupon.partnerCreditValue);
@@ -481,6 +490,16 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         }
       }
     }
+
+    if (eligibleSubtotal <= 0) {
+      const error = new Error("Coupon is not valid for the selected services");
+      error.status = 400;
+      throw error;
+    }
+
+    couponDiscount = coupon.discountType === "PERCENT"
+      ? Math.min(eligibleSubtotal, eligibleSubtotal * (toAmount(coupon.discountValue) / 100))
+      : Math.min(eligibleSubtotal, toAmount(coupon.discountValue));
   }
 
   const loyaltyRule = body.loyaltyPointsUsed
@@ -561,9 +580,31 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
 
   const discount = manualDiscount + couponDiscount + loyaltyDiscount;
   const total = Math.max(0, subtotal + lineTax + extraTax - discount);
+  const affiliateCreditRedemptions = (body.affiliateCreditRedemptions || [])
+    .map((row) => ({
+      partnerId: row.partnerId,
+      amount: toAmount(row.amount),
+      credits: toAmount(row.credits) || (toAmount(row.amount) / affiliateServiceCreditValue),
+      note: row.note || "Affiliate service credit redeemed"
+    }))
+    .filter((row) => row.partnerId && row.amount > 0 && row.credits > 0);
+  const affiliateCreditPayment = affiliateCreditRedemptions.reduce((sum, row) => sum + row.amount, 0);
+  if (affiliateCreditPayment > Math.max(0, total - giftCardPayment) + 0.01) {
+    const error = new Error("Affiliate credit redemption exceeds payable invoice amount");
+    error.status = 400;
+    throw error;
+  }
   const autoPayments = giftCardPayment > 0
     ? [{ mode: "WALLET", amount: giftCardPayment, note: `Gift card ${body.giftVoucherCode}`, type: "PAYMENT" }]
     : [];
+  affiliateCreditRedemptions.forEach((row) => {
+    autoPayments.push({
+      mode: "WALLET",
+      amount: row.amount,
+      note: `Affiliate credits from partner ${row.partnerId}: ${row.note}`,
+      type: "PAYMENT"
+    });
+  });
   const allPayments = [...autoPayments, ...(body.payments || [])];
   const initialPaidAmount = allPayments
     .filter(p => p.mode !== "BALANCE")
@@ -616,6 +657,38 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
     });
 
     await createPaymentRows(tx, salonId, invoice.id, allPayments.filter(p => p.mode !== "BALANCE"));
+
+    for (const redemption of affiliateCreditRedemptions) {
+      const wallet = await tx.affiliateCreditWallet.findUnique({
+        where: { salonId_partnerId: { salonId, partnerId: redemption.partnerId } }
+      });
+      if (!wallet) {
+        throw Object.assign(new Error("Affiliate wallet not found"), { status: 404 });
+      }
+      if (toAmount(wallet.balance) < redemption.credits) {
+        throw Object.assign(
+          new Error(`Insufficient affiliate credits. Available: ${wallet.balance}, requested: ${redemption.credits}`),
+          { status: 400 }
+        );
+      }
+      const updatedWallet = await tx.affiliateCreditWallet.update({
+        where: { id: wallet.id },
+        data: {
+          balance: { decrement: redemption.credits },
+          totalRedeemed: { increment: redemption.credits }
+        }
+      });
+      await tx.affiliateCreditTransaction.create({
+        data: {
+          salonId,
+          walletId: wallet.id,
+          type: "REDEEM_SERVICE",
+          amount: redemption.credits,
+          invoiceId: invoice.id,
+          note: `${redemption.note}; service discount ${redemption.amount}; balance after ${updatedWallet.balance}`
+        }
+      });
+    }
 
     for (const item of itemDrafts) {
       if (item.itemType === "PRODUCT") {

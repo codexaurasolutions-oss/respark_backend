@@ -2,9 +2,44 @@ import { prisma } from "../../../lib/prisma.js";
 import { requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
 
-const CASH_CONVERSION_RATIO = 0.50;
+const DEFAULT_SERVICE_CONVERSION_RATIO = 1;
+const DEFAULT_CASH_CONVERSION_RATIO = 0.50;
 
 const toNumber = (v) => Number(v || 0);
+const readAffiliateRatios = async (tx, salonId) => {
+  const setting = await tx.salonSetting.findFirst({ where: { salonId, branchId: null } });
+  const referralSettings = setting?.advancedSettings?.referralSettings || {};
+  return {
+    service: Math.max(0.01, toNumber(referralSettings.affiliateServiceCreditValue) || DEFAULT_SERVICE_CONVERSION_RATIO),
+    cash: Math.max(0.01, toNumber(referralSettings.affiliateCashCreditValue) || DEFAULT_CASH_CONVERSION_RATIO)
+  };
+};
+
+const buildAffiliateCode = async (tx, salonId) => {
+  const coupons = await tx.coupon.findMany({
+    where: { salonId, isReferral: true, code: { startsWith: "A" } },
+    select: { code: true }
+  });
+  const max = coupons.reduce((highest, row) => {
+    const match = String(row.code || "").match(/^A(\d+)$/i);
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 9);
+  return `A${max + 1}`;
+};
+
+const ensureAffiliateArtifacts = async (tx, { salonId, partnerId, code }) => {
+  if (!partnerId || !code) return;
+  await tx.affiliateCreditWallet.upsert({
+    where: { salonId_partnerId: { salonId, partnerId } },
+    create: { salonId, partnerId, balance: 0, totalEarned: 0, totalRedeemed: 0 },
+    update: {}
+  });
+  await tx.referralCode.upsert({
+    where: { salonId_code: { salonId, code } },
+    create: { salonId, customerId: partnerId, code, status: "ACTIVE" },
+    update: { customerId: partnerId, status: "ACTIVE" }
+  });
+};
 
 export const registerReferralRoutes = (ownerRouter) => {
   const prefix = "/owner/referrals";
@@ -14,7 +49,7 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.post(
     `${prefix}/coupons`,
-    requireSalonPermission("manage_coupons"),
+    requireSalonPermission("couponsGiftCards", "edit"),
     validate(schemas.createReferralCoupon),
     async (req, res, next) => {
       try {
@@ -22,11 +57,12 @@ export const registerReferralRoutes = (ownerRouter) => {
         const b = req.body;
 
         const coupon = await prisma.$transaction(async (tx) => {
+          const code = b.code?.trim() ? b.code.trim().toUpperCase() : await buildAffiliateCode(tx, salonId);
           const created = await tx.coupon.create({
             data: {
               salonId,
               branchId: b.branchId || null,
-              code: b.code.trim().toUpperCase(),
+              code,
               title: b.title.trim(),
               description: b.description || null,
               discountType: b.discountType,
@@ -56,6 +92,8 @@ export const registerReferralRoutes = (ownerRouter) => {
             });
           }
 
+          await ensureAffiliateArtifacts(tx, { salonId, partnerId: b.partnerCustomerId || null, code });
+
           return created;
         });
 
@@ -72,12 +110,91 @@ export const registerReferralRoutes = (ownerRouter) => {
     }
   );
 
+  ownerRouter.post(
+    `${prefix}/partners/onboard`,
+    requireSalonPermission("couponsGiftCards", "edit"),
+    validate(schemas.onboardReferralPartner),
+    async (req, res, next) => {
+      try {
+        const salonId = req.salonId;
+        const b = req.body;
+
+        const result = await prisma.$transaction(async (tx) => {
+          let partnerId = b.partnerCustomerId || null;
+          let partner = null;
+
+          if (partnerId) {
+            partner = await tx.customer.findFirst({ where: { id: partnerId, salonId } });
+            if (!partner) throw Object.assign(new Error("Partner customer not found"), { status: 404 });
+          } else {
+            const phone = String(b.phone || "").trim();
+            partner = await tx.customer.findFirst({ where: { salonId, phone } });
+            if (!partner) {
+              partner = await tx.customer.create({
+                data: {
+                  salonId,
+                  branchId: b.branchId || null,
+                  name: b.name.trim(),
+                  phone,
+                  email: b.email || null,
+                  source: "AFFILIATE_PARTNER",
+                  tags: ["AFFILIATE_PARTNER"]
+                }
+              });
+            }
+            partnerId = partner.id;
+          }
+
+          const code = await buildAffiliateCode(tx, salonId);
+          const coupon = await tx.coupon.create({
+            data: {
+              salonId,
+              branchId: b.branchId || null,
+              code,
+              title: b.title?.trim() || `${partner.name} Affiliate Code`,
+              description: b.description || null,
+              discountType: b.discountType,
+              discountValue: toNumber(b.discountValue),
+              minBillAmount: b.minBillAmount != null ? toNumber(b.minBillAmount) : null,
+              usageLimit: b.usageLimit ?? null,
+              customerUsageLimit: b.customerUsageLimit ?? null,
+              startsAt: b.startsAt ? new Date(b.startsAt) : null,
+              endsAt: b.endsAt ? new Date(b.endsAt) : null,
+              isReferral: true,
+              partnerCreditType: b.partnerCreditType,
+              partnerCreditValue: toNumber(b.partnerCreditValue),
+              partnerCustomerId: partnerId,
+              notes: b.notes || "Affiliate partner auto-onboarded"
+            }
+          });
+
+          if (b.categoryIds?.length) {
+            await tx.referralCouponCategory.createMany({
+              data: b.categoryIds.map((categoryId) => ({ couponId: coupon.id, categoryId }))
+            });
+          }
+          if (b.serviceIds?.length) {
+            await tx.referralCouponService.createMany({
+              data: b.serviceIds.map((serviceId) => ({ couponId: coupon.id, serviceId }))
+            });
+          }
+
+          await ensureAffiliateArtifacts(tx, { salonId, partnerId, code });
+
+          return { partner, coupon };
+        });
+
+        res.status(201).json(result);
+      } catch (err) { next(err); }
+    }
+  );
+
   // ──────────────────────────────────────────────────────────────
   // 2. UPDATE REFERRAL COUPON
   // ──────────────────────────────────────────────────────────────
   ownerRouter.patch(
     `${prefix}/coupons/:couponId`,
-    requireSalonPermission("manage_coupons"),
+    requireSalonPermission("couponsGiftCards", "edit"),
     validate(schemas.updateReferralCoupon),
     async (req, res, next) => {
       try {
@@ -131,6 +248,13 @@ export const registerReferralRoutes = (ownerRouter) => {
               });
             }
           }
+
+          const refreshed = await tx.coupon.findUnique({ where: { id: couponId } });
+          await ensureAffiliateArtifacts(tx, {
+            salonId,
+            partnerId: refreshed?.partnerCustomerId || null,
+            code: refreshed?.code || null
+          });
         });
 
         const full = await prisma.coupon.findUnique({
@@ -151,7 +275,7 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.delete(
     `${prefix}/coupons/:couponId`,
-    requireSalonPermission("manage_coupons"),
+    requireSalonPermission("couponsGiftCards", "edit"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;
@@ -181,19 +305,21 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.get(
     `${prefix}/coupons`,
-    requireSalonPermission("manage_coupons"),
+    requireSalonPermission("couponsGiftCards", "edit"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;
-        const { search, includeArchived } = req.query;
+        const { search, includeArchived, branchId } = req.query;
 
         const where = { salonId, isReferral: true };
+        if (branchId) where.OR = [{ branchId: String(branchId) }, { branchId: null }];
         if (includeArchived !== "true") where.isArchived = false;
         if (search) {
-          where.OR = [
+          const searchOr = [
             { code: { contains: search, mode: "insensitive" } },
             { title: { contains: search, mode: "insensitive" } },
           ];
+          where.AND = [...(where.AND || []), { OR: searchOr }];
         }
 
         const coupons = await prisma.coupon.findMany({
@@ -216,7 +342,7 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.post(
     `${prefix}/coupons/validate`,
-    requireSalonPermission("pos_access"),
+    requireSalonPermission("pos", "create"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;
@@ -335,6 +461,8 @@ export const registerReferralRoutes = (ownerRouter) => {
           }
         }
 
+        const ratios = await readAffiliateRatios(prisma, salonId);
+
         res.json({
           coupon: {
             id: coupon.id,
@@ -363,7 +491,7 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.get(
     `${prefix}/wallets/:partnerId`,
-    requireSalonPermission("manage_customers"),
+    requireSalonPermission("customers", "edit"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;
@@ -409,15 +537,17 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.get(
     `${prefix}/wallets`,
-    requireSalonPermission("manage_customers"),
+    requireSalonPermission("customers", "edit"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;
-        const { search } = req.query;
+        const { search, branchId } = req.query;
 
         const where = { salonId };
+        if (branchId) where.partner = { branchId: String(branchId) };
         if (search) {
           where.partner = {
+            ...(where.partner || {}),
             OR: [
               { name: { contains: search, mode: "insensitive" } },
               { phone: { contains: search, mode: "insensitive" } },
@@ -446,7 +576,7 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.post(
     `${prefix}/wallets/:partnerId/redeem-service`,
-    requireSalonPermission("pos_access"),
+    requireSalonPermission("pos", "create"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;
@@ -511,7 +641,7 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.post(
     `${prefix}/wallets/:partnerId/payout`,
-    requireSalonPermission("manage_customers"),
+    requireSalonPermission("customers", "edit"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;
@@ -542,7 +672,8 @@ export const registerReferralRoutes = (ownerRouter) => {
             );
           }
 
-          const cashAmount = credits * CASH_CONVERSION_RATIO;
+          const ratios = await readAffiliateRatios(tx, salonId);
+          const cashAmount = credits * ratios.cash;
           const newBalance = Number(freshWallet.balance) - credits;
 
           await tx.affiliateCreditWallet.update({
@@ -570,7 +701,7 @@ export const registerReferralRoutes = (ownerRouter) => {
               partnerId,
               creditsRedeemed: credits,
               cashAmount,
-              conversionRatio: CASH_CONVERSION_RATIO,
+              conversionRatio: ratios.cash,
               status: "PENDING",
             },
           });
@@ -588,14 +719,15 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.get(
     `${prefix}/payouts`,
-    requireSalonPermission("manage_customers"),
+    requireSalonPermission("customers", "edit"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;
-        const { status, page = 1, limit = 50 } = req.query;
+        const { status, branchId, page = 1, limit = 50 } = req.query;
 
         const where = { salonId };
         if (status) where.status = status;
+        if (branchId) where.partner = { branchId: String(branchId) };
 
         const pageNum = Math.max(1, Number(page));
         const pageSize = Math.min(100, Math.max(1, Number(limit)));
@@ -629,7 +761,7 @@ export const registerReferralRoutes = (ownerRouter) => {
   // ──────────────────────────────────────────────────────────────
   ownerRouter.patch(
     `${prefix}/payouts/:payoutId`,
-    requireSalonPermission("manage_customers"),
+    requireSalonPermission("customers", "edit"),
     async (req, res, next) => {
       try {
         const salonId = req.salonId;

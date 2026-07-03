@@ -441,6 +441,12 @@ export const schemas = {
       couponCode: z.string().max(50).optional(),
       loyaltyPointsUsed: z.number().min(0).max(999999).optional(),
       giftVoucherCode: z.string().max(50).optional(),
+      affiliateCreditRedemptions: z.array(z.object({
+        partnerId: idSchema,
+        amount: z.number().positive().max(9999999),
+        credits: z.number().positive().max(9999999).optional(),
+        note: z.string().max(500).optional()
+      })).max(10).optional(),
       items: z.array(invoiceItemSchema).min(1).max(100),
       packageRedemptions: z.array(packageRedemptionSchema).optional(),
       payments: z.array(z.object({
@@ -1343,7 +1349,7 @@ export const schemas = {
   createReferralCoupon: z.object({
     body: z.object({
       branchId: z.string().nullable().optional(),
-      code: z.string().trim().min(1).max(50),
+      code: z.string().trim().max(50).optional(),
       title: z.string().trim().min(1).max(200),
       description: optionalString,
       discountType: z.enum(["PERCENT", "FIXED"]),
@@ -1359,6 +1365,31 @@ export const schemas = {
       categoryIds: z.array(z.string()).optional(),
       serviceIds: z.array(z.string()).optional(),
       notes: optionalString,
+    })
+  }),
+  onboardReferralPartner: z.object({
+    body: z.object({
+      branchId: z.string().nullable().optional(),
+      partnerCustomerId: z.string().optional().nullable(),
+      name: z.string().trim().min(2).max(200).optional(),
+      phone: optionalString,
+      email: optionalEmailLike,
+      title: z.string().trim().max(200).optional(),
+      description: optionalString,
+      discountType: z.enum(["PERCENT", "FIXED"]).default("PERCENT"),
+      discountValue: z.coerce.number().min(0).max(999999).default(10),
+      minBillAmount: z.coerce.number().min(0).max(9999999).optional().nullable(),
+      usageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
+      customerUsageLimit: z.coerce.number().int().min(1).max(999999).optional().nullable(),
+      startsAt: z.string().optional().nullable(),
+      endsAt: z.string().optional().nullable(),
+      partnerCreditType: z.enum(["PERCENT", "FIXED"]).default("PERCENT"),
+      partnerCreditValue: z.coerce.number().min(0).max(999999).default(5),
+      categoryIds: z.array(z.string()).optional(),
+      serviceIds: z.array(z.string()).optional(),
+      notes: optionalString
+    }).refine((body) => Boolean(body.partnerCustomerId || (body.name && body.phone)), {
+      message: "Select an existing partner or provide partner name and phone"
     })
   }),
   updateReferralCoupon: z.object({

@@ -772,6 +772,31 @@ export const registerBillingRoutes = (ownerRouter) => {
           }
         }
       }
+
+      const affiliateServiceRedemptions = await tx.affiliateCreditTransaction.findMany({
+        where: { invoiceId: invoice.id, type: "REDEEM_SERVICE" }
+      });
+      for (const redemption of affiliateServiceRedemptions) {
+        const creditsToRestore = Number(redemption.amount || 0);
+        if (creditsToRestore <= 0) continue;
+        await tx.affiliateCreditWallet.update({
+          where: { id: redemption.walletId },
+          data: {
+            balance: { increment: creditsToRestore },
+            totalRedeemed: { decrement: creditsToRestore }
+          }
+        });
+        await tx.affiliateCreditTransaction.create({
+          data: {
+            salonId: req.salonId,
+            walletId: redemption.walletId,
+            type: "MANUAL_ADJUSTMENT",
+            amount: creditsToRestore,
+            invoiceId: invoice.id,
+            note: `Restored affiliate service credits from invoice ${invoice.invoiceNumber} cancellation`,
+          },
+        });
+      }
     });
     await attemptCustomerTemplateEmail({
       salonId: req.salonId,
