@@ -134,7 +134,7 @@ export const validate = (schema) => (req, res, next) => {
 
 const permissionMap = z.record(z.array(z.string()));
 const idSchema = z.string().min(8).max(50);
-const optionalString = z.string().max(500).optional();
+const optionalString = z.string().max(500).nullable().optional();
 const normalizeIndianPhone = (value) => {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
