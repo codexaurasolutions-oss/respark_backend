@@ -122,7 +122,6 @@ const STAFF_SELF_SERVICE_DEFAULTS = {
   myAppointments: ["view"],
   mySchedule: ["view"],
   myProfile: ["view", "edit"],
-  myLeaves: ["view", "create"],
   attendance: ["view", "create", "edit"],
   appointments: ["view"],
   customers: ["view"],
