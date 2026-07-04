@@ -1267,7 +1267,8 @@ export const registerOperationsRoutes = (ownerRouter) => {
       const leaveRequests = await prisma.leaveRequest.findMany({
         where: { salonId: req.salonId, userSalonId: member.id, createdAt: { gte: run.periodStart, lte: run.periodEnd } }
       });
-      const item = calculatePayrollItem({
+      const item = await calculatePayrollItem({
+        salonId: req.salonId,
         invoices,
         membershipSales: invoices.filter(i => i.itemType === "MEMBERSHIP").map(i => ({ price: Number(i.lineTotal || 0) })),
         packageSales: invoices.filter(i => i.itemType === "PACKAGE").map(i => ({ price: Number(i.lineTotal || 0) })),

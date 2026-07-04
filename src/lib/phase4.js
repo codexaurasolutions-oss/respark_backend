@@ -422,7 +422,8 @@ export const redeemGiftCardAmount = async ({
   });
 };
 
-export const calculatePayrollItem = ({
+export const calculatePayrollItem = async ({
+  salonId,
   invoices = [],
   membershipSales = [],
   packageSales = [],
@@ -436,8 +437,10 @@ export const calculatePayrollItem = ({
   const incentiveAmount = Math.round((membershipRevenue + packageRevenue) * 0.02);
   const missedCheckouts = attendanceRecords.filter((row) => !row.checkOutAt).length;
   const rejectedLeaves = leaveRequests.filter((row) => row.status === "REJECTED").length;
-  const attendanceDeduction = missedCheckouts * 250;
-  const leaveDeduction = rejectedLeaves * 500;
+  const { getProgramSettings } = await import("./settingsRules.js");
+  const payrollSettings = await getProgramSettings(salonId, "payrollSettings", { attendanceDeductionAmount: 250, leaveDeductionAmount: 500 });
+  const attendanceDeduction = missedCheckouts * toNumber(payrollSettings.attendanceDeductionAmount);
+  const leaveDeduction = rejectedLeaves * toNumber(payrollSettings.leaveDeductionAmount);
   const netAmount = toNumber(baseSalary) + commissionAmount + incentiveAmount - attendanceDeduction - leaveDeduction;
 
   return {

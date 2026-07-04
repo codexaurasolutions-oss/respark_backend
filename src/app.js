@@ -89,9 +89,6 @@ export const createApp = ({
       if (req.path === "/health" || req.path === "/ready" || process.env.DISABLE_RATE_LIMIT === "true") {
         return true;
       }
-      if (req.headers.authorization || req.cookies?.token) {
-        return true;
-      }
       return false;
     },
     handler: (req, res) => {

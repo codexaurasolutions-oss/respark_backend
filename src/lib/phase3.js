@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { prisma } from "./prisma.js";
 import { checkStaffAvailability, createStockMovement, ensureScopedBranch, ensureScopedCustomer, ensureScopedService, ensureScopedStaffMembership, logCustomerTimeline, normalizeBranchId, refreshCustomerInsights, toAmount } from "./phase2.js";
 import { createInvoiceNumber } from "./pos.js";
@@ -389,7 +390,8 @@ export const createOnlineOrder = async ({ salonId, body, actorName = "PUBLIC_STO
     }
 
     const count = await tx.onlineOrder.count({ where: { salonId } });
-    const orderNumber = `ORD-${String(count + 1).padStart(5, "0")}`;
+    const random = crypto.randomBytes(2).toString("hex").toUpperCase();
+    const orderNumber = `ORD-${String(count + 1).padStart(5, "0")}-${random}`;
     const subtotal = body.items.reduce((sum, item) => {
       const product = productMap.get(item.productId);
       return sum + toAmount(product.sellingPrice) * Number(item.qty);

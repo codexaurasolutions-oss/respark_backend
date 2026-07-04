@@ -746,7 +746,7 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         const validityDays = Number(item.validityDays || 365);
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + validityDays);
-        const gcCode = item.gcCode || `GC-${Date.now().toString(36).toUpperCase()}`;
+        const gcCode = item.gcCode || `GC-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
         const gcTitle = item.serviceName || "Gift Card";
         await tx.giftCard.create({
           data: {
