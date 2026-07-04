@@ -407,8 +407,12 @@ export const registerReferralRoutes = (ownerRouter) => {
         }
 
         const now = new Date();
-        if (coupon.startsAt && new Date(coupon.startsAt) > now) {
-          return res.status(400).json({ message: "Coupon is not active yet" });
+        const todayStr = now.toISOString().split("T")[0];
+        if (coupon.startsAt) {
+          const startsDay = new Date(coupon.startsAt).toISOString().split("T")[0];
+          if (startsDay > todayStr) {
+            return res.status(400).json({ message: "Coupon is not active yet" });
+          }
         }
         if (coupon.endsAt && new Date(coupon.endsAt) < now) {
           return res.status(400).json({ message: "Coupon has expired" });
