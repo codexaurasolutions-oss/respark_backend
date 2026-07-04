@@ -134,30 +134,6 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     })));
   });
 
-  // ============ Incentive Report ============
-  ownerRouter.get("/reports/incentive", requireFeatureEnabled("incentives"), requireSalonPermission("incentives", "view"), async (req, res) => {
-    try {
-    const { startDate, endDate } = buildDateRange(req);
-    const payrollItems = await prisma.payrollItem.findMany({
-      where: { payrollRun: { salonId: req.salonId, periodStart: { gte: startDate }, periodEnd: { lte: endDate } } },
-      include: { payrollRun: true, userSalon: { include: { user: true } } },
-      orderBy: { netAmount: "desc" },
-      take: 200
-    });
-    const mapped = payrollItems.map((item, idx) => ({
-      "SR. NO.": idx + 1,
-      "Staff": item.userSalon?.user?.name || "-",
-      "Month": item.payrollRun ? new Date(item.payrollRun.periodStart).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "-",
-      "Revenue Generated": item.baseSalary + item.commissionAmount + item.incentiveAmount,
-      "Commission %": item.payrollRun?.commissionPercent || 0,
-      "Commission Amt": item.commissionAmount,
-      "Bonus": item.incentiveAmount,
-      "Total": item.netAmount
-    }));
-    res.json(appendTotalRow(mapped, "Staff", "TOTAL", ["Revenue Generated", "Commission Amt", "Bonus", "Total"]));
-    } catch (err) { console.error("incentive report error:", err); res.json([]); }
-  });
-
   // ============ Staff Attendance ============
   ownerRouter.get("/reports/staff-attendance", requireFeatureEnabled("attendance"), requireSalonPermission("attendance", "view"), async (req, res) => {
     try {

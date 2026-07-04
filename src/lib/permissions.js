@@ -29,8 +29,6 @@ export const defaultOwnerPermissions = {
   expenses: ["view", "create", "edit", "delete", "approve"],
   attendance: ["view", "create", "edit"],
   leaves: ["view", "create", "edit", "approve"],
-  payroll: ["view", "create", "edit", "approve", "pay"],
-  incentives: ["view", "create", "edit"],
   whatsapp: ["view", "create", "edit"],
   notifications: ["view", "create", "edit"],
   auditLogs: ["view"],
@@ -41,10 +39,7 @@ export const defaultOwnerPermissions = {
   myDashboard: ["view"],
   myAppointments: ["view", "edit"],
   mySchedule: ["view"],
-  myCommission: ["view"],
   myProfile: ["view", "edit"],
   myAttendance: ["view", "create", "edit"],
-  myLeaves: ["view", "create"],
-  myPayroll: ["view"],
-  myPerformance: ["view"]
+  myLeaves: ["view", "create"]
 };

@@ -89,22 +89,6 @@ export const registerMyPageRoutes = (ownerRouter) => {
     });
   });
 
-  ownerRouter.get("/my-commission", requireSalonPermission("myCommission", "view"), async (req, res) => {
-    const ownItems = await prisma.invoiceItem.findMany({
-      where: {
-        invoice: { salonId: req.salonId, status: { in: ["PAID", "PARTIAL"] } },
-        staffUserSalonId: req.user.membershipId
-      },
-      include: { invoice: { include: { customer: true, branch: true } } },
-      orderBy: { invoice: { createdAt: "desc" } }
-    });
-    res.json({
-      totalCommission: ownItems.reduce((sum, item) => sum + toAmount(item.commissionAmount), 0),
-      itemCount: ownItems.length,
-      items: ownItems
-    });
-  });
-
   ownerRouter.get("/my-profile", requireSalonPermission("myProfile", "view"), async (req, res) => {
     const profile = await prisma.userSalon.findFirst({
       where: { id: req.user.membershipId, salonId: req.salonId },

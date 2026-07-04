@@ -53,8 +53,7 @@ const fieldLabelAliases = {
   periodStart: "Period Start",
   periodEnd: "Period End",
   eventKey: "Automation Event",
-  templateType: "Template Type",
-  incentiveAmount: "Incentive Amount"
+  templateType: "Template Type"
 };
 
 const toFieldLabel = (path = []) => {
@@ -1227,29 +1226,6 @@ export const schemas = {
     })
   }),
   leaveStatus: z.object({
-    body: z.object({
-      note: optionalString
-    })
-  }),
-  incentiveRule: z.object({
-    body: z.object({
-      name: z.string().min(2),
-      targetType: z.enum(["SERVICE", "PRODUCT", "MEMBERSHIP", "PACKAGE"]),
-      minTarget: z.number().min(0).optional(),
-      incentiveAmount: z.number().min(0),
-      isActive: z.boolean().optional(),
-      notes: optionalString
-    })
-  }),
-  payrollRun: z.object({
-    body: z.object({
-      branchId: z.string().nullable().optional(),
-      periodStart: requiredDateString,
-      periodEnd: requiredDateString,
-      notes: optionalString
-    })
-  }),
-  payrollStatus: z.object({
     body: z.object({
       note: optionalString
     })

@@ -37,8 +37,6 @@ const defaultFeatureFlags = {
   expenses: false,
   attendance: false,
   leaves: false,
-  payroll: false,
-  incentives: false,
   customerPortal: false,
   publicCatalog: true,
   onlineOrders: false,

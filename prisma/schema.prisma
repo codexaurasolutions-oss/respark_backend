@@ -205,13 +205,6 @@ enum LeaveStatus {
   CANCELLED
 }
 
-enum PayrollStatus {
-  DRAFT
-  CALCULATED
-  APPROVED
-  PAID
-}
-
 enum AttendanceStatus {
   PRESENT
   LATE
@@ -336,9 +329,6 @@ model Salon {
   expenses              Expense[]
   attendanceRecords     AttendanceRecord[]
   leaveRequests         LeaveRequest[]
-  incentiveRules        IncentiveRule[]
-  payrollRuns           PayrollRun[]
-  payrollItems          PayrollItem[]
   notifications         Notification[]
   auditLogs             AuditLog[]
   campaignTemplates     CampaignTemplate[]
@@ -408,12 +398,8 @@ model UserSalon {
   attendanceRecordedBy           AttendanceRecord[]        @relation("AttendanceRecordedBy")
   attendanceManualEdits          AttendanceRecord[]        @relation("AttendanceManualEditedBy")
   leaveRequests                  LeaveRequest[]            @relation("LeaveRequestedBy")
-  leaveApproved                  LeaveRequest[]            @relation("LeaveApprovedBy")
-  incentiveRules                 IncentiveRule[]
-  payrollRunsGenerated           PayrollRun[]              @relation("PayrollGeneratedBy")
-  payrollRunsApproved            PayrollRun[]              @relation("PayrollApprovedBy")
-  payrollItems                   PayrollItem[]
-  notifications                  Notification[]
+   leaveApproved                  LeaveRequest[]            @relation("LeaveApprovedBy")
+   notifications                  Notification[]
   auditLogs                      AuditLog[]
   campaignTemplates              CampaignTemplate[]        @relation("CampaignTemplateCreatedBy")
   campaignConversions            CampaignConversion[]      @relation("CampaignConversionActor")
@@ -522,9 +508,8 @@ model Branch {
   feedback             CustomerFeedback[]
   enquiries            Enquiry[]
   expenses             Expense[]
-  attendanceRecords    AttendanceRecord[]
-  payrollRuns          PayrollRun[]
-  loyaltyRules         LoyaltyRule[]
+   attendanceRecords    AttendanceRecord[]
+   loyaltyRules         LoyaltyRule[]
   coupons              Coupon[]
   packages             Package[]
   shifts               Shift[]
@@ -1905,67 +1890,6 @@ model LeaveRequest {
   salon                  Salon       @relation(fields: [salonId], references: [id])
   userSalon              UserSalon   @relation("LeaveRequestedBy", fields: [userSalonId], references: [id])
   approvedByMembership   UserSalon?  @relation("LeaveApprovedBy", fields: [approvedByMembershipId], references: [id])
-}
-
-model IncentiveRule {
-  id                    String     @id @default(cuid())
-  salonId               String
-  createdByMembershipId String?
-  name                  String
-  targetType            String
-  minTarget             Decimal?   @db.Decimal(10, 2)
-  incentiveAmount       Decimal    @db.Decimal(10, 2)
-  isActive              Boolean    @default(true)
-  notes                 String?
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
-  salon                 Salon      @relation(fields: [salonId], references: [id])
-  createdByMembership   UserSalon? @relation(fields: [createdByMembershipId], references: [id])
-}
-
-model PayrollRun {
-  id                      String        @id @default(cuid())
-  salonId                 String
-  branchId                String?
-  generatedByMembershipId String?
-  approvedByMembershipId  String?
-  periodStart             DateTime
-  periodEnd               DateTime
-  status                  PayrollStatus @default(DRAFT)
-  notes                   String?
-  totalBaseSalary         Decimal       @default(0) @db.Decimal(12, 2)
-  totalCommission         Decimal       @default(0) @db.Decimal(12, 2)
-  totalIncentive          Decimal       @default(0) @db.Decimal(12, 2)
-  totalAdjustments        Decimal       @default(0) @db.Decimal(12, 2)
-  totalNet                Decimal       @default(0) @db.Decimal(12, 2)
-  paidAt                  DateTime?
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
-  salon                   Salon         @relation(fields: [salonId], references: [id])
-  branch                  Branch?       @relation(fields: [branchId], references: [id])
-  generatedByMembership   UserSalon?    @relation("PayrollGeneratedBy", fields: [generatedByMembershipId], references: [id])
-  approvedByMembership    UserSalon?    @relation("PayrollApprovedBy", fields: [approvedByMembershipId], references: [id])
-  items                   PayrollItem[]
-}
-
-model PayrollItem {
-  id                  String     @id @default(cuid())
-  salonId             String
-  payrollRunId        String
-  userSalonId         String
-  baseSalary          Decimal    @default(0) @db.Decimal(12, 2)
-  commissionAmount    Decimal    @default(0) @db.Decimal(12, 2)
-  incentiveAmount     Decimal    @default(0) @db.Decimal(12, 2)
-  adjustmentAmount    Decimal    @default(0) @db.Decimal(12, 2)
-  attendanceDeduction Decimal    @default(0) @db.Decimal(12, 2)
-  leaveDeduction      Decimal    @default(0) @db.Decimal(12, 2)
-  netAmount           Decimal    @default(0) @db.Decimal(12, 2)
-  notes               String?
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
-  salon               Salon      @relation(fields: [salonId], references: [id])
-  payrollRun          PayrollRun @relation(fields: [payrollRunId], references: [id])
-  userSalon           UserSalon  @relation(fields: [userSalonId], references: [id])
 }
 
 model Notification {

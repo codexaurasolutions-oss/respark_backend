@@ -421,35 +421,3 @@ export const redeemGiftCardAmount = async ({
     return { updated, redemption };
   });
 };
-
-export const calculatePayrollItem = async ({
-  salonId,
-  invoices = [],
-  membershipSales = [],
-  packageSales = [],
-  attendanceRecords = [],
-  leaveRequests = [],
-  baseSalary = 0
-}) => {
-  const commissionAmount = invoices.reduce((sum, invoice) => sum + toNumber(invoice.commissionAmount || 0), 0);
-  const membershipRevenue = membershipSales.reduce((sum, row) => sum + toNumber(row.price || 0), 0);
-  const packageRevenue = packageSales.reduce((sum, row) => sum + toNumber(row.price || 0), 0);
-  const incentiveAmount = Math.round((membershipRevenue + packageRevenue) * 0.02);
-  const missedCheckouts = attendanceRecords.filter((row) => !row.checkOutAt).length;
-  const rejectedLeaves = leaveRequests.filter((row) => row.status === "REJECTED").length;
-  const { getProgramSettings } = await import("./settingsRules.js");
-  const payrollSettings = await getProgramSettings(salonId, "payrollSettings", { attendanceDeductionAmount: 250, leaveDeductionAmount: 500 });
-  const attendanceDeduction = missedCheckouts * toNumber(payrollSettings.attendanceDeductionAmount);
-  const leaveDeduction = rejectedLeaves * toNumber(payrollSettings.leaveDeductionAmount);
-  const netAmount = toNumber(baseSalary) + commissionAmount + incentiveAmount - attendanceDeduction - leaveDeduction;
-
-  return {
-    baseSalary: toNumber(baseSalary),
-    commissionAmount,
-    incentiveAmount,
-    adjustmentAmount: 0,
-    attendanceDeduction,
-    leaveDeduction,
-    netAmount
-  };
-};
