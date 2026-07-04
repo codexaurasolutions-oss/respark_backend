@@ -53,7 +53,7 @@ const ensureAffiliateArtifacts = async (tx, { salonId, partnerId, code }) => {
 };
 
 export const registerReferralRoutes = (ownerRouter) => {
-  const prefix = "/owner/referrals";
+  const prefix = "/referrals";
 
   // ──────────────────────────────────────────────────────────────
   // 0. GET NEXT AUTO-GENERATED AFFILIATE CODE
