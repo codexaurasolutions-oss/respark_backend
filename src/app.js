@@ -75,6 +75,17 @@ export const createApp = ({
     exposedHeaders: ["Content-Disposition"]
   }));
 
+  app.use((req, res, next) => {
+    if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+    if (req.path.includes("/auth/login") || req.path.includes("/auth/register")) return next();
+    const origin = req.headers.origin || req.headers.referer;
+    if (!origin) return next();
+    const allowed = (process.env.CORS_ORIGIN || "http://127.0.0.1:5173").split(",").map(s => s.trim());
+    const originUrl = new URL(origin);
+    if (allowed.some(a => originUrl.origin === a || origin.startsWith(a))) return next();
+    return res.status(403).json({ message: "CSRF validation failed" });
+  });
+
   app.use(helmet({
     crossOriginResourcePolicy: false
   }));

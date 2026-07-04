@@ -920,42 +920,50 @@ ownerRouter.get("/customers", requireSalonPermission("customers", "view"), async
   const branchId = normalizeBranchId(req.query.branchId);
   const now = new Date();
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const rows = await prisma.customer.findMany({
-    where: {
-      salonId: req.salonId,
-      ...(branchId ? { branchId } : {}),
-      ...(query ? {
-        OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { phone: { contains: query, mode: "insensitive" } },
-          { email: { contains: query, mode: "insensitive" } },
-          { source: { contains: query, mode: "insensitive" } }
-        ]
-      } : {}),
-      ...(filter === "high_spender" ? { totalSpend: { gte: 10000 } } : {}),
-      ...(filter === "lost_customer" ? { OR: [{ lastVisitAt: null }, { lastVisitAt: { lte: ninetyDaysAgo } }] } : {}),
-      ...(filter === "active_membership" ? { memberships: { some: { status: "ACTIVE", endsAt: { gte: now } } } } : {}),
-      ...(filter === "active_package" ? { packages: { some: { status: "ACTIVE", endsAt: { gte: now } } } } : {})
-    },
-    include: {
-      preferredStaff: { include: { user: true } },
-      invoices: {
-        select: { id: true, balanceAmount: true }
-      },
-      timelineEntries: {
-        where: { eventType: "ADVANCE_PAYMENT" },
-        select: { details: true }
-      },
-      _count: {
-        select: {
-          invoices: true,
-          memberships: true,
-          packages: true
+  const take = Math.min(Number(req.query.take) || 100, 500);
+  const skip = Number(req.query.skip) || 0;
+  const where = {
+    salonId: req.salonId,
+    ...(branchId ? { branchId } : {}),
+    ...(query ? {
+      OR: [
+        { name: { contains: query, mode: "insensitive" } },
+        { phone: { contains: query, mode: "insensitive" } },
+        { email: { contains: query, mode: "insensitive" } },
+        { source: { contains: query, mode: "insensitive" } }
+      ]
+    } : {}),
+    ...(filter === "high_spender" ? { totalSpend: { gte: 10000 } } : {}),
+    ...(filter === "lost_customer" ? { OR: [{ lastVisitAt: null }, { lastVisitAt: { lte: ninetyDaysAgo } }] } : {}),
+    ...(filter === "active_membership" ? { memberships: { some: { status: "ACTIVE", endsAt: { gte: now } } } } : {}),
+    ...(filter === "active_package" ? { packages: { some: { status: "ACTIVE", endsAt: { gte: now } } } } : {})
+  };
+  const [rows, total] = await Promise.all([
+    prisma.customer.findMany({
+      where,
+      include: {
+        preferredStaff: { include: { user: true } },
+        invoices: {
+          select: { id: true, balanceAmount: true }
+        },
+        timelineEntries: {
+          where: { eventType: "ADVANCE_PAYMENT" },
+          select: { details: true }
+        },
+        _count: {
+          select: {
+            invoices: true,
+            memberships: true,
+            packages: true
+          }
         }
-      }
-    },
-    orderBy: { createdAt: "desc" }
-  });
+      },
+      orderBy: { createdAt: "desc" },
+      take,
+      skip
+    }),
+    prisma.customer.count({ where })
+  ]);
 
   // Batch fetch advance-related data: invoice items with type=ADVANCE (to identify advance-deposit invoices)
   // and payments with mode=ADVANCE (to compute used advance per customer)
@@ -1015,7 +1023,7 @@ ownerRouter.get("/customers", requireSalonPermission("customers", "view"), async
       referralCode
     };
   });
-  res.json(mapped);
+  res.json({ data: mapped, total });
 });
 ownerRouter.post("/customers", requireSalonPermission("customers", "create"), validate(schemas.customer), async (req, res) => {
   const plan = await getActivePlanForSalon(req.salonId);

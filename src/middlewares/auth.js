@@ -11,8 +11,6 @@ export const authMiddleware = async (req, res, next) => {
     const header = req.headers.authorization;
     if (header && header.startsWith("Bearer ")) {
       token = header.slice(7);
-    } else if (req.query.token) {
-      token = req.query.token;
     }
     if (!token) return res.status(401).json({ message: "Authentication required" });
     const decoded = verifyAccessToken(token);

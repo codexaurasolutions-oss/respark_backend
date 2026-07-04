@@ -184,7 +184,7 @@ export const registerBillingRoutes = (ownerRouter) => {
   }, async (req, res) => {
     const branchId = normalizeBranchId(req.query.branchId);
     const params = branchId ? { OR: [{ branchId }, { branchId: null }] } : {};
-    const [customers, branches, services, staffUsers, products, memberships, packages, coupons, giftCards, settings, advanceTimeline] = await Promise.all([
+    const [customers, branches, services, staffUsers, products, memberships, packages, coupons, giftCards, settings] = await Promise.all([
       prisma.customer.findMany({
         where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) }, 
         orderBy: { createdAt: "desc" },
@@ -237,14 +237,10 @@ export const registerBillingRoutes = (ownerRouter) => {
         },
         orderBy: { createdAt: "desc" }
       }),
-      prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: branchId || null } }),
-      prisma.customerTimeline.findMany({
-        where: { customerId: { in: [] }, eventType: "ADVANCE_PAYMENT" },
-        select: { customerId: true, details: true }
-      })
+      prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: branchId || null } })
     ]);
 
-    // Refetch advance timeline for all customers
+    // Fetch advance timeline for all customers
     const allAdvanceEntries = await prisma.customerTimeline.findMany({
       where: { customerId: { in: customers.map(c => c.id) }, eventType: "ADVANCE_PAYMENT" },
       select: { customerId: true, details: true }
@@ -346,6 +342,8 @@ export const registerBillingRoutes = (ownerRouter) => {
     const status = String(req.query.status || "").trim();
     const startDate = req.query.startDate;
     const endDate = req.query.endDate;
+    const take = Math.min(Number(req.query.take) || 100, 500);
+    const skip = Number(req.query.skip) || 0;
     const dateFilter = {};
     if (startDate) dateFilter.gte = new Date(startDate);
     if (endDate) {
@@ -353,26 +351,32 @@ export const registerBillingRoutes = (ownerRouter) => {
       end.setHours(23, 59, 59, 999);
       dateFilter.lte = end;
     }
-    const result = await prisma.invoice.findMany({
-      where: {
-        ...withBranchFilter(req.salonId, branchId, req),
-        ...(status ? { status } : {}),
-        ...(Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {}),
-        ...(q ? {
-          OR: [
-            { invoiceNumber: { contains: q } },
-            { customer: { is: { name: { contains: q } } } }
-          ]
-        } : {})
-      },
-      include: {
-        customer: { select: { id: true, name: true, phone: true } },
-        items: true,
-        payments: true
-      },
-      orderBy: { createdAt: "desc" }
-    });
-    res.json(result);
+    const where = {
+      ...withBranchFilter(req.salonId, branchId, req),
+      ...(status ? { status } : {}),
+      ...(Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {}),
+      ...(q ? {
+        OR: [
+          { invoiceNumber: { contains: q } },
+          { customer: { is: { name: { contains: q } } } }
+        ]
+      } : {})
+    };
+    const [result, total] = await Promise.all([
+      prisma.invoice.findMany({
+        where,
+        include: {
+          customer: { select: { id: true, name: true, phone: true } },
+          items: true,
+          payments: true
+        },
+        orderBy: { createdAt: "desc" },
+        take,
+        skip
+      }),
+      prisma.invoice.count({ where })
+    ]);
+    res.json({ data: result, total });
   });
 
 
@@ -875,22 +879,31 @@ export const registerBillingRoutes = (ownerRouter) => {
     const q = String(req.query.q || "").trim();
     const mode = String(req.query.mode || "").trim();
     const type = String(req.query.type || "").trim();
-    res.json(await prisma.payment.findMany({
-      where: {
-        ...paymentWhere(req.salonId, branchId, req),
-        ...(mode ? { mode } : {}),
-        ...(type ? { type } : {}),
-        ...(q ? {
-          OR: [
-            { note: { contains: q } },
-            { invoice: { is: { invoiceNumber: { contains: q } } } },
-            { invoice: { is: { customer: { is: { name: { contains: q } } } } } }
-          ]
-        } : {})
-      },
-      include: { invoice: { include: { customer: true, branch: true } } },
-      orderBy: { createdAt: "desc" }
-    }));
+    const take = Math.min(Number(req.query.take) || 100, 500);
+    const skip = Number(req.query.skip) || 0;
+    const where = {
+      ...paymentWhere(req.salonId, branchId, req),
+      ...(mode ? { mode } : {}),
+      ...(type ? { type } : {}),
+      ...(q ? {
+        OR: [
+          { note: { contains: q } },
+          { invoice: { is: { invoiceNumber: { contains: q } } } },
+          { invoice: { is: { customer: { is: { name: { contains: q } } } } } }
+        ]
+      } : {})
+    };
+    const [result, total] = await Promise.all([
+      prisma.payment.findMany({
+        where,
+        include: { invoice: { include: { customer: true, branch: true } } },
+        orderBy: { createdAt: "desc" },
+        take,
+        skip
+      }),
+      prisma.payment.count({ where })
+    ]);
+    res.json({ data: result, total });
   });
 
   ownerRouter.post("/invoices/:id/payment-link", requireSalonPermission("payments", "edit"), validate(schemas.paymentLink), async (req, res) => {

@@ -109,27 +109,36 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     const customerId = req.query.customerId ? String(req.query.customerId) : null;
     const from = req.query.from ? new Date(String(req.query.from)) : null;
     const to = req.query.to ? new Date(String(req.query.to)) : null;
-    res.json(await prisma.appointment.findMany({
-      where: {
-        ...buildAppointmentScope(req, branchId),
-        ...(status ? { status } : {}),
-        ...(bookingChannel ? { bookingChannel } : {}),
-        ...(customerId ? { customerId } : {}),
-        ...((from || to) ? {
-          startAt: {
-            ...(from ? { gte: from } : {}),
-            ...(to ? { lte: to } : {})
-          }
-        } : {})
-      },
-      include: {
-        customer: true,
-        branch: true,
-        primaryStaff: { include: { user: true } },
-        items: { include: { service: true, assignedStaff: { include: { userSalon: { include: { user: true } } } } } }
-      },
-      orderBy: { startAt: "asc" }
-    }));
+    const take = Math.min(Number(req.query.take) || 100, 500);
+    const skip = Number(req.query.skip) || 0;
+    const where = {
+      ...buildAppointmentScope(req, branchId),
+      ...(status ? { status } : {}),
+      ...(bookingChannel ? { bookingChannel } : {}),
+      ...(customerId ? { customerId } : {}),
+      ...((from || to) ? {
+        startAt: {
+          ...(from ? { gte: from } : {}),
+          ...(to ? { lte: to } : {})
+        }
+      } : {})
+    };
+    const [result, total] = await Promise.all([
+      prisma.appointment.findMany({
+        where,
+        include: {
+          customer: true,
+          branch: true,
+          primaryStaff: { include: { user: true } },
+          items: { include: { service: true, assignedStaff: { include: { userSalon: { include: { user: true } } } } } }
+        },
+        orderBy: { startAt: "asc" },
+        take,
+        skip
+      }),
+      prisma.appointment.count({ where })
+    ]);
+    res.json({ data: result, total });
   });
 
   ownerRouter.get("/appointments/calendar", requireFeatureEnabled("appointments"), requireSalonPermission("appointments", "view"), async (req, res) => {

@@ -171,16 +171,25 @@ export const registerInventoryRoutes = (ownerRouter) => {
     const branchId = normalizeBranchId(req.query.branchId);
     const productId = req.query.productId ? String(req.query.productId) : null;
     const movementType = req.query.movementType ? String(req.query.movementType) : null;
-    res.json(await prisma.stockMovement.findMany({
-      where: {
-        salonId: req.salonId,
-        ...(branchId ? { branchId } : {}),
-        ...(productId ? { productId } : {}),
-        ...(movementType ? { movementType } : {})
-      },
-      include: { product: true },
-      orderBy: { createdAt: "desc" }
-    }));
+    const take = Math.min(Number(req.query.take) || 100, 500);
+    const skip = Number(req.query.skip) || 0;
+    const where = {
+      salonId: req.salonId,
+      ...(branchId ? { branchId } : {}),
+      ...(productId ? { productId } : {}),
+      ...(movementType ? { movementType } : {})
+    };
+    const [result, total] = await Promise.all([
+      prisma.stockMovement.findMany({
+        where,
+        include: { product: true },
+        orderBy: { createdAt: "desc" },
+        take,
+        skip
+      }),
+      prisma.stockMovement.count({ where })
+    ]);
+    res.json({ data: result, total });
   });
 
   ownerRouter.get("/inventory/low-stock", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "view"), async (req, res) => {
