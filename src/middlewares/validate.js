@@ -1075,10 +1075,11 @@ export const schemas = {
       customerId: z.string().nullable().optional(),
       soldInvoiceId: z.string().nullable().optional(),
       linkedCampaignId: z.string().nullable().optional(),
+      branchId: z.string().nullable().optional(),
       code: z.string().trim().min(2).max(50),
       title: z.string().trim().min(2).max(200),
-      originalAmount: z.number().positive().max(9999999),
-      balanceAmount: z.number().min(0).max(9999999).optional(),
+      originalAmount: z.coerce.number().positive().max(9999999),
+      balanceAmount: z.coerce.number().min(0).max(9999999).optional(),
       expiresAt: optionalDateString,
       isActive: z.boolean().optional(),
       note: z.string().max(500).optional()

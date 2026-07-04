@@ -1657,7 +1657,7 @@ ownerRouter.delete("/settings/tax-rates/:id", requireSalonPermission("settings",
   res.json({ success: true });
 });
 
-ownerRouter.post("/settings/crm-segment-preview", requireSalonPermission("settings", "view"), async (req, res) => {
+ownerRouter.post("/settings/crm-segment-preview", async (req, res) => {
   const segments = req.body.segments || [];
   const preview = {};
   for (const segment of segments) {
