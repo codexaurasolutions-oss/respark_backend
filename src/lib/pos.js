@@ -170,7 +170,9 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       }
 
       let unitPrice = item.unitPrice != null ? toAmount(item.unitPrice) : toAmount(service.price);
-      if (!allowPriceEdit && unitPrice !== toAmount(service.price)) {
+      const isPackageRedemption = (body.packageRedemptions || []).some((pr) => pr.serviceId === item.serviceId);
+      const isDiscounted = toAmount(item.discountAmt) > 0 || toAmount(item.discountPct) > 0;
+      if (!allowPriceEdit && unitPrice !== toAmount(service.price) && !isPackageRedemption && !isDiscounted) {
         const error = new Error("Price edits on the bill are restricted by salon settings");
         error.status = 400;
         throw error;
