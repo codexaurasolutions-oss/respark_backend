@@ -1544,7 +1544,9 @@ model GlobalSetting {
   supportEmail         String?
   notificationEmail    String?
   termsUrl             String?
+  termsContent         String?
   privacyUrl           String?
+  privacyContent       String?
   demoBookingUrl       String?
   blogTitle            String?
   blogIntro            String?
