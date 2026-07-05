@@ -29,6 +29,8 @@ ownerRouter.use(requireAuth, requireMaintenanceAccess, requireSalonContext, asyn
         return res.status(403).json({ message: "No branch assigned. Contact your salon owner." });
       }
     }
+    const merged = { ...STAFF_SELF_SERVICE_DEFAULTS, ...(req.user.permissions || {}) };
+    req.user.permissions = merged;
     req.query.branchId = req.user.branchId;
     req.branchId = req.user.branchId;
     if (req.body && typeof req.body === "object") {
