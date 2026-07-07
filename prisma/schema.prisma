@@ -557,6 +557,7 @@ model Service {
   nonDiscountable        Boolean                  @default(false)
   serviceTag             String?
   serviceRemainderDays   Int                      @default(0)
+  imageUrl               String?
   createdAt              DateTime                 @default(now())
   salon                  Salon                    @relation(fields: [salonId], references: [id])
   branch                 Branch?                  @relation(fields: [branchId], references: [id])

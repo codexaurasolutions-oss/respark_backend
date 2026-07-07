@@ -321,6 +321,7 @@ export const schemas = {
       nonDiscountable: z.boolean().optional(),
       serviceTag: z.string().max(100).optional(),
       serviceRemainderDays: z.number().int().min(0).max(365).optional(),
+      imageUrl: z.string().max(2000).optional().nullable(),
       consumables: z.array(z.object({ productId: z.string().max(50), reqdQty: z.number().min(0).max(9999) })).max(50).optional(),
       taxes: z.array(z.object({ name: z.string().trim().min(1).max(100), rate: z.number().min(0).max(100) })).max(20).optional()
     })
