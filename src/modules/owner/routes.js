@@ -21,7 +21,7 @@ const upload = multer({ limits: { fileSize: 5 * 1024 * 1024 } });
 ownerRouter.use(requireAuth, requireMaintenanceAccess, requireSalonContext, async (req, res, next) => {
   if (req.user?.salonRole && req.user.salonRole !== "SALON_OWNER") {
     if (!req.user.branchId) {
-      const firstBranch = await prisma.branch.findFirst({ where: { salonId: req.user.salonId, isArchived: false }, orderBy: { createdAt: "asc" } });
+      const firstBranch = await prisma.branch.findFirst({ where: { salonId: req.user.salonId, isActive: true }, orderBy: { createdAt: "asc" } });
       if (firstBranch) {
         await prisma.userSalon.update({ where: { id: req.user.membershipId }, data: { branchId: firstBranch.id } });
         req.user.branchId = firstBranch.id;
@@ -184,7 +184,7 @@ const createLoginUserForSalon = async (salonId, payload) => {
 
   let branchId = normalizeBranchId(rawBranchId);
   if (!branchId) {
-    const firstBranch = await prisma.branch.findFirst({ where: { salonId, isArchived: false }, orderBy: { createdAt: "asc" } });
+    const firstBranch = await prisma.branch.findFirst({ where: { salonId, isActive: true }, orderBy: { createdAt: "asc" } });
     if (firstBranch) branchId = firstBranch.id;
   }
   if (branchId) await ensureBranch(salonId, branchId);
@@ -1368,7 +1368,7 @@ ownerRouter.patch("/users/:id", requireSalonPermission("staff", "edit"), validat
   }
   let branchId = req.body.branchId === null ? null : normalizeBranchId(req.body.branchId ?? row.branchId);
   if (!branchId) {
-    const firstBranch = await prisma.branch.findFirst({ where: { salonId: req.salonId, isArchived: false }, orderBy: { createdAt: "asc" } });
+    const firstBranch = await prisma.branch.findFirst({ where: { salonId: req.salonId, isActive: true }, orderBy: { createdAt: "asc" } });
     if (firstBranch) branchId = firstBranch.id;
   }
   const customRoleId = req.body.customRoleId === null ? null : (req.body.customRoleId ?? row.customRoleId ?? null);
