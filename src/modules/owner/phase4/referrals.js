@@ -396,14 +396,14 @@ export const registerReferralRoutes = (ownerRouter) => {
         }
 
         const coupon = await prisma.coupon.findFirst({
-          where: { salonId, code: code.trim().toUpperCase(), isReferral: true, isArchived: false },
+          where: { salonId, code: code.trim().toUpperCase(), isArchived: false },
           include: {
             eligibleCategories: true,
             eligibleServices: true,
           },
         });
         if (!coupon) {
-          return res.status(404).json({ message: "Referral coupon not found" });
+          return res.status(404).json({ message: "Coupon not found" });
         }
 
         const now = new Date();
