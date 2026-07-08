@@ -28,14 +28,14 @@ export const requireFeatureEnabled = (featureKey) => (req, res, next) => {
 };
 
 export const requireSalonContext = (req, res, next) => {
-  if (req.user.systemRole === "SUPER_ADMIN") return next();
+  if (req.user.systemRole === "SUPER_ADMIN" || req.user.salonRole === "SALON_OWNER") return next();
   if (!req.user.salonId) return res.status(403).json({ message: "Salon context required" });
   req.salonId = req.user.salonId;
   next();
 };
 
 export const requireMaintenanceAccess = async (req, res, next) => {
-  if (req.user?.systemRole === "SUPER_ADMIN") return next();
+  if (req.user?.systemRole === "SUPER_ADMIN" || req.user?.salonRole === "SALON_OWNER") return next();
   const settings = await prisma.globalSetting.findFirst();
   if (settings?.maintenanceMode) {
     return res.status(503).json({ message: "System is in maintenance mode" });
