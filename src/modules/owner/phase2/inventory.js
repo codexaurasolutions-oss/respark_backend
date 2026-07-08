@@ -87,6 +87,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
         costPrice: req.body.costPrice,
         sellingPrice: req.body.sellingPrice,
         salePrice: req.body.salePrice ?? null,
+        currentStock: req.body.currentStock || 0,
         minStock: req.body.minStock || 0,
         expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
         allowNegativeStock: Boolean(req.body.allowNegativeStock),

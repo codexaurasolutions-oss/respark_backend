@@ -597,6 +597,7 @@ export const schemas = {
       costPrice: z.number().min(0),
       sellingPrice: z.number().min(0),
       salePrice: z.number().min(0).optional(),
+      currentStock: z.number().min(0).optional(),
       minStock: z.number().min(0).optional(),
       expiryDate: optionalDateString,
       allowNegativeStock: z.boolean().optional(),
