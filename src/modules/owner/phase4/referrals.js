@@ -16,15 +16,20 @@ const readAffiliateRatios = async (tx, salonId) => {
 };
 
 const buildAffiliateCode = async (tx, salonId) => {
-  const coupons = await tx.coupon.findMany({
-    where: { salonId, code: { startsWith: "A", mode: "insensitive" } },
-    select: { code: true }
-  });
-  const max = coupons.reduce((highest, row) => {
-    const match = String(row.code || "").match(/^A(\d+)$/i);
-    return match ? Math.max(highest, Number(match[1])) : highest;
-  }, 0);
-  return `A${max + 1}`;
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code;
+  let exists = true;
+  while (exists) {
+    code = "";
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const existing = await tx.coupon.findUnique({
+      where: { salonId_code: { salonId, code } }
+    }).catch(() => null);
+    if (!existing) exists = false;
+  }
+  return code;
 };
 
 const normalizePhone = (value) => {
