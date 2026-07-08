@@ -834,7 +834,7 @@ export const registerOperationsRoutes = (ownerRouter) => {
     }
   });
   const requireSelfAttendancePermission = (action) => (req, res, next) => {
-    if (req.user.systemRole === "SUPER_ADMIN" || req.user.systemRole === "SALON_OWNER") return next();
+    if (req.user.systemRole === "SUPER_ADMIN" || req.user.systemRole === "SALON_OWNER" || req.user.salonRole === "SALON_OWNER") return next();
     const perms = req.user.permissions || {};
     if (perms["attendance"]?.includes(action) || perms["myAttendance"]?.includes(action)) return next();
     return res.status(403).json({ message: `No permission: attendance.${action}` });

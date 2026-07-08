@@ -49,7 +49,8 @@ uploadRouter.post("/", (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ message: "No image file provided" });
     }
-    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+    const fileUrl = `${proto}://${req.get("host")}/uploads/${req.file.filename}`;
     res.json({ url: fileUrl });
   });
 });
