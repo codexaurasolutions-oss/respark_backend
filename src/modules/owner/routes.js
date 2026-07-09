@@ -65,15 +65,6 @@ const paymentWhere = (salonId, branchId, req) => {
   return { salonId, invoice: { is: branchFilter } };
 };
 
-const getActivePlanForSalon = async (salonId) => {
-  const subscription = await prisma.subscription.findFirst({
-    where: { salonId, status: { in: ["ACTIVE", "TRIAL"] } },
-    include: { plan: true },
-    orderBy: { endsAt: "desc" }
-  });
-  return subscription?.plan || null;
-};
-
 const ensureBranch = async (salonId, branchId) => {
   if (!branchId) return null;
   const branch = await prisma.branch.findFirst({ where: { id: branchId, salonId, isActive: true } });
@@ -172,14 +163,6 @@ const createLoginUserForSalon = async (salonId, payload) => {
   if (phone) {
     const existingPhone = await prisma.userSalon.findFirst({ where: { salonId, phone, isArchived: false } });
     if (existingPhone) return { status: 400, body: { message: "Another staff member already uses this phone number" } };
-  }
-
-  const plan = await getActivePlanForSalon(salonId);
-  if (plan) {
-    const userCount = await prisma.userSalon.count({ where: { salonId } });
-    if (userCount >= plan.userLimit) {
-      return { status: 403, body: { message: "User limit reached for current plan" } };
-    }
   }
 
   let branchId = normalizeBranchId(rawBranchId);
@@ -1034,13 +1017,6 @@ ownerRouter.get("/customers", requireSalonPermission("customers", "view"), async
   res.json({ data: mapped, total });
 });
 ownerRouter.post("/customers", requireSalonPermission("customers", "create"), validate(schemas.customer), async (req, res) => {
-  const plan = await getActivePlanForSalon(req.salonId);
-  if (plan) {
-    const customerCount = await prisma.customer.count({ where: { salonId: req.salonId } });
-    if (customerCount >= plan.customerLimit) {
-      return res.status(403).json({ message: "Customer limit reached for current plan" });
-    }
-  }
   const duplicate = await prisma.customer.findFirst({ where: { salonId: req.salonId, phone: req.body.phone } });
   if (duplicate) return res.status(400).json({ message: "Customer with this phone already exists in this salon" });
   if (req.body.branchId) await ensureBranch(req.salonId, req.body.branchId);
