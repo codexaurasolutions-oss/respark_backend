@@ -28,7 +28,11 @@ export const requireFeatureEnabled = (featureKey) => (req, res, next) => {
 };
 
 export const requireSalonContext = (req, res, next) => {
-  if (req.user.systemRole === "SUPER_ADMIN" || req.user.salonRole === "SALON_OWNER") return next();
+  if (req.user.systemRole === "SUPER_ADMIN") return next();
+  if (req.user.salonRole === "SALON_OWNER") {
+    req.salonId = req.user.salonId;
+    return next();
+  }
   if (!req.user.salonId) return res.status(403).json({ message: "Salon context required" });
   req.salonId = req.user.salonId;
   next();
