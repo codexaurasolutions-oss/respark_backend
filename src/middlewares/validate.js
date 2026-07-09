@@ -394,13 +394,13 @@ export const schemas = {
       permissions: permissionMap.optional(),
       joiningDate: optionalDateString,
       designation: z.string().trim().max(100).optional(),
-      uanNumber: z.string().trim().regex(/^\d{12}$/, "UAN must be exactly 12 digits").optional().or(z.literal("")),
+      uanNumber: z.string().trim().optional().or(z.literal("")),
       reportingToId: z.string().optional(),
       workingHours: z.string().trim().max(100).optional(),
       bankName: z.string().trim().max(200).optional(),
       bankBranch: z.string().trim().max(200).optional(),
-      accountNumber: z.string().trim().regex(/^\d{9,18}$/, "Account number must be 9-18 digits").optional().or(z.literal("")),
-      ifscCode: z.string().trim().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code format").optional().or(z.literal(""))
+      accountNumber: z.string().trim().optional().or(z.literal("")),
+      ifscCode: z.string().trim().optional().or(z.literal(""))
     })
   }),
   userMembershipUpdate: z.object({
@@ -420,13 +420,13 @@ export const schemas = {
       permissions: permissionMap.optional(),
       joiningDate: optionalDateString,
       designation: z.string().trim().max(100).optional(),
-      uanNumber: z.string().trim().regex(/^\d{12}$/, "UAN must be exactly 12 digits").optional().or(z.literal("")),
+      uanNumber: z.string().trim().optional().or(z.literal("")),
       reportingToId: z.string().nullable().optional(),
       workingHours: z.string().trim().max(100).optional(),
       bankName: z.string().trim().max(200).optional(),
       bankBranch: z.string().trim().max(200).optional(),
-      accountNumber: z.string().trim().regex(/^\d{9,18}$/, "Account number must be 9-18 digits").optional().or(z.literal("")),
-      ifscCode: z.string().trim().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC code format").optional().or(z.literal(""))
+      accountNumber: z.string().trim().optional().or(z.literal("")),
+      ifscCode: z.string().trim().optional().or(z.literal(""))
     }).refine((body) => Object.keys(body).length > 0, { message: "At least one field is required" })
   }),
   invoice: z.object({
@@ -1394,3 +1394,4 @@ export const schemas = {
     })
   })
 };
+
