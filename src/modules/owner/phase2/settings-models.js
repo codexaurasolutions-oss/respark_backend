@@ -15,7 +15,7 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
   ownerRouter.get("/shifts", requireFeatureEnabled("inventory"), requireSalonPermission("settings", "view"), async (req, res) => {
     const branchId = req.query.branchId ? String(req.query.branchId) : null;
     const shifts = await prisma.shift.findMany({
-      where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) },
+      where: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
       include: { days: true, breaks: true },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
     });
@@ -50,7 +50,7 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
   ownerRouter.patch("/shifts/:id", requireFeatureEnabled("inventory"), requireSalonPermission("settings", "edit"), async (req, res) => {
     const shift = await prisma.shift.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!shift) return res.status(404).json({ message: "Shift not found" });
-    const { name, active, sameForAllDays, startTime, endTime, breakLabel, sortOrder, days, breaks } = req.body;
+    const { name, active, sameForAllDays, startTime, endTime, breakLabel, sortOrder, days, breaks, branchId } = req.body;
     const updated = await prisma.$transaction(async (tx) => {
       if (days !== undefined) {
         await tx.shiftDay.deleteMany({ where: { shiftId: shift.id } });
@@ -87,7 +87,8 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
           ...(startTime !== undefined ? { startTime: sameForAllDays ? startTime : null } : {}),
           ...(endTime !== undefined ? { endTime: sameForAllDays ? endTime : null } : {}),
           ...(breakLabel !== undefined ? { breakLabel } : {}),
-          ...(sortOrder !== undefined ? { sortOrder } : {})
+          ...(sortOrder !== undefined ? { sortOrder } : {}),
+          ...(branchId !== undefined ? { branchId: branchId || null } : {})
         },
         include: { days: true, breaks: true }
       });
