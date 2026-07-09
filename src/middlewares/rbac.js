@@ -27,15 +27,26 @@ export const requireFeatureEnabled = (featureKey) => (req, res, next) => {
   next();
 };
 
-export const requireSalonContext = (req, res, next) => {
+export const requireSalonContext = async (req, res, next) => {
   if (req.user.systemRole === "SUPER_ADMIN") return next();
   if (req.user.salonRole === "SALON_OWNER") {
     req.salonId = req.user.salonId;
     return next();
   }
-  if (!req.user.salonId) return res.status(403).json({ message: "Salon context required" });
-  req.salonId = req.user.salonId;
-  next();
+  if (req.user.salonId) {
+    req.salonId = req.user.salonId;
+    return next();
+  }
+  const ownerMembership = await prisma.userSalon.findFirst({
+    where: { userId: req.user.id, salonRole: "SALON_OWNER", isArchived: false },
+    select: { salonId: true }
+  });
+  if (ownerMembership) {
+    req.salonId = ownerMembership.salonId;
+    req.user.salonRole = "SALON_OWNER";
+    return next();
+  }
+  return res.status(403).json({ message: "Salon context required" });
 };
 
 export const requireMaintenanceAccess = async (req, res, next) => {
