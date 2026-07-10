@@ -584,7 +584,7 @@ superAdminRouter.post("/support-tickets/:id/messages", asyncHandler(async (req, 
 }));
 superAdminRouter.get("/settings", asyncHandler(async (req, res) => {
   const settings = await prisma.globalSetting.findFirst();
-  res.json(settings || { maintenanceMode: false, invoicePrefix: "INV", systemName: "ReSpark Clone SaaS" });
+  res.json(settings || { maintenanceMode: false, invoicePrefix: "INV", systemName: "Skillify Clone SaaS" });
 }));
 superAdminRouter.post("/settings", asyncHandler(async (req, res) => {
   const {

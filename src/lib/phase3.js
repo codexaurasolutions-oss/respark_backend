@@ -575,7 +575,7 @@ export const convertOrderToInvoice = async ({ salonId, orderId, actorUser }) => 
 
 const templateFallbacks = {
   customer_name: "Customer",
-  salon_name: "ReSpark Salon",
+  salon_name: "Skillify Salon",
   appointment_date_time: "N/A",
   invoice_amount: "0.00",
   membership_expiry: "N/A",
