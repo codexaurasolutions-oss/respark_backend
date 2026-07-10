@@ -488,7 +488,7 @@ model Branch {
   weeklyOff            String?
   latitude             Decimal?              @db.Decimal(10, 7)
   longitude            Decimal?              @db.Decimal(10, 7)
-  geofenceRadiusMeters Int?                  @default(75)
+  geofenceRadiusMeters Int?                  @default(200)
   isActive             Boolean               @default(true)
   createdAt            DateTime              @default(now())
   salon                Salon                 @relation(fields: [salonId], references: [id])

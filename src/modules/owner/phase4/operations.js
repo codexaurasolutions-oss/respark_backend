@@ -66,7 +66,7 @@ const parseTimeOnDate = (dateValue, timeValue) => {
   return base;
 };
 const roundMinutesDiff = (startAt, endAt) => Math.max(0, Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60000));
-const toDecimalNumber = (value) => value == null ? null : Number(value);
+const toDecimalNumber = (value) => value == null ? null : parseFloat(String(value));
 const haversineDistanceMeters = (lat1, lon1, lat2, lon2) => {
   const toRadians = (value) => (value * Math.PI) / 180;
   const earthRadius = 6371000;
