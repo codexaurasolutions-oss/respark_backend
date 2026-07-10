@@ -98,7 +98,7 @@ const resolveAttendanceStatus = ({ attendanceDate, checkInAt, checkOutAt, worked
 const validateGeofence = ({ branch, latitude, longitude }) => {
   const branchLatitude = toDecimalNumber(branch?.latitude);
   const branchLongitude = toDecimalNumber(branch?.longitude);
-  const radius = Number(branch?.geofenceRadiusMeters || 75);
+  const radius = Number(branch?.geofenceRadiusMeters || 200);
   if (branchLatitude == null || branchLongitude == null || (Number(branchLatitude) === 0 && Number(branchLongitude) === 0)) {
     return { distance: 0, geoStatus: "SKIPPED" };
   }
@@ -877,7 +877,7 @@ export const registerOperationsRoutes = (ownerRouter) => {
         latitude: req.body.latitude,
         longitude: req.body.longitude
       });
-      if (geoStatus === "OUTSIDE") return res.status(400).json({ message: "You are outside the salon premises." });
+      if (geoStatus === "OUTSIDE") return res.status(400).json({ message: `You are ${Math.round(distance)}m from the salon. Allowed radius: ${Math.round(Number(membership.branch?.geofenceRadiusMeters || 200))}m. Please move closer.` });
       const now = new Date();
       const created = await prisma.attendanceRecord.create({
         data: {
@@ -979,7 +979,7 @@ export const registerOperationsRoutes = (ownerRouter) => {
         latitude: req.body.latitude,
         longitude: req.body.longitude
       });
-      if (geoStatus === "OUTSIDE") return res.status(400).json({ message: "You are outside the salon premises." });
+      if (geoStatus === "OUTSIDE") return res.status(400).json({ message: `You are ${Math.round(distance)}m from the salon. Allowed radius: ${Math.round(Number(membership.branch?.geofenceRadiusMeters || 200))}m. Please move closer.` });
       const checkOutAt = new Date();
       if (new Date(checkOutAt) <= new Date(row.checkInAt)) return res.status(400).json({ message: "Check-out time cannot be before check-in time." });
       const workedMinutes = roundMinutesDiff(row.checkInAt, checkOutAt);
