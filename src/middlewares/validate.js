@@ -143,28 +143,32 @@ const normalizeIndianPhone = (value) => {
   else if (digits.startsWith("0") && digits.length === 11) digits = digits.slice(1);
   return `+91${digits}`;
 };
+const isValidPhone = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return false;
+  const digits = raw.replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 15;
+};
 const indianPhoneSchema = z.string().trim()
-  .transform(normalizeIndianPhone)
-  .refine((value) => /^\+91\d{10}$/.test(value), "Enter a valid 10-digit Indian phone number");
+  .refine((value) => isValidPhone(value), "Enter a valid phone number (10-15 digits)");
 const requiredIndianPhoneSchema = z.string().trim()
   .min(5, "Phone must be at least 5 characters")
-  .transform(normalizeIndianPhone)
-  .refine((value) => /^\+91\d{10}$/.test(value), "Enter a valid 10-digit Indian phone number");
+  .refine((value) => isValidPhone(value), "Enter a valid phone number (10-15 digits)");
 const optionalIndianPhoneSchema = z.union([z.literal(""), indianPhoneSchema]).optional()
   .transform((value) => value || undefined);
 const vendorPhoneSchema = z.string().trim().refine(
-  (value) => /^\+91\d{10}$/.test(value),
-  "Enter a valid +91 mobile number with 10 digits"
+  (value) => isValidPhone(value),
+  "Enter a valid phone number (10-15 digits)"
 );
 const optionalVendorPhoneSchema = z.union([z.literal(""), vendorPhoneSchema]).optional()
   .transform((value) => value || undefined);
 const emailOrIndianPhoneSchema = z.string().trim().transform((value) => (
-  value.includes("@") ? value : normalizeIndianPhone(value)
+  value.includes("@") ? value : value
 )).refine((value) => (
   value.includes("@")
     ? /^[^\s@]+@(?:[^\s@]+\.[^\s@]+|local)$/i.test(value)
-    : /^\+91\d{10}$/.test(value)
-), "Enter a valid email address or 10-digit Indian phone number");
+    : isValidPhone(value)
+), "Enter a valid email address or phone number");
 const isValidDateString = (value) => !Number.isNaN(Date.parse(String(value)));
 const requiredDateString = z.string().trim().min(1).pipe(z.string().refine(isValidDateString, "Invalid date"));
 const optionalDateString = z.union([z.literal(""), z.string().trim().refine(isValidDateString, "Invalid date")]).optional();
