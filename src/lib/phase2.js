@@ -135,8 +135,7 @@ export const createStockMovement = async (tx, {
   allowNegativeStock = false
 }) => {
   const product = await tx.product.findFirst({
-    where: { id: productId, salonId },
-    lock: { mode: "pessimistic_write" }
+    where: { id: productId, salonId }
   });
   if (!product) {
     const error = new Error("Product not found");
