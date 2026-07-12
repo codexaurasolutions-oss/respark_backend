@@ -1,5 +1,12 @@
 export const errorHandler = (err, req, res, next) => {
   console.error(`[${req.requestId || "no-request-id"}]`, err);
+
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+
   if (err?.code === "P2002") {
     const target = Array.isArray(err.meta?.target) ? err.meta.target.join(", ") : err.meta?.target || "unique field";
     return res.status(409).json({ message: `${target} already exists` });

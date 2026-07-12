@@ -6,6 +6,7 @@ import { publicRouter } from "../modules/public/routes.js";
 import { customerRouter } from "../modules/customer/routes.js";
 import { uploadRouter } from "../modules/upload/routes.js";
 import { superAdminRouter } from "../modules/superAdmin/routes.js";
+import { registerMissingReportRoutes } from "../modules/owner/phase4/missing-reports.js";
 
 export const router = Router();
 router.use("/auth", authRouter);
@@ -15,3 +16,5 @@ router.use("/public", publicRouter);
 router.use("/customer", customerRouter);
 router.use("/upload", uploadRouter);
 router.use("/super-admin", superAdminRouter);
+
+registerMissingReportRoutes(reportsRouter);
