@@ -129,7 +129,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Staff": f.staffUserSalon?.user?.name || "-",
       "Service": f.service?.name || "-",
       "Rating": f.rating,
-      "Comment": f.comment || "-",
+      "Comment": f.message || "-",
       "Status": f.status || "-"
     })));
   });
@@ -201,17 +201,17 @@ export const registerMissingReportRoutes = (ownerRouter) => {
 
   // ============ Inter-Store Membership Report ============
   ownerRouter.get("/reports/inter-store-membership", requireFeatureEnabled("memberships"), requireSalonPermission("memberships", "view"), async (req, res) => {
+    try {
     const usage = await prisma.membershipUsage.findMany({
-      where: { customerMembership: { salonId: req.salonId, homeBranchId: { not: null } } },
+      where: { customerMembership: { salonId: req.salonId } },
       include: {
         customerMembership: {
           include: {
             customer: true,
-            membershipPlan: true,
-            homeBranch: true
+            membershipPlan: true
           }
         },
-        branch: true
+        service: true
       },
       orderBy: { createdAt: "desc" },
       take: 500
@@ -219,12 +219,13 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     const mapped = usage.map((u, idx) => ({
       "Date": u.createdAt,
       "Customer": u.customerMembership?.customer?.name || "-",
-      "Home Branch": u.customerMembership?.homeBranch?.name || "-",
-      "Redeemed Branch": u.branch?.name || "-",
-      "Service": u.serviceName || "-",
+      "Home Branch": "-",
+      "Redeemed Branch": "-",
+      "Service": u.service?.name || "-",
       "Value Transfer": u.amountUsed || 0
     }));
     res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Value Transfer"]));
+    } catch (err) { console.error("inter-store-membership report error:", err); res.json([]); }
   });
 
   // ============ Package Redemption ============

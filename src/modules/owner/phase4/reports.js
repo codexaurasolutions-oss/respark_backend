@@ -20,9 +20,8 @@ const branchScope = (req) => {
 export const registerAdvancedReportRoutes = (ownerRouter) => {
   ownerRouter.get("/reports/advanced", requireFeatureEnabled("advancedReports"), requireSalonPermission("advancedReports", "view"), async (req, res) => {
     const bs = branchScope(req);
-    const [expenses, payrollRuns, feedback, enquiries, couponRedemptions, giftCardRedemptions] = await Promise.all([
+    const [expenses, feedback, enquiries, couponRedemptions, giftCardRedemptions] = await Promise.all([
       prisma.expense.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query, "expenseDate") } }),
-      prisma.payrollRun.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) } }),
       prisma.customerFeedback.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) } }),
       prisma.enquiry.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) } }),
       prisma.couponRedemption.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) } }),
@@ -31,7 +30,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
     res.json({
       summaryCards: {
         expenses: expenses.reduce((sum, row) => sum + toNumber(row.amount), 0),
-        payroll: payrollRuns.reduce((sum, row) => sum + toNumber(row.totalNet), 0),
+        payroll: 0,
         averageFeedback: feedback.length ? feedback.reduce((sum, row) => sum + row.rating, 0) / feedback.length : 0,
         enquiries: enquiries.length,
         couponSavings: couponRedemptions.reduce((sum, row) => sum + toNumber(row.amountSaved), 0),
@@ -68,8 +67,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/reports/payroll", requireFeatureEnabled("payroll"), requireSalonPermission("payroll", "view"), async (req, res) => {
-    const bs = branchScope(req);
-    res.json(await prisma.payrollRun.findMany({ where: { salonId: req.salonId, ...bs, ...parseDateWhere(req.query) }, include: { items: { include: { userSalon: { include: { user: true } } } } }, orderBy: { createdAt: "desc" } }));
+    res.json([]);
   });
 
   ownerRouter.get("/reports/tax", requireFeatureEnabled("advancedReports"), requireSalonPermission("advancedReports", "view"), async (req, res) => {
@@ -183,7 +181,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
         createdAt: row.createdAt
       }));
     } else if (moduleKey === "payroll") {
-      rows = await prisma.payrollRun.findMany({ where: { salonId: req.salonId, ...bs }, orderBy: { createdAt: "desc" } });
+      rows = [];
     } else if (moduleKey === "tax") {
       rows = await prisma.invoice.findMany({
         where: { salonId: req.salonId, ...bs, status: { not: "CANCELLED" } },

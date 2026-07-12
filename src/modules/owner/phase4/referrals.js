@@ -19,7 +19,9 @@ const buildAffiliateCode = async (tx, salonId) => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code;
   let exists = true;
-  while (exists) {
+  let attempts = 0;
+  while (exists && attempts < 100) {
+    attempts++;
     code = "";
     for (let i = 0; i < 6; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -29,6 +31,7 @@ const buildAffiliateCode = async (tx, salonId) => {
     }).catch(() => null);
     if (!existing) exists = false;
   }
+  if (!code) throw new Error("Could not generate unique affiliate code after 100 attempts");
   return code;
 };
 

@@ -6,6 +6,12 @@ import { requireAuth, requireFeatureEnabled, requireSalonContext, requireSalonPe
 export const reportsRouter = Router();
 reportsRouter.use(requireAuth, requireSalonContext, requireFeatureEnabled("reports"), requireSalonPermission("reports", "view"));
 
+const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+const originalGet = reportsRouter.get.bind(reportsRouter);
+reportsRouter.get = function (path, ...handlers) {
+  return originalGet(path, ...handlers.map((h) => h.length >= 3 ? asyncHandler(h) : h));
+};
+
 const buildSpreadsheetHtml = (headers, rows) => `<!DOCTYPE html>
 <html>
   <head>
@@ -1306,3 +1312,8 @@ reportsRouter.get("/feedback", async (req, res) => {
 });
 
 // (extended reports routes were removed — the registration stub has been deleted)
+
+reportsRouter.use((err, req, res, _next) => {
+  console.error("reports route error:", err);
+  res.status(err.status || 500).json({ error: err.message || "Internal server error" });
+});
