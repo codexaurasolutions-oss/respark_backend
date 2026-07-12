@@ -1,5 +1,5 @@
 export const errorHandler = (err, req, res, next) => {
-  console.error(`[${req.requestId || "no-request-id"}]`, err);
+  console.error(`[${req.requestId || "no-request-id"}]`, JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
 
   const origin = req.headers.origin;
   if (origin) {
@@ -16,10 +16,15 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(404).json({ message: err.message || "Record not found" });
   }
 
+  if (err?.code === "P2003") {
+    const field = err.meta?.field_name || err.meta?.target || "foreign key";
+    return res.status(400).json({ message: `Invalid reference: ${field}. The related record does not exist.` });
+  }
+
   const status = err.status || 500;
   const message = status >= 500
     ? process.env.NODE_ENV === "production"
-      ? "Internal server error"
+      ? err.message || "Internal server error"
       : (err.message || "Internal server error")
     : (err.message || "Request failed");
 
