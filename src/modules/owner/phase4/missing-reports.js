@@ -298,7 +298,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     const { startDate, endDate } = buildDateRange(req);
     const payments = await prisma.payment.findMany({
       where: { salonId: req.salonId, type: "ADVANCE", createdAt: { gte: startDate, lte: endDate } },
-      include: { invoice: { include: { customer: true } } },
+      include: { invoice: { include: { customer: true, items: true } } },
       orderBy: { createdAt: "desc" },
       take: 500
     });
@@ -308,7 +308,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Invoice #": p.invoice?.invoiceNumber || "-",
       "Advance Amount": p.amount,
       "Mode": p.mode,
-      "Staff": p.invoice?.salesByUserId || "-"
+      "Staff": p.invoice?.items?.[0]?.staffName || "-"
     }));
     res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Advance Amount"]));
   });
@@ -318,7 +318,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     const { startDate, endDate } = buildDateRange(req);
     const payments = await prisma.payment.findMany({
       where: { salonId: req.salonId, type: "BALANCE", createdAt: { gte: startDate, lte: endDate } },
-      include: { invoice: { include: { customer: true } } },
+      include: { invoice: { include: { customer: true, items: true } } },
       orderBy: { createdAt: "desc" },
       take: 500
     });
@@ -328,7 +328,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Invoice #": p.invoice?.invoiceNumber || "-",
       "Balance Amt": p.amount,
       "Mode": p.mode,
-      "Collected By": p.invoice?.salesByUserId || "-"
+      "Collected By": p.invoice?.items?.[0]?.staffName || "-"
     }));
     res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Balance Amt"]));
   });
@@ -357,7 +357,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     const { startDate, endDate } = buildDateRange(req);
     const tips = await prisma.payment.findMany({
       where: { salonId: req.salonId, type: "TIP", createdAt: { gte: startDate, lte: endDate } },
-      include: { invoice: { include: { customer: true } } },
+      include: { invoice: { include: { customer: true, items: true } } },
       orderBy: { createdAt: "desc" },
       take: 500
     });
@@ -367,7 +367,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Customer": p.invoice?.customer?.name || "-",
       "Phone": p.invoice?.customer?.phone || "-",
       "Invoice #": p.invoice?.invoiceNumber || "-",
-      "Staff": p.invoice?.salesByUserId || "-",
+      "Staff": p.invoice?.items?.[0]?.staffName || "-",
       "Tip Amount": p.amount,
       "Payment Mode": p.mode
     }));
