@@ -455,14 +455,21 @@ export const registerInventoryRoutes = (ownerRouter) => {
   });
 
   ownerRouter.post("/purchases/reconciliation", requireFeatureEnabled("inventory"), requireSalonPermission("purchases", "edit"), validate(schemas.stockReconciliation), async (req, res) => {
-    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : (req.body.branchId || null);
+    const branchId = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? req.user.branchId : req.body.branchId;
+    if (!branchId) {
+      return res.status(400).json({ message: "Branch is required for stock reconciliation" });
+    }
     const result = await prisma.$transaction(async (tx) => {
       const reconciliation = await tx.stockReconciliation.create({
         data: { salonId: req.salonId, branchId, note: req.body.note || null }
       });
       for (const item of req.body.items) {
         const product = await tx.product.findFirst({ where: { id: item.productId, salonId: req.salonId } });
-        if (!product) throw new Error("Product not found");
+        if (!product) {
+          const err = new Error("Product not found");
+          err.status = 404;
+          throw err;
+        }
         const systemStock = toAmount(product.currentStock);
         const physicalStock = toAmount(item.physicalStock);
         const variance = physicalStock - systemStock;
@@ -472,7 +479,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
         if (variance !== 0) {
           await createStockMovement(tx, {
             salonId: req.salonId,
-            branchId: req.body.branchId,
+            branchId,
             productId: product.id,
             quantity: variance,
             movementType: "RECONCILIATION",
