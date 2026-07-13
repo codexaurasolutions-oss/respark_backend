@@ -125,6 +125,27 @@ export const registerPromotionRoutes = (ownerRouter) => {
     res.json(updated);
   });
 
+  ownerRouter.delete("/coupons/:id", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "edit"), async (req, res) => {
+    const row = await prisma.coupon.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!row) return res.status(404).json({ message: "Coupon not found" });
+    if (row.isReferral) {
+      return res.status(400).json({ message: "Referral coupons cannot be deleted from here." });
+    }
+    await prisma.coupon.delete({ where: { id: row.id } });
+    await createAuditLog({
+      salonId: req.salonId,
+      actorUserId: req.user.userId,
+      actorMembershipId: req.user.membershipId,
+      module: "COUPONS",
+      action: "COUPON_DELETED",
+      entityType: "Coupon",
+      entityId: row.id,
+      reference: row.code,
+      summary: `Coupon ${row.code} deleted`
+    });
+    res.json({ message: "Coupon deleted" });
+  });
+
   ownerRouter.post("/coupons/validate", requireFeatureEnabled("couponsGiftCards"), requireSalonPermission("couponsGiftCards", "view"), validate(schemas.couponValidate), async (req, res) => {
     const couponSettings = await getProgramSettings(req.salonId, "couponSettings", { enabled: true });
     ensureProgramEnabled(couponSettings, "Coupons");
