@@ -175,7 +175,7 @@ const buildAttendanceReportDataset = async ({ salonId, branchId, period, referen
 
   const attendanceMap = new Map(
     attendanceRows.map((row) => {
-      const dayKey = toYmd(row.checkInAt || row.attendanceDate);
+      const dayKey = toYmd(row.attendanceDate);
       return [`${row.userSalonId}:${dayKey}`, row];
     })
   );
