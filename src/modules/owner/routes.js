@@ -1093,7 +1093,7 @@ ownerRouter.get("/customers/:id", requireSalonPermission("customers", "view"), a
     }
   });
   if (!customer) return res.status(404).json({ message: "Customer not found" });
-  
+
   const balanceAmount = customer.invoices.reduce((sum, inv) => sum + Number(inv.balanceAmount || 0), 0);
   const [advanceTimelineEntries, followUpEntries, staffDirectory, advanceInvoiceItems, usedAdvancePayments] = await Promise.all([
     prisma.customerTimeline.findMany({
@@ -1235,6 +1235,44 @@ ownerRouter.get("/customers/:id", requireSalonPermission("customers", "view"), a
     followUps,
     segments: matchedSegments
   });
+});
+
+ownerRouter.delete("/customers/:id", requireSalonPermission("customers", "edit"), async (req, res) => {
+  const row = await prisma.customer.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+  if (!row) return res.status(404).json({ message: "Customer not found" });
+
+  const [invoiceCount, activeMemberships, activePackages] = await Promise.all([
+    prisma.invoice.count({ where: { customerId: row.id } }),
+    prisma.customerMembership.count({ where: { customerId: row.id, status: "ACTIVE" } }),
+    prisma.customerPackage.count({ where: { customerId: row.id, status: "ACTIVE" } })
+  ]);
+
+  if (invoiceCount > 0) {
+    return res.status(400).json({ message: `Cannot delete customer with ${invoiceCount} invoice(s). Deactivate instead.` });
+  }
+  if (activeMemberships > 0) {
+    return res.status(400).json({ message: `Cannot delete customer with ${activeMemberships} active membership(s).` });
+  }
+  if (activePackages > 0) {
+    return res.status(400).json({ message: `Cannot delete customer with ${activePackages} active package(s).` });
+  }
+
+  await prisma.customerTimeline.deleteMany({ where: { customerId: row.id } });
+  await prisma.customer.delete({ where: { id: row.id } });
+
+  await createAuditLog({
+    salonId: req.salonId,
+    actorUserId: req.user?.id || "",
+    actorMembershipId: req.membershipId || "",
+    module: "CUSTOMERS",
+    action: "CUSTOMER_DELETED",
+    entityType: "Customer",
+    entityId: row.id,
+    reference: row.phone || row.name,
+    summary: `Customer ${row.name || row.phone} deleted`
+  });
+
+  res.json({ message: "Customer deleted" });
 });
 
 ownerRouter.post("/follow-ups", requireSalonPermission("customers", "edit"), validate(schemas.customerFollowUp), async (req, res) => {
@@ -1580,69 +1618,6 @@ ownerRouter.get("/settings", requireSalonPermission("settings", "view"), async (
     row = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
   }
   res.json(row);
-});
-
-// ---- Tax Rates CRUD (stored in SalonSetting.advancedSettings.taxMapping) ----
-const getTaxMapping = async (salonId) => {
-  const row = await prisma.salonSetting.findFirst({ where: { salonId, branchId: null } });
-  return row?.advancedSettings?.taxMapping || { inclusiveTax: false, rates: [] };
-};
-const setTaxMapping = async (salonId, taxMapping) => {
-  const existing = await prisma.salonSetting.findFirst({ where: { salonId, branchId: null } });
-  const advancedSettings = { ...(existing?.advancedSettings || {}), taxMapping };
-  if (existing) {
-    await prisma.salonSetting.update({ where: { id: existing.id }, data: { advancedSettings } });
-  } else {
-    await prisma.salonSetting.create({ data: { salonId, branchId: null, advancedSettings } });
-  }
-};
-
-ownerRouter.get("/settings/tax-rates", requireSalonPermission("settings", "view"), async (req, res) => {
-  const taxMapping = await getTaxMapping(req.salonId);
-  res.json(taxMapping);
-});
-
-ownerRouter.post("/settings/tax-rates", requireSalonPermission("settings", "edit"), async (req, res) => {
-  if (!req.body?.label || req.body?.rate === undefined) {
-    return res.status(400).json({ message: "label and rate are required" });
-  }
-  const taxMapping = await getTaxMapping(req.salonId);
-  const newRate = {
-    id: `tax_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    label: String(req.body.label),
-    code: String(req.body.code || req.body.label.toUpperCase().replace(/\s+/g, "").slice(0, 8)),
-    rate: Number(req.body.rate),
-    active: req.body.active !== false,
-    applicableFor: Array.isArray(req.body.applicableFor) ? req.body.applicableFor : ["SERVICE", "PRODUCT", "MEMBERSHIP", "PACKAGE"]
-  };
-  const next = { ...taxMapping, rates: [...(taxMapping.rates || []), newRate] };
-  await setTaxMapping(req.salonId, next);
-  res.status(201).json(newRate);
-});
-
-ownerRouter.patch("/settings/tax-rates/:id", requireSalonPermission("settings", "edit"), async (req, res) => {
-  const taxMapping = await getTaxMapping(req.salonId);
-  const rates = taxMapping.rates || [];
-  const idx = rates.findIndex((r) => r.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ message: "Tax rate not found" });
-  const updated = {
-    ...rates[idx],
-    ...(req.body.label !== undefined ? { label: String(req.body.label) } : {}),
-    ...(req.body.code !== undefined ? { code: String(req.body.code) } : {}),
-    ...(req.body.rate !== undefined ? { rate: Number(req.body.rate) } : {}),
-    ...(req.body.active !== undefined ? { active: Boolean(req.body.active) } : {}),
-    ...(Array.isArray(req.body.applicableFor) ? { applicableFor: req.body.applicableFor } : {})
-  };
-  const nextRates = rates.map((r, i) => (i === idx ? updated : r));
-  await setTaxMapping(req.salonId, { ...taxMapping, rates: nextRates });
-  res.json(updated);
-});
-
-ownerRouter.delete("/settings/tax-rates/:id", requireSalonPermission("settings", "edit"), async (req, res) => {
-  const taxMapping = await getTaxMapping(req.salonId);
-  const rates = (taxMapping.rates || []).filter((r) => r.id !== req.params.id);
-  await setTaxMapping(req.salonId, { ...taxMapping, rates });
-  res.json({ success: true });
 });
 
 ownerRouter.post("/settings/crm-segment-preview", requireSalonPermission("campaigns", "view"), async (req, res) => {

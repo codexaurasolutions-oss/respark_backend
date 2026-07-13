@@ -440,6 +440,14 @@ export const registerOperationsRoutes = (ownerRouter) => {
     res.json(await prisma.expense.update({ where: { id: row.id }, data: { status: "REJECTED", approvalNote: req.body.approvalNote || null, approvedByMembershipId: req.user.membershipId || null } }));
   });
 
+  ownerRouter.delete("/expenses/:id", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "edit"), async (req, res) => {
+    const row = await prisma.expense.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!row) return res.status(404).json({ message: "Expense not found" });
+    await prisma.expense.delete({ where: { id: row.id } });
+    await createAuditLog({ salonId: req.salonId, actorUserId: req.user.userId, actorMembershipId: req.user.membershipId, module: "EXPENSES", action: "EXPENSE_DELETED", entityType: "Expense", entityId: row.id, summary: `Expense "${row.title}" (₹${row.amount}) deleted` });
+    res.json({ message: "Expense deleted" });
+  });
+
   ownerRouter.get("/attendance", requireFeatureEnabled("attendance"), requireSalonPermission("attendance", "view"), async (req, res) => {
     const q = String(req.query.q || "").trim();
     const branchId = req.query.branchId ? String(req.query.branchId) : null;
