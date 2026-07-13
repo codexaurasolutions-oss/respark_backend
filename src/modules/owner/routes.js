@@ -1942,12 +1942,4 @@ registerPhase2OwnerRoutes(ownerRouter);
 registerPhase3OwnerRoutes(ownerRouter);
 registerPhase4OwnerRoutes(ownerRouter);
 
-ownerRouter.get("/expenses/accounts", requireSalonPermission("expenses", "view"), async (req, res) => {
-  res.json({ injections: [] });
-});
-
-ownerRouter.post("/expenses/accounts/injections", requireSalonPermission("expenses", "create"), async (req, res) => {
-  res.status(201).json({ id: "inj_123", amount: req.body.amount });
-});
-
 

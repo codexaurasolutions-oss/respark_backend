@@ -336,7 +336,7 @@ export const registerOperationsRoutes = (ownerRouter) => {
         amount: req.body.amount,
         expenseDate: new Date(req.body.expenseDate),
         paymentMode: req.body.paymentMode || null,
-        status: req.body.status || "PENDING",
+        status: req.body.status || (req.user?.salonRole === "SALON_OWNER" ? "APPROVED" : "PENDING"),
         notes: req.body.notes || null,
         receiptUrl: req.body.receiptUrl || null,
         attachmentUrl: req.body.attachmentUrl || null
