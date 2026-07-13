@@ -303,6 +303,17 @@ export const registerOperationsRoutes = (ownerRouter) => {
   ownerRouter.post("/expense-categories", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "create"), validate(schemas.expenseCategory), async (req, res) => {
     res.status(201).json(await prisma.expenseCategory.create({ data: { salonId: req.salonId, name: req.body.name, description: req.body.description || null } }));
   });
+  ownerRouter.patch("/expense-categories/:id", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "edit"), validate(schemas.expenseCategory), async (req, res) => {
+    const row = await prisma.expenseCategory.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!row) return res.status(404).json({ message: "Expense category not found" });
+    res.json(await prisma.expenseCategory.update({ where: { id: row.id }, data: { name: req.body.name, description: req.body.description || null } }));
+  });
+  ownerRouter.delete("/expense-categories/:id", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "edit"), async (req, res) => {
+    const row = await prisma.expenseCategory.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!row) return res.status(404).json({ message: "Expense category not found" });
+    await prisma.expenseCategory.delete({ where: { id: row.id } });
+    res.json({ message: "Expense category deleted" });
+  });
 
   ownerRouter.get("/expenses", requireFeatureEnabled("expenses"), requireSalonPermission("expenses", "view"), async (req, res) => {
     const q = String(req.query.q || "").trim();
