@@ -123,6 +123,7 @@ export const registerSettingsModelRoutes = (ownerRouter) => {
       data: {
         salonId: req.salonId,
         branchId,
+        label: req.body.label,
         code,
         rate: Number(req.body.rate),
         active: req.body.active !== false,
