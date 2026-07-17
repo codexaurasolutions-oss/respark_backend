@@ -1094,10 +1094,13 @@ const sanitizeInvoicePhone = (phone) => {
     });
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
 
-    const settings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: inv.branchId || null } });
+    const globalSettings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
+    const branchSettings = inv.branchId ? await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: inv.branchId } }) : null;
     let customSalonName = "";
-    if (settings?.advancedSettings && typeof settings.advancedSettings === "object") {
-      customSalonName = settings.advancedSettings.genericSettings?.salonName || "";
+    if (branchSettings?.advancedSettings?.genericSettings?.salonName) {
+      customSalonName = branchSettings.advancedSettings.genericSettings.salonName;
+    } else if (globalSettings?.advancedSettings?.genericSettings?.salonName) {
+      customSalonName = globalSettings.advancedSettings.genericSettings.salonName;
     }
 
     res.setHeader("Content-Type", "application/pdf");
@@ -1213,14 +1216,22 @@ const sanitizeInvoicePhone = (phone) => {
     const metaRows = [
       ["Invoice No:", inv.invoiceNumber || "—"],
       ["Date:", dateStr],
-      ["Time:", timeStr],
-      ["Status:", statusUp]
+      ["Time:", timeStr]
     ];
     metaRows.forEach(([label, value]) => {
       pdf.font('Helvetica').fontSize(11).text(label, leftCol, y, { width: 90 });
       pdf.font('Helvetica-Bold').fontSize(11).text(String(value), rightCol, y, { width: contentWidth / 2 - 10, align: 'right' });
       y += 16;
     });
+
+    pdf.font('Helvetica').fontSize(11).text("Status:", leftCol, y, { width: 90 });
+    const { bg, text } = getStatusColors(statusUp);
+    const statusWidth = pdf.widthOfString(statusUp) + 16;
+    pdf.save();
+    pdf.roundedRect(rightCol + (contentWidth / 2 - 10) - statusWidth, y - 2, statusWidth, 14, 4).fill(bg);
+    pdf.fillColor(text).font('Helvetica-Bold').fontSize(10).text(statusUp, rightCol + (contentWidth / 2 - 10) - statusWidth + 8, y + 1);
+    pdf.restore();
+    y += 16;
 
     y += 4;
     drawDashedLine(y);
@@ -1307,35 +1318,50 @@ const sanitizeInvoicePhone = (phone) => {
     }
 
     y += 4;
-    drawDashedLine(y);
-    y += 8;
+    drawSolidLine(y, '#0f172a', 2);
+    y += 12;
 
-    pdf.font('Helvetica-Bold').fontSize(14).text('GRAND TOTAL:', margin, y, { width: 150 });
-    pdf.font('Helvetica-Bold').fontSize(16).text(fmt(grandTotal), margin + contentWidth - 180, y - 2, { width: 180, align: 'right' });
+    pdf.font('Helvetica-Bold').fontSize(13).text('GRAND TOTAL:', margin, y + 4, { width: 150 });
+    pdf.font('Courier-Bold').fontSize(18).text(fmt(grandTotal), margin + contentWidth - 200, y, { width: 200, align: 'right' });
     y += 24;
 
     if (paid > 0) {
-      y += 4;
       pdf.font('Helvetica-Bold').fontSize(11).text('Paid Amount:', margin, y, { width: 150 });
       pdf.font('Helvetica-Bold').fontSize(11).text(fmt(paid), margin + contentWidth - 150, y, { width: 150, align: 'right' });
       y += 16;
     }
+
     if (balance > 0) {
-      pdf.font('Helvetica-Bold').fontSize(11).text('Balance Due:', margin, y, { width: 150 });
-      pdf.font('Helvetica-Bold').fontSize(11).text(fmt(balance), margin + contentWidth - 150, y, { width: 150, align: 'right' });
+      pdf.font('Helvetica-Bold').fontSize(11).fillColor('#dc2626').text('Balance Due:', margin, y, { width: 150 });
+      pdf.font('Helvetica-Bold').fontSize(11).fillColor('#dc2626').text(fmt(balance), margin + contentWidth - 150, y, { width: 150, align: 'right' });
+      pdf.fillColor('#000000');
       y += 16;
+    }
+
+    if (inv.payments && inv.payments.length > 0) {
+      y += 4;
+      drawDashedLine(y);
+      y += 10;
+      pdf.font('Helvetica').fontSize(10).fillColor('#64748b').text('Payments:', margin, y);
+      pdf.fillColor('#000000');
+      y += 14;
+      inv.payments.forEach(p => {
+        const pDate = new Date(p.createdAt).toLocaleDateString("en-GB").replace(/\//g, "-");
+        pdf.font('Helvetica').fontSize(9).text(`${pDate} (${p.method || 'CASH'})`, margin, y);
+        pdf.font('Helvetica-Bold').fontSize(9).text(fmt(p.amount), margin + contentWidth - 100, y, { width: 100, align: 'right' });
+        y += 14;
+      });
     }
 
     y += 8;
     drawDashedLine(y);
-    y += 8;
+    y += 24;
 
-    pdf.font('Helvetica-Bold').fontSize(14).text('THANK YOU!', margin, y, { align: 'center', width: contentWidth });
-    y = pdf.y + 6;
-    pdf.font('Helvetica').fontSize(10).text('Please visit again', margin, y, { align: 'center', width: contentWidth });
-    y = pdf.y + 12;
+    pdf.font('Helvetica-Bold').fontSize(15).text('THANK YOU!', margin, y, { align: 'center', width: contentWidth, characterSpacing: 1.5 });
+    y += 18;
+    pdf.font('Helvetica-Bold').fillColor('#94a3b8').fontSize(10).text('VISIT AGAIN', margin, y, { align: 'center', width: contentWidth, characterSpacing: 2 });
+    y += 16;
 
-    // Draw Fake Barcode
     drawFakeBarcode(y);
     y += 36;
 
