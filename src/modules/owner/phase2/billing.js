@@ -1047,7 +1047,7 @@ const sanitizeInvoicePhone = (phone) => {
     <div style="text-align:center;padding:20px 0 4px;">
       <div style="font-size:26px;font-weight:900;letter-spacing:3px;color:#0f172a;">${escapeHtml(salonName.toUpperCase())}</div>
       <div style="font-size:9px;letter-spacing:3.5px;color:#94a3b8;margin-top:4px;text-transform:uppercase;font-weight:600;">Hair &middot; Lifestyle &middot; Care</div>
-      ${inv.branch?.address ? `<div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.6;">${escapeHtml(inv.branch.address)}${inv.branch?.phone ? `<br>${sanitizeInvoicePhone(inv.branch.phone)}` : ""}</div>` : ""}
+      ${inv.branch?.address || inv.branch?.phone || inv.branch?.name ? `<div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.6;">${[inv.branch?.address, inv.branch?.phone ? sanitizeInvoicePhone(inv.branch.phone) : null, inv.branch?.name].filter(Boolean).map(escapeHtml).join('<br>')}</div>` : ""}
     </div>
     <div style="border-top:1px dashed #cbd5e1;margin:14px 0;"></div>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">
@@ -1111,7 +1111,7 @@ const sanitizeInvoicePhone = (phone) => {
     pdf.pipe(res);
 
     const salonName = customSalonName || inv.salon?.name || "My Salon";
-    const branchName = customSalonName ? "" : (inv.branch?.name || "");
+    const branchName = inv.branch?.name || "";
     const brandName = salonName.toUpperCase();
     const phone = sanitizeInvoicePhone(inv.branch?.phone || inv.salon?.phone || "");
     const currencyCode = inv.salon?.currency || "INR";
@@ -1185,16 +1185,16 @@ const sanitizeInvoicePhone = (phone) => {
     y = pdf.y + 4;
     pdf.font('Helvetica').fontSize(10).text('HAIR · LIFESTYLE · CARE', { align: 'center', width: contentWidth });
     y = pdf.y + 6;
-    if (branchName) {
-      pdf.font('Helvetica-Bold').fontSize(11).text(branchName, { align: 'center', width: contentWidth });
-      y = pdf.y + 2;
-    }
     if (inv.branch?.address) {
       pdf.font('Helvetica').fontSize(10).text(inv.branch.address, { align: 'center', width: contentWidth });
       y = pdf.y + 2;
     }
     if (phone) {
       pdf.font('Helvetica').fontSize(10).text(`Phone: ${phone}`, { align: 'center', width: contentWidth });
+      y = pdf.y + 2;
+    }
+    if (branchName) {
+      pdf.font('Helvetica').fontSize(10).text(branchName, { align: 'center', width: contentWidth });
       y = pdf.y + 2;
     }
 
