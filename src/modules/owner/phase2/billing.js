@@ -993,8 +993,14 @@ const sanitizeInvoicePhone = (phone) => {
     });
     if (!inv) return res.status(404).json({ message: "Invoice not found" });
     const settings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: inv.branchId || null } });
+    
+    let customSalonName = "";
+    if (settings?.advancedSettings && typeof settings.advancedSettings === "object") {
+      customSalonName = settings.advancedSettings.genericSettings?.salonName || "";
+    }
+    
     const footer = settings?.invoiceFooter || "Thank you for visiting.";
-    const salonName = inv.branch?.name || "My Salon";
+    const salonName = customSalonName || inv.branch?.name || "My Salon";
     const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     const items = inv.items.map((item) => {
@@ -1088,6 +1094,12 @@ const sanitizeInvoicePhone = (phone) => {
     });
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
 
+    const settings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: inv.branchId || null } });
+    let customSalonName = "";
+    if (settings?.advancedSettings && typeof settings.advancedSettings === "object") {
+      customSalonName = settings.advancedSettings.genericSettings?.salonName || "";
+    }
+
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="invoice-${inv.invoiceNumber}.pdf"`);
 
@@ -1098,8 +1110,8 @@ const sanitizeInvoicePhone = (phone) => {
     const pdf = new PDFDocument({ margin: margin, size: [width, docHeight] });
     pdf.pipe(res);
 
-    const salonName = inv.salon?.name || "My Salon";
-    const branchName = inv.branch?.name || "";
+    const salonName = customSalonName || inv.salon?.name || "My Salon";
+    const branchName = customSalonName ? "" : (inv.branch?.name || "");
     const brandName = salonName.toUpperCase();
     const phone = sanitizeInvoicePhone(inv.branch?.phone || inv.salon?.phone || "");
     const currencyCode = inv.salon?.currency || "INR";
