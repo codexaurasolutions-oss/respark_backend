@@ -335,6 +335,26 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         lineTotal: preTax + (preTax * taxPct) / 100,
         commissionAmount: 0
       });
+
+      if (item.customProducts && item.customProducts.length > 0) {
+        for (const cp of item.customProducts) {
+          const product = await prisma.product.findUnique({ where: { id: cp.productId || cp.id } });
+          if (product) {
+            itemDrafts.push({
+              itemType: "PRODUCT",
+              productId: product.id,
+              staffUserSalonId: item.staffUserId || null,
+              serviceName: `[Package: ${pack.name}] ${product.name}`,
+              staffName: item.staffName || null,
+              qty: Number(cp.qty || 1),
+              unitPrice: 0,
+              taxPct: 0,
+              lineTotal: 0,
+              commissionAmount: 0
+            });
+          }
+        }
+      }
     }
 
     if (itemType === "GIFT_CARD") {

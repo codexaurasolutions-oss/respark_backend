@@ -1483,7 +1483,8 @@ const sanitizeInvoicePhone = (phone) => {
       where: { salonId: req.salonId, customerId: req.params.id },
       include: {
         package: { include: { services: { include: { service: true } } } },
-        usageLogs: true
+        usageLogs: true,
+        soldInvoice: { include: { items: { include: { product: true } } } }
       },
       orderBy: { createdAt: "desc" }
     });
