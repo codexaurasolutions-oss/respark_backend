@@ -666,10 +666,12 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     const productCogs = invoices.reduce((s, inv) => s + inv.items
       .filter(i => i.itemType === "PRODUCT" && i.product)
       .reduce((a, i) => a + toAmount(i.qty || 1) * toAmount(i.product?.costPrice || 0), 0), 0);
-    // Services: estimate consumable cost as a fraction of service revenue
-    const consumableCogs = invoices.reduce((s, inv) => s + inv.items
-      .filter(i => i.itemType === "SERVICE")
-      .reduce((a, i) => a + toAmount(i.qty || 1) * toAmount(i.unitPrice || 0) * 0.05, 0), 0);
+    // Services: actual consumable cost from StockMovement records
+    const consumableMovements = await prisma.stockMovement.findMany({
+      where: { salonId: req.salonId, movementType: "CONSUMABLE_USAGE", createdAt: { gte: startDate, lte: endDate }, ...(branchId ? { branchId } : {}) },
+      include: { product: true }
+    });
+    const consumableCogs = consumableMovements.reduce((sum, m) => sum + Math.abs(toAmount(m.quantity)) * toAmount(m.product?.costPrice || 0), 0);
     const totalCogs = productCogs + consumableCogs;
 
     // Expenses grouped by category
