@@ -5,8 +5,9 @@ import { calculateLoyaltyEarnPoints, getCustomerValidLoyaltyBalance, reverseInvo
 
 const normalizeStatus = (paidAmount, total, refundAmount = 0, cancelled = false) => {
   if (cancelled) return "CANCELLED";
+  if (total <= 0) return "PAID";
   if (refundAmount >= total && total > 0) return "REFUNDED";
-  if (paidAmount >= total && total > 0) return "PAID";
+  if (paidAmount >= total) return "PAID";
   if (paidAmount > 0) return "PARTIAL";
   return "UNPAID";
 };
