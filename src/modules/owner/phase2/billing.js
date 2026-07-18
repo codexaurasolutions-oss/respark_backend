@@ -1058,6 +1058,11 @@ const sanitizeInvoicePhone = (phone) => {
   return clean;
 };
 
+const pdfSafe = (str) => {
+  if (str == null) return "";
+  return String(str).replace(/[^\x20-\x7E\xA0-\xFF]/g, "?");
+};
+
   ownerRouter.get("/invoices/:id/receipt", requireSalonPermission("invoices", "view"), async (req, res) => {
     const inv = await prisma.invoice.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
@@ -1207,7 +1212,7 @@ const sanitizeInvoicePhone = (phone) => {
       }
     };
     const symbol = getCurrencySymbol(currencyCode);
-    const fmt = (n) => symbol + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmt = (n) => symbol + Number(n || 0).toFixed(2);
 
     let y = margin;
 
@@ -1249,20 +1254,20 @@ const sanitizeInvoicePhone = (phone) => {
 
 
     // Header
-    pdf.font('Helvetica-Bold').fontSize(22).fillColor('#000000').text(brandName, margin, y, { align: 'center', width: contentWidth });
+    pdf.font('Helvetica-Bold').fontSize(22).fillColor('#000000').text(pdfSafe(brandName), margin, y, { align: 'center', width: contentWidth });
     y = pdf.y + 4;
-    pdf.font('Helvetica').fontSize(10).text('HAIR · LIFESTYLE · CARE', { align: 'center', width: contentWidth });
+    pdf.font('Helvetica').fontSize(10).text('HAIR - LIFESTYLE - CARE', { align: 'center', width: contentWidth });
     y = pdf.y + 6;
     if (inv.branch?.address) {
-      pdf.font('Helvetica').fontSize(10).text(inv.branch.address, { align: 'center', width: contentWidth });
+      pdf.font('Helvetica').fontSize(10).text(pdfSafe(inv.branch.address), { align: 'center', width: contentWidth });
       y = pdf.y + 2;
     }
     if (phone) {
-      pdf.font('Helvetica').fontSize(10).text(`Phone: ${phone}`, { align: 'center', width: contentWidth });
+      pdf.font('Helvetica').fontSize(10).text(pdfSafe(`Phone: ${phone}`), { align: 'center', width: contentWidth });
       y = pdf.y + 2;
     }
     if (branchName) {
-      pdf.font('Helvetica').fontSize(10).text(branchName, { align: 'center', width: contentWidth });
+      pdf.font('Helvetica').fontSize(10).text(pdfSafe(branchName), { align: 'center', width: contentWidth });
       y = pdf.y + 2;
     }
 
@@ -1285,7 +1290,7 @@ const sanitizeInvoicePhone = (phone) => {
     ];
     metaRows.forEach(([label, value]) => {
       pdf.font('Helvetica').fontSize(11).text(label, leftCol, y, { width: 90 });
-      pdf.font('Helvetica-Bold').fontSize(11).text(String(value), rightCol, y, { width: contentWidth / 2 - 10, align: 'right' });
+      pdf.font('Helvetica-Bold').fontSize(11).text(pdfSafe(String(value)), rightCol, y, { width: contentWidth / 2 - 10, align: 'right' });
       y += 16;
     });
 
@@ -1305,10 +1310,10 @@ const sanitizeInvoicePhone = (phone) => {
     // Customer
     pdf.font('Helvetica-Bold').fontSize(11).text('BILL TO:', leftCol, y);
     y = pdf.y + 4;
-    pdf.font('Helvetica-Bold').fontSize(12).text(inv.customer?.name || "Walk-in Customer", leftCol, y);
+    pdf.font('Helvetica-Bold').fontSize(12).text(pdfSafe(inv.customer?.name || "Walk-in Customer"), leftCol, y);
     y = pdf.y + 2;
     if (inv.customer?.phone) {
-      pdf.font('Helvetica').fontSize(11).text(sanitizeInvoicePhone(inv.customer.phone), leftCol, y);
+      pdf.font('Helvetica').fontSize(11).text(pdfSafe(sanitizeInvoicePhone(inv.customer.phone)), leftCol, y);
       y = pdf.y;
     }
 
@@ -1333,7 +1338,7 @@ const sanitizeInvoicePhone = (phone) => {
         const amt = Number(item.lineTotal || rate * qty);
         const itemName = item.serviceName || item.productName || item.name || "Item";
 
-        pdf.font('Helvetica-Bold').fontSize(11).text(itemName, margin, y, { width: contentWidth - 100 });
+        pdf.font('Helvetica-Bold').fontSize(11).text(pdfSafe(itemName), margin, y, { width: contentWidth - 100 });
         const amountBottom = pdf.y;
         pdf.font('Helvetica-Bold').fontSize(11).text(fmt(amt), margin + contentWidth - 100, y, { width: 100, align: 'right' });
         
@@ -1342,19 +1347,19 @@ const sanitizeInvoicePhone = (phone) => {
         y = pdf.y + 2;
 
         if (item.staffName) {
-          pdf.font('Helvetica').fontSize(9).text(`Staff: ${item.staffName}`, margin, y, { width: contentWidth - 100 });
+          pdf.font('Helvetica').fontSize(9).text(pdfSafe(`Staff: ${item.staffName}`), margin, y, { width: contentWidth - 100 });
           y = pdf.y + 2;
         }
         
         if (Number(item.appliedBenefitValue) > 0) {
           const discPct = Number(item.unitPrice) > 0 ? ((Number(item.appliedBenefitValue) / Number(item.unitPrice)) * 100).toFixed(1) : "0";
-          pdf.font('Helvetica').fontSize(9).text(`Discount: -${discPct}%`, margin, y, { width: contentWidth - 100 });
+          pdf.font('Helvetica').fontSize(9).text(pdfSafe(`Discount: -${discPct}%`), margin, y, { width: contentWidth - 100 });
           y = pdf.y + 2;
         }
 
         if (item.itemType === 'SERVICE' && item.service?.consumables?.length > 0) {
           item.service.consumables.forEach((c) => {
-            pdf.font('Helvetica').fontSize(8).fillColor('#64748b').text(`  > ${c.product?.name || "Consumable"} (${c.reqdQty} ${c.product?.unit || "qty"})`, margin, y, { width: contentWidth - 100 });
+            pdf.font('Helvetica').fontSize(8).fillColor('#64748b').text(pdfSafe(`  > ${c.product?.name || "Consumable"} (${c.reqdQty} ${c.product?.unit || "qty"})`), margin, y, { width: contentWidth - 100 });
             y = pdf.y + 2;
           });
           pdf.fillColor('#000000');
@@ -1421,7 +1426,7 @@ const sanitizeInvoicePhone = (phone) => {
       y += 14;
       inv.payments.forEach(p => {
         const pDate = new Date(p.createdAt).toLocaleDateString("en-GB").replace(/\//g, "-");
-        pdf.font('Helvetica').fontSize(9).text(`${pDate} (${p.mode || 'CASH'})`, margin, y);
+        pdf.font('Helvetica').fontSize(9).text(pdfSafe(`${pDate} (${p.mode || 'CASH'})`), margin, y);
         pdf.font('Helvetica-Bold').fontSize(9).text(fmt(p.amount), margin + contentWidth - 100, y, { width: 100, align: 'right' });
         y += 14;
       });
@@ -1439,7 +1444,7 @@ const sanitizeInvoicePhone = (phone) => {
     drawFakeBarcode(y);
     y += 36;
 
-    pdf.font('Courier').fontSize(9).fillColor('#000000').text(inv.invoiceNumber || "--", margin, y, { align: 'center', width: contentWidth });
+    pdf.font('Courier').fontSize(9).fillColor('#000000').text(pdfSafe(inv.invoiceNumber || "--"), margin, y, { align: 'center', width: contentWidth });
 
     pdf.end();
     const pdfBuffer = await pdfBufferPromise;
