@@ -1277,7 +1277,7 @@ const sanitizeInvoicePhone = (phone) => {
     const statusUp = (inv.status || "UNPAID").toUpperCase();
 
     const metaRows = [
-      ["Invoice No:", inv.invoiceNumber || "—"],
+      ["Invoice No:", inv.invoiceNumber || "--"],
       ["Date:", dateStr],
       ["Time:", timeStr]
     ];
@@ -1437,7 +1437,7 @@ const sanitizeInvoicePhone = (phone) => {
     drawFakeBarcode(y);
     y += 36;
 
-    pdf.font('Courier').fontSize(9).fillColor('#000000').text(inv.invoiceNumber || "—", margin, y, { align: 'center', width: contentWidth });
+    pdf.font('Courier').fontSize(9).fillColor('#000000').text(inv.invoiceNumber || "--", margin, y, { align: 'center', width: contentWidth });
 
     pdf.end();
     } catch (err) {
