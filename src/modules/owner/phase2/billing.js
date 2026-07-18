@@ -1176,17 +1176,15 @@ const sanitizeInvoicePhone = (phone) => {
       customSalonName = globalSettings.advancedSettings.genericSettings.salonName;
     }
 
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="invoice-${inv.invoiceNumber}.pdf"`);
+
     const width = 380;
     const margin = 24;
     const contentWidth = width - margin * 2;
     const docHeight = 580 + (inv.items.length * 45) + ((inv.payments || []).length * 15);
-
     const pdf = new PDFDocument({ margin: margin, size: [width, docHeight] });
-    const chunks = [];
-    pdf.on('data', (chunk) => chunks.push(chunk));
-    const pdfBuffer = await new Promise((resolve, reject) => {
-      pdf.on('end', () => resolve(Buffer.concat(chunks)));
-      pdf.on('error', reject);
+    pdf.pipe(res);
 
     const salonName = customSalonName || inv.salon?.name || "My Salon";
     const branchName = inv.branch?.name || "";
@@ -1354,7 +1352,7 @@ const sanitizeInvoicePhone = (phone) => {
 
         if (item.itemType === 'SERVICE' && item.service?.consumables?.length > 0) {
           item.service.consumables.forEach((c) => {
-            pdf.font('Helvetica').fontSize(8).fillColor('#64748b').text(`  ↳ ${c.product?.name || "Consumable"} (${c.reqdQty} ${c.product?.unit || "qty"})`, margin, y, { width: contentWidth - 100 });
+            pdf.font('Helvetica').fontSize(8).fillColor('#64748b').text(`  > ${c.product?.name || "Consumable"} (${c.reqdQty} ${c.product?.unit || "qty"})`, margin, y, { width: contentWidth - 100 });
             y = pdf.y + 2;
           });
           pdf.fillColor('#000000');
@@ -1442,15 +1440,12 @@ const sanitizeInvoicePhone = (phone) => {
     pdf.font('Courier').fontSize(9).fillColor('#000000').text(inv.invoiceNumber || "—", margin, y, { align: 'center', width: contentWidth });
 
     pdf.end();
-    });
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="invoice-${inv.invoiceNumber}.pdf"`);
-    res.send(pdfBuffer);
     } catch (err) {
-      console.error("PDF generation error:", err);
+      console.error("PDF generation error:", err.message, err.stack);
       if (!res.headersSent) {
         res.status(500).json({ error: "Failed to generate PDF" });
+      } else {
+        try { res.end(); } catch (_) {}
       }
     }
   });
