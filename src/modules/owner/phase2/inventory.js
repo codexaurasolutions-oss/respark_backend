@@ -104,7 +104,8 @@ export const registerInventoryRoutes = (ownerRouter) => {
         weight: req.body.weight ?? null,
         length: req.body.length ?? null,
         width: req.body.width ?? null,
-        height: req.body.height ?? null
+        height: req.body.height ?? null,
+        unit: req.body.unit || null
       }
     }));
   });
@@ -142,7 +143,8 @@ export const registerInventoryRoutes = (ownerRouter) => {
         weight: req.body.weight !== undefined ? req.body.weight : product.weight,
         length: req.body.length !== undefined ? req.body.length : product.length,
         width: req.body.width !== undefined ? req.body.width : product.width,
-        height: req.body.height !== undefined ? req.body.height : product.height
+        height: req.body.height !== undefined ? req.body.height : product.height,
+        unit: req.body.unit !== undefined ? req.body.unit : product.unit
       }
     }));
   });

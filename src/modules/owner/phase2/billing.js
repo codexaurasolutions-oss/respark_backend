@@ -205,7 +205,7 @@ export const registerBillingRoutes = (ownerRouter) => {
         }
       }),
       prisma.branch.findMany({ where: { salonId: req.salonId, isActive: true }, orderBy: { createdAt: "desc" } }),
-      prisma.service.findMany({ where: { salonId: req.salonId, isActive: true, ...params }, include: { category: true, branch: true }, orderBy: { createdAt: "desc" } }),
+      prisma.service.findMany({ where: { salonId: req.salonId, isActive: true, ...params }, include: { category: true, branch: true, consumables: { include: { product: true } } }, orderBy: { createdAt: "desc" } }),
       prisma.userSalon.findMany({
         where: { salonId: req.salonId, isArchived: false, ...params },
         include: { user: true, branch: true, serviceAssignments: { include: { service: { include: { category: true, branch: true } } } } }
@@ -568,6 +568,22 @@ export const registerBillingRoutes = (ownerRouter) => {
               referenceType: "INVOICE_EDIT",
               referenceId: existingInvoice.id
             });
+          } else if (removed.itemType === "SERVICE" && removed.serviceId) {
+            const svc = await tx.service.findUnique({ where: { id: removed.serviceId }, include: { consumables: true } });
+            if (svc && svc.consumables && svc.consumables.length > 0) {
+              for (const cons of svc.consumables) {
+                await createStockMovement(tx, {
+                  salonId: req.salonId,
+                  branchId: existingInvoice.branchId,
+                  productId: cons.productId,
+                  quantity: Number(cons.reqdQty) * Number(removed.qty || 1),
+                  movementType: "PRODUCT_RETURN",
+                  createdByUserId: req.user.id,
+                  referenceType: "INVOICE_EDIT",
+                  referenceId: existingInvoice.id
+                });
+              }
+            }
           }
         }
         await tx.invoiceItem.deleteMany({
@@ -616,6 +632,40 @@ export const registerBillingRoutes = (ownerRouter) => {
                   referenceId: existingInvoice.id
                 });
               }
+            } else if (existingItem && existingItem.itemType === "SERVICE" && existingItem.serviceId) {
+              const oldQty = Number(existingItem.qty || 1);
+              const newQty = Number(item.qty || 1);
+              if (newQty !== oldQty) {
+                const svc = await tx.service.findUnique({ where: { id: existingItem.serviceId }, include: { consumables: true } });
+                if (svc && svc.consumables && svc.consumables.length > 0) {
+                  for (const cons of svc.consumables) {
+                    const qtyDiff = (newQty - oldQty) * Number(cons.reqdQty);
+                    if (qtyDiff < 0) {
+                      await createStockMovement(tx, {
+                        salonId: req.salonId,
+                        branchId: existingInvoice.branchId,
+                        productId: cons.productId,
+                        quantity: -qtyDiff,
+                        movementType: "PRODUCT_RETURN",
+                        createdByUserId: req.user.id,
+                        referenceType: "INVOICE_EDIT",
+                        referenceId: existingInvoice.id
+                      });
+                    } else if (qtyDiff > 0) {
+                      await createStockMovement(tx, {
+                        salonId: req.salonId,
+                        branchId: existingInvoice.branchId,
+                        productId: cons.productId,
+                        quantity: -qtyDiff,
+                        movementType: "CONSUMABLE_USAGE",
+                        createdByUserId: req.user.id,
+                        referenceType: "INVOICE_EDIT",
+                        referenceId: existingInvoice.id
+                      });
+                    }
+                  }
+                }
+              }
             }
             await tx.invoiceItem.update({
               where: { id: item.id },
@@ -625,9 +675,31 @@ export const registerBillingRoutes = (ownerRouter) => {
             await tx.invoiceItem.create({
               data: {
                 invoiceId: existingInvoice.id,
-                ...payload
+                ...payload,
+                ...(item.serviceId ? { serviceId: item.serviceId } : {}),
+                ...(item.product ? { productId: item.product.connect.id } : {}),
+                ...(item.membershipPlan ? { membershipPlanId: item.membershipPlan.connect.id } : {}),
+                ...(item.package ? { packageId: item.package.connect.id } : {}),
+                ...(item.staffUserSalon ? { staffUserSalonId: item.staffUserSalon.connect.id } : {})
               }
             });
+            if (item.itemType === "SERVICE" && item.serviceId) {
+              const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: true } });
+              if (svc && svc.consumables && svc.consumables.length > 0) {
+                for (const cons of svc.consumables) {
+                  await createStockMovement(tx, {
+                    salonId: req.salonId,
+                    branchId: existingInvoice.branchId,
+                    productId: cons.productId,
+                    quantity: -Number(cons.reqdQty) * Number(item.qty || 1),
+                    movementType: "CONSUMABLE_USAGE",
+                    createdByUserId: req.user.id,
+                    referenceType: "INVOICE_EDIT",
+                    referenceId: existingInvoice.id
+                  });
+                }
+              }
+            }
           }
         }
 
@@ -1090,7 +1162,7 @@ const sanitizeInvoicePhone = (phone) => {
   ownerRouter.get("/invoices/:id/pdf", requireSalonPermission("invoices", "view"), async (req, res) => {
     const inv = await prisma.invoice.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
-      include: { items: true, payments: true, customer: true, branch: true, salon: true }
+      include: { items: { include: { service: { include: { consumables: { include: { product: true } } } } } }, payments: true, customer: true, branch: true, salon: true }
     });
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
 
@@ -1286,6 +1358,15 @@ const sanitizeInvoicePhone = (phone) => {
           pdf.font('Helvetica').fontSize(9).text(`Discount: -${discPct}%`, margin, y, { width: contentWidth - 100 });
           y = pdf.y + 2;
         }
+
+        if (item.itemType === 'SERVICE' && item.service?.consumables?.length > 0) {
+          item.service.consumables.forEach((c) => {
+            pdf.font('Helvetica').fontSize(8).fillColor('#64748b').text(`  ↳ ${c.product?.name || "Consumable"} (${c.reqdQty} ${c.product?.unit || "qty"})`, margin, y, { width: contentWidth - 100 });
+            y = pdf.y + 2;
+          });
+          pdf.fillColor('#000000');
+        }
+
         y += 4;
       });
       y += 4;

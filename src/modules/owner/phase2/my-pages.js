@@ -72,14 +72,21 @@ export const registerMyPageRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/my-appointments", requireSalonPermission("myAppointments", "view"), async (req, res) => {
-    res.json(await prisma.appointment.findMany({
+    if (!req.user.membershipId) {
+      return res.json([]);
+    }
+    const rows = await prisma.appointment.findMany({
       where: {
         salonId: req.salonId,
-        items: { some: { assignedStaff: { some: { userSalonId: req.user.membershipId } } } }
+        OR: [
+          { items: { some: { assignedStaff: { some: { userSalonId: req.user.membershipId } } } } },
+          { primaryStaffUserId: req.user.membershipId }
+        ]
       },
-      include: { customer: true, branch: true, items: { include: { service: true } } },
+      include: { customer: true, branch: true, items: { include: { service: true, assignedStaff: { include: { userSalon: { include: { user: true } } } } } } },
       orderBy: { startAt: "asc" }
-    }));
+    });
+    res.json(rows);
   });
 
   ownerRouter.get("/my-schedule", requireSalonPermission("mySchedule", "view"), async (req, res) => {

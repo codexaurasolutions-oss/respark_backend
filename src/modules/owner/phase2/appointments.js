@@ -530,6 +530,29 @@ export const registerAppointmentRoutes = (ownerRouter) => {
 
       await tx.appointment.update({ where: { id: appointment.id }, data: { convertedInvoiceId: created.id } });
       await logCustomerTimeline(tx, appointment.customerId, "INVOICE", "Appointment converted to invoice", created.invoiceNumber, created.id);
+
+      // Deduct stock for predefined service consumables
+      const { createStockMovement } = await import("../../../lib/phase2.js");
+      for (const item of items) {
+        if (item.serviceId) {
+          const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: true } });
+          if (svc && svc.consumables && svc.consumables.length > 0) {
+            for (const cons of svc.consumables) {
+              await createStockMovement(tx, {
+                salonId: req.salonId,
+                branchId: appointment.branchId,
+                productId: cons.productId,
+                quantity: -Number(cons.reqdQty) * Number(item.qty || 1),
+                movementType: "CONSUMABLE_USAGE",
+                createdByUserId: req.user.id,
+                referenceType: "INVOICE",
+                referenceId: created.id
+              });
+            }
+          }
+        }
+      }
+
       return created;
     });
 

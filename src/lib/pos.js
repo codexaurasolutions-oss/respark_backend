@@ -194,8 +194,12 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
             appliedBenefitValue = Math.min(unitPrice, toAmount(membership.membershipPlan.discountValue));
             unitPrice = Math.max(0, unitPrice - appliedBenefitValue);
           } else if (membership.membershipPlan.benefitType === "WALLET_VALUE") {
-            membershipWalletUsed = Math.min(unitPrice, toAmount(membership.remainingWalletValue));
-            unitPrice = Math.max(0, unitPrice - membershipWalletUsed);
+            if (item.membershipWalletUsed !== undefined) {
+              membershipWalletUsed = Math.min(toAmount(item.membershipWalletUsed), toAmount(membership.remainingWalletValue));
+            } else {
+              membershipWalletUsed = Math.min(unitPrice, toAmount(membership.remainingWalletValue));
+              unitPrice = Math.max(0, unitPrice - membershipWalletUsed);
+            }
             appliedBenefitType = membershipWalletUsed ? "MEMBERSHIP_WALLET" : null;
             appliedBenefitValue = membershipWalletUsed;
           }
@@ -788,21 +792,23 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       }
     }
 
-    for (const item of body.items) {
-      if (item.itemType === "SERVICE" && Array.isArray(item.consumableItems) && item.consumableItems.length > 0) {
-        if (!allowEditConsumable) continue;
-        for (const ci of item.consumableItems) {
-          if (!ci.productId || Number(ci.qty) <= 0) continue;
-          await createStockMovement(tx, {
-            salonId,
-            branchId: body.branchId || null,
-            productId: ci.productId,
-            quantity: -Number(ci.qty),
-            movementType: "CONSUMABLE_USAGE",
-            createdByUserId: actorUser.id,
-            referenceType: "INVOICE",
-            referenceId: invoice.id
-          });
+    for (const item of itemDrafts) {
+      if (item.itemType === "SERVICE" && item.serviceId) {
+        // Auto-deduct predefined service consumables
+        const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: true } });
+        if (svc && svc.consumables && svc.consumables.length > 0) {
+          for (const cons of svc.consumables) {
+            await createStockMovement(tx, {
+              salonId,
+              branchId: body.branchId || null,
+              productId: cons.productId,
+              quantity: -Number(cons.reqdQty) * Number(item.qty || 1),
+              movementType: "CONSUMABLE_USAGE",
+              createdByUserId: actorUser.id,
+              referenceType: "INVOICE",
+              referenceId: invoice.id
+            });
+          }
         }
       }
     }
