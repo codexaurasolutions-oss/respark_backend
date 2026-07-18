@@ -31,7 +31,7 @@ export const fetchAppointment = (salonId, id) =>
       primaryStaff: { include: { user: true } },
       items: {
         include: {
-          service: true,
+          service: { include: { consumables: { include: { product: true } } } },
           assignedStaff: { include: { userSalon: { include: { user: true } } } }
         }
       },

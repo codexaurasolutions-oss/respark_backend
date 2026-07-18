@@ -1243,17 +1243,7 @@ const sanitizeInvoicePhone = (phone) => {
       pdf.restore();
     };
 
-    const drawFakeQRCode = (xPos, yPos, size) => {
-      pdf.save();
-      pdf.strokeColor('#cbd5e1').lineWidth(1.5).roundedRect(xPos, yPos, size, size, 4).stroke();
-      const fillSize = 6;
-      pdf.fillColor('#94a3b8');
-      pdf.rect(xPos + 3, yPos + 3, fillSize, fillSize).fill();
-      pdf.rect(xPos + size - 3 - fillSize, yPos + 3, fillSize, fillSize).fill();
-      pdf.rect(xPos + 3, yPos + size - 3 - fillSize, fillSize, fillSize).fill();
-      pdf.rect(xPos + size / 2 - 2, yPos + size / 2 - 2, 4, 4).fill();
-      pdf.restore();
-    };
+
 
     // Header
     pdf.font('Helvetica-Bold').fontSize(22).fillColor('#000000').text(brandName, margin, y, { align: 'center', width: contentWidth });

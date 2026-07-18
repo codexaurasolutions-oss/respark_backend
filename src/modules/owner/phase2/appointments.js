@@ -482,10 +482,12 @@ export const registerAppointmentRoutes = (ownerRouter) => {
   ownerRouter.post("/appointments/:id/convert-to-invoice", requireFeatureEnabled("appointments"), requireSalonPermission("pos", "create"), async (req, res) => {
     const appointment = await prisma.appointment.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
-      include: { items: { include: { service: true, assignedStaff: { include: { userSalon: { include: { user: true } } } } } } }
+      include: { items: { include: { service: { include: { consumables: { include: { product: true } } } }, assignedStaff: { include: { userSalon: { include: { user: true } } } } } } }
     });
     if (!appointment) return res.status(404).json({ message: "Appointment not found" });
     if (appointment.status !== "COMPLETED") return res.status(400).json({ message: "Only completed appointments can convert to invoice" });
+
+    const consumableOverrides = req.body.consumableOverrides || null;
 
     const invoice = await prisma.$transaction(async (tx) => {
       const settings = await getSalonSetting(tx, req.salonId, appointment.branchId);
