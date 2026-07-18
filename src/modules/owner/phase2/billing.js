@@ -1077,7 +1077,7 @@ const pdfSafe = (str) => {
     }
     
     const footer = settings?.invoiceFooter || "Thank you for visiting.";
-    const salonName = customSalonName || inv.branch?.name || "My Salon";
+    const salonName = customSalonName || inv.salon?.name || inv.branch?.name || "My Salon";
     const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     const items = inv.items.map((item) => {
