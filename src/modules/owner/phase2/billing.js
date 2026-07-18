@@ -1176,15 +1176,17 @@ const sanitizeInvoicePhone = (phone) => {
       customSalonName = globalSettings.advancedSettings.genericSettings.salonName;
     }
 
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="invoice-${inv.invoiceNumber}.pdf"`);
-
-    const width = 380; // Match wrap width of 380px exactly!
+    const width = 380;
     const margin = 24;
     const contentWidth = width - margin * 2;
     const docHeight = 580 + (inv.items.length * 45) + ((inv.payments || []).length * 15);
+
     const pdf = new PDFDocument({ margin: margin, size: [width, docHeight] });
-    pdf.pipe(res);
+    const chunks = [];
+    pdf.on('data', (chunk) => chunks.push(chunk));
+    const pdfBuffer = await new Promise((resolve, reject) => {
+      pdf.on('end', () => resolve(Buffer.concat(chunks)));
+      pdf.on('error', reject);
 
     const salonName = customSalonName || inv.salon?.name || "My Salon";
     const branchName = inv.branch?.name || "";
@@ -1440,6 +1442,11 @@ const sanitizeInvoicePhone = (phone) => {
     pdf.font('Courier').fontSize(9).fillColor('#000000').text(inv.invoiceNumber || "—", margin, y, { align: 'center', width: contentWidth });
 
     pdf.end();
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="invoice-${inv.invoiceNumber}.pdf"`);
+    res.send(pdfBuffer);
     } catch (err) {
       console.error("PDF generation error:", err);
       if (!res.headersSent) {
