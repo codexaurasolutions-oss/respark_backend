@@ -5,7 +5,10 @@ export const buildAppointmentScope = (req, branchId = null) => {
   return {
     salonId: req.salonId,
     ...(branchId ? { branchId } : {}),
-    ...(ownOnly ? { items: { some: { assignedStaff: { some: { userSalonId: req.user.membershipId } } } } } : {})
+    ...(ownOnly ? { OR: [
+      { items: { some: { assignedStaff: { some: { userSalonId: req.user.membershipId } } } } },
+      { primaryStaffUserId: req.user.membershipId }
+    ] } : {})
   };
 };
 
@@ -13,6 +16,7 @@ export const canAccessAppointment = (req, appointment) => {
   if (!appointment) return false;
   const ownOnly = req.user.salonRole === "STAFF" && !(req.user.permissions?.appointments || []).includes("manage_all");
   if (!ownOnly) return true;
+  if (appointment.primaryStaffUserId === req.user.membershipId) return true;
   return (appointment.items || []).some((item) =>
     (item.assignedStaff || []).some((assignment) => assignment.userSalonId === req.user.membershipId)
   );
