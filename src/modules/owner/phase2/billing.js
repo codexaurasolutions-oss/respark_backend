@@ -1160,6 +1160,7 @@ const sanitizeInvoicePhone = (phone) => {
   });
 
   ownerRouter.get("/invoices/:id/pdf", requireSalonPermission("invoices", "view"), async (req, res) => {
+    try {
     const inv = await prisma.invoice.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
       include: { items: { include: { service: { include: { consumables: { include: { product: true } } } } } }, payments: true, customer: true, branch: true, salon: true }
@@ -1418,7 +1419,7 @@ const sanitizeInvoicePhone = (phone) => {
       y += 14;
       inv.payments.forEach(p => {
         const pDate = new Date(p.createdAt).toLocaleDateString("en-GB").replace(/\//g, "-");
-        pdf.font('Helvetica').fontSize(9).text(`${pDate} (${p.method || 'CASH'})`, margin, y);
+        pdf.font('Helvetica').fontSize(9).text(`${pDate} (${p.mode || 'CASH'})`, margin, y);
         pdf.font('Helvetica-Bold').fontSize(9).text(fmt(p.amount), margin + contentWidth - 100, y, { width: 100, align: 'right' });
         y += 14;
       });
@@ -1439,6 +1440,12 @@ const sanitizeInvoicePhone = (phone) => {
     pdf.font('Courier').fontSize(9).fillColor('#000000').text(inv.invoiceNumber || "—", margin, y, { align: 'center', width: contentWidth });
 
     pdf.end();
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Failed to generate PDF" });
+      }
+    }
   });
 
   // ── Advance Payments ──────────────────────────────────────────────────
