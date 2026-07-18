@@ -533,23 +533,29 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       await tx.appointment.update({ where: { id: appointment.id }, data: { convertedInvoiceId: created.id } });
       await logCustomerTimeline(tx, appointment.customerId, "INVOICE", "Appointment converted to invoice", created.invoiceNumber, created.id);
 
-      // Deduct stock for predefined service consumables
+      // Deduct stock for predefined service consumables (with override support)
       const { createStockMovement } = await import("../../../lib/phase2.js");
       for (const item of items) {
         if (item.serviceId) {
-          const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: true } });
+          const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: { include: { product: true } } } });
           if (svc && svc.consumables && svc.consumables.length > 0) {
             for (const cons of svc.consumables) {
-              await createStockMovement(tx, {
-                salonId: req.salonId,
-                branchId: appointment.branchId,
-                productId: cons.productId,
-                quantity: -Number(cons.reqdQty) * Number(item.qty || 1),
-                movementType: "CONSUMABLE_USAGE",
-                createdByUserId: req.user.id,
-                referenceType: "INVOICE",
-                referenceId: created.id
-              });
+              const overrideKey = `${item.serviceId}:${cons.productId}`;
+              const overrideQty = consumableOverrides?.[overrideKey];
+              const qtyToDeduct = overrideQty != null ? Number(overrideQty) : Number(cons.reqdQty);
+              if (qtyToDeduct > 0) {
+                await createStockMovement(tx, {
+                  salonId: req.salonId,
+                  branchId: appointment.branchId,
+                  productId: cons.productId,
+                  quantity: -qtyToDeduct * Number(item.qty || 1),
+                  movementType: "CONSUMABLE_USAGE",
+                  createdByUserId: req.user.id,
+                  referenceType: "INVOICE",
+                  referenceId: created.id,
+                  note: overrideQty != null ? `Override: ${overrideQty} ${cons.product?.unit || ""} (default: ${cons.reqdQty})` : null
+                });
+              }
             }
           }
         }

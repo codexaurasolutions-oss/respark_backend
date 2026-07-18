@@ -794,20 +794,25 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
 
     for (const item of itemDrafts) {
       if (item.itemType === "SERVICE" && item.serviceId) {
-        // Auto-deduct predefined service consumables
-        const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: true } });
+        const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: { include: { product: true } } } });
         if (svc && svc.consumables && svc.consumables.length > 0) {
           for (const cons of svc.consumables) {
-            await createStockMovement(tx, {
-              salonId,
-              branchId: body.branchId || null,
-              productId: cons.productId,
-              quantity: -Number(cons.reqdQty) * Number(item.qty || 1),
-              movementType: "CONSUMABLE_USAGE",
-              createdByUserId: actorUser.id,
-              referenceType: "INVOICE",
-              referenceId: invoice.id
-            });
+            const overrideKey = `${item.serviceId}:${cons.productId}`;
+            const overrideQty = body.consumableOverrides?.[overrideKey];
+            const qtyToDeduct = overrideQty != null ? Number(overrideQty) : Number(cons.reqdQty);
+            if (qtyToDeduct > 0) {
+              await createStockMovement(tx, {
+                salonId,
+                branchId: body.branchId || null,
+                productId: cons.productId,
+                quantity: -qtyToDeduct * Number(item.qty || 1),
+                movementType: "CONSUMABLE_USAGE",
+                createdByUserId: actorUser.id,
+                referenceType: "INVOICE",
+                referenceId: invoice.id,
+                note: overrideQty != null ? `Override: ${overrideQty} ${cons.product?.unit || ""} (default: ${cons.reqdQty})` : null
+              });
+            }
           }
         }
       }
