@@ -299,7 +299,7 @@ export const registerInventoryRoutes = (ownerRouter) => {
     const order = await prisma.$transaction(async (tx) => {
       const orderNumber = await nextNumber(tx, "purchaseOrder", req.salonId, "PO");
       const totalCost = req.body.items.reduce((sum, item) => sum + toAmount(item.unitCost) * toAmount(item.quantityOrdered), 0);
-      const status = req.body.status || (req.user.salonRole === "SALON_OWNER" ? "ORDERED" : "DRAFT");
+      const status = req.body.status || "DRAFT";
       return tx.purchaseOrder.create({
         data: {
           salonId: req.salonId,
