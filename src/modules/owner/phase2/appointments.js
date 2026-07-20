@@ -27,7 +27,11 @@ const dispatchAppointmentEvent = async (salonId, appointmentId, {
   staffToggleKey = null, // e.g. "appointmentMsgToStaff"
   staffTitle = null,
   staffMessage = null,
-  branchId = null
+  branchId = null,
+  forceCustomerEmail = false,
+  skipCustomerEmail = false,
+  forceOwnerEmail = false,
+  skipOwnerEmail = false
 }) => {
   try {
     const appointment = await fetchAppointment(salonId, appointmentId);
@@ -36,11 +40,11 @@ const dispatchAppointmentEvent = async (salonId, appointmentId, {
     const { isOn, emailEnabled } = await getNotificationToggles(salonId, branchId || appointment.branchId);
 
     // Master switch: if messageForAppointments is OFF, suppress all appointment notifications
-    if (!isOn("messageForAppointments")) return { skipped: true, reason: "messageForAppointments-disabled" };
+    if (!isOn("messageForAppointments") && !forceCustomerEmail && !forceOwnerEmail) return { skipped: true, reason: "messageForAppointments-disabled" };
 
     // 1. Customer email
     const customerEmail = appointment?.customer?.email || "";
-    if (toggleKey && isOn(toggleKey) && emailEnabled && customerEmail) {
+    if (!skipCustomerEmail && (forceCustomerEmail || (toggleKey && isOn(toggleKey))) && emailEnabled && customerEmail) {
       await attemptCustomerTemplateEmail({
         salonId,
         toEmail: customerEmail,
@@ -66,7 +70,7 @@ const dispatchAppointmentEvent = async (salonId, appointmentId, {
     }
 
     // 3. Owner / salon-wide in-app notification
-    if (ownerToggleKey && isOn(ownerToggleKey) && ownerTitle) {
+    if (!skipOwnerEmail && (forceOwnerEmail || (ownerToggleKey && isOn(ownerToggleKey))) && ownerTitle) {
       await createStaffNotification({
         salonId,
         userSalonId: null, // null = broadcast to all staff with access
@@ -239,7 +243,11 @@ export const registerAppointmentRoutes = (ownerRouter) => {
         ownerMessage: `A new appointment has been booked for ${new Date(body.startAt).toLocaleString()}.`,
         staffToggleKey: "appointmentMsgToStaff",
         staffTitle: "New Appointment Assigned",
-        staffMessage: `You have a new appointment on ${new Date(body.startAt).toLocaleString()}.`
+        staffMessage: `You have a new appointment on ${new Date(body.startAt).toLocaleString()}.`,
+        forceCustomerEmail: body.smsToGuest === true,
+        skipCustomerEmail: body.smsToGuest === false,
+        forceOwnerEmail: body.smsToOwner === true,
+        skipOwnerEmail: body.smsToOwner === false
       });
       res.status(201).json(created);
     } catch (error) {

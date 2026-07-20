@@ -526,6 +526,8 @@ export const schemas = {
       notes: optionalString,
       customerPreferences: optionalString,
       isWalkIn: z.boolean().optional(),
+      smsToGuest: z.boolean().optional(),
+      smsToOwner: z.boolean().optional(),
       advancePaymentRequired: z.boolean().optional(),
       advancePaidAmount: z.number().min(0).optional(),
       roomResourceNote: optionalString,
