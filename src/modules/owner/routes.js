@@ -1761,8 +1761,12 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
   startDate.setDate(startDate.getDate() - Math.max(days, periodDays));
   startDate.setHours(0,0,0,0);
 
+  const statsStartDate = new Date();
+  statsStartDate.setDate(statsStartDate.getDate() - days);
+  statsStartDate.setHours(0,0,0,0);
+
   const branchId = normalizeBranchId(req.query.branchId);
-  const invoices = await prisma.invoice.findMany({
+  const allInvoices = await prisma.invoice.findMany({
     where: {
       salonId: req.salonId,
       status: "PAID",
@@ -1773,6 +1777,8 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
       items: true
     }
   });
+
+  const invoices = allInvoices.filter(inv => inv.createdAt >= statsStartDate);
 
   // Helper to determine if an item should be included based on the active filter
   const itemMatchesFilter = (item) => {
@@ -1850,7 +1856,7 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
     dateMap[dateStr] = { date: dateStr, total: 0, service: 0, product: 0, package: 0, membership: 0 };
   }
 
-  invoices.forEach(inv => {
+  allInvoices.forEach(inv => {
     const dStr = inv.createdAt.toISOString().slice(0, 10);
     if (dateMap[dStr]) {
       inv.items.forEach(item => {
