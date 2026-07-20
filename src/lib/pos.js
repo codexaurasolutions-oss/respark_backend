@@ -811,7 +811,8 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
                 createdByUserId: actorUser.id,
                 referenceType: "INVOICE",
                 referenceId: invoice.id,
-                note: overrideQty != null ? `Override: ${overrideQty} ${cons.product?.unit || ""} (default: ${cons.reqdQty})` : null
+                note: overrideQty != null ? `Override: ${overrideQty} ${cons.product?.unit || ""} (default: ${cons.reqdQty})` : null,
+                allowNegativeStock: true
               });
             }
           }

@@ -561,7 +561,8 @@ export const registerAppointmentRoutes = (ownerRouter) => {
                   createdByUserId: req.user.id,
                   referenceType: "INVOICE",
                   referenceId: created.id,
-                  note: overrideQty != null ? `Override: ${overrideQty} ${cons.product?.unit || ""} (default: ${cons.reqdQty})` : null
+                  note: overrideQty != null ? `Override: ${overrideQty} ${cons.product?.unit || ""} (default: ${cons.reqdQty})` : null,
+                  allowNegativeStock: true
                 });
               }
             }

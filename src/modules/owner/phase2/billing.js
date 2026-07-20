@@ -660,7 +660,8 @@ export const registerBillingRoutes = (ownerRouter) => {
                         movementType: "CONSUMABLE_USAGE",
                         createdByUserId: req.user.id,
                         referenceType: "INVOICE_EDIT",
-                        referenceId: existingInvoice.id
+                        referenceId: existingInvoice.id,
+                        allowNegativeStock: true
                       });
                     }
                   }
@@ -700,7 +701,8 @@ export const registerBillingRoutes = (ownerRouter) => {
                       createdByUserId: req.user.id,
                       referenceType: "INVOICE_EDIT",
                       referenceId: existingInvoice.id,
-                      note: overrideQty != null ? `Override: ${overrideQty} ${cons.product?.unit || ""} (default: ${cons.reqdQty})` : null
+                      note: overrideQty != null ? `Override: ${overrideQty} ${cons.product?.unit || ""} (default: ${cons.reqdQty})` : null,
+                      allowNegativeStock: true
                     });
                   }
                 }
