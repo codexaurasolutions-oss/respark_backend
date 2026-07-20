@@ -1168,7 +1168,7 @@ const pdfSafe = (str) => {
     try {
     const inv = await prisma.invoice.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
-      include: { items: { include: { service: { include: { consumables: { include: { product: true } } } } } }, payments: true, customer: true, branch: true, salon: true }
+      include: { items: true, payments: true, customer: true, branch: true, salon: true }
     });
     if (!inv) return res.status(404).json({ error: "Invoice not found" });
 
@@ -1357,13 +1357,7 @@ const pdfSafe = (str) => {
           y = pdf.y + 2;
         }
 
-        if (item.itemType === 'SERVICE' && item.service?.consumables?.length > 0) {
-          item.service.consumables.forEach((c) => {
-            pdf.font('Helvetica').fontSize(8).fillColor('#64748b').text(pdfSafe(`  > ${c.product?.name || "Consumable"} (${c.reqdQty} ${c.product?.unit || "qty"})`), margin, y, { width: contentWidth - 100 });
-            y = pdf.y + 2;
-          });
-          pdf.fillColor('#000000');
-        }
+
 
         y += 4;
       });
