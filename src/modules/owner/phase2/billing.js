@@ -214,7 +214,7 @@ export const registerBillingRoutes = (ownerRouter) => {
         where: {
           salonId: req.salonId,
           isActive: true,
-          ...(branchId ? { branchId } : {})
+          ...params
         },
         include: { category: true, branch: true },
         orderBy: { createdAt: "desc" }
