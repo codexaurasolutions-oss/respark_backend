@@ -201,6 +201,7 @@ const invoiceItemSchema = z.object({
   isCustom: z.boolean().optional(),
   customServices: z.array(z.any()).optional(),
   customProducts: z.array(z.any()).optional(),
+  consumableItems: z.array(z.object({ productId: z.string().optional(), name: z.string().optional(), qty: z.number().optional(), unit: z.string().optional() })).optional(),
   purchaseDate: z.string().optional()
 }).refine((value) => value.serviceId || value.productId || value.membershipPlanId || value.packageId || value.giftCardId || value.serviceName, {
   message: "At least one invoice item reference or name is required"

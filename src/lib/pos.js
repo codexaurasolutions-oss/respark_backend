@@ -817,6 +817,24 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
             }
           }
         }
+        if (Array.isArray(item.consumableItems) && item.consumableItems.length > 0) {
+          for (const ci of item.consumableItems) {
+            if (ci.productId && Number(ci.qty) > 0) {
+              await createStockMovement(tx, {
+                salonId,
+                branchId: body.branchId || null,
+                productId: ci.productId,
+                quantity: -Number(ci.qty) * Number(item.qty || 1),
+                movementType: "CONSUMABLE_USAGE",
+                createdByUserId: actorUser.id,
+                referenceType: "INVOICE",
+                referenceId: invoice.id,
+                note: `Custom consumable: ${ci.name || ""} (${ci.qty} ${ci.unit || ""})`,
+                allowNegativeStock: true
+              });
+            }
+          }
+        }
       }
     }
 
