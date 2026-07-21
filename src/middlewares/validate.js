@@ -445,6 +445,7 @@ export const schemas = {
       couponCode: z.string().max(50).optional(),
       loyaltyPointsUsed: z.number().min(0).max(999999).optional(),
       giftVoucherCode: z.string().max(50).optional(),
+      consumableOverrides: z.record(z.string(), z.union([z.number(), z.string()])).optional(),
       affiliateCreditRedemptions: z.array(z.object({
         partnerId: idSchema,
         amount: z.number().positive().max(9999999),
