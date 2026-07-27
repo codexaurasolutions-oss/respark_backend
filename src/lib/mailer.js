@@ -10,14 +10,14 @@ const smtpConfigured = () =>
 
 const createTransporter = () => {
   if (smtpConfigured()) {
-    const isGmail = process.env.SMTP_HOST?.toLowerCase().includes("gmail");
+    const port = Number(process.env.SMTP_PORT || 587);
+    const secureSetting = process.env.SMTP_SECURE;
+    const secure = secureSetting === "true" || secureSetting === "1" || secureSetting === true;
 
-    // Force port 587 with STARTTLS and IPv4 (family: 4) for Railway cloud compatibility
     const config = {
-      host: isGmail ? "smtp.gmail.com" : process.env.SMTP_HOST,
-      port: 587,
-      secure: false,
-      requireTLS: true,
+      host: process.env.SMTP_HOST,
+      port: port,
+      secure: secure,
       family: 4,
       connectionTimeout: 15000,
       greetingTimeout: 15000,
@@ -34,7 +34,7 @@ const createTransporter = () => {
       };
     }
 
-    console.log("[mailer] SMTP Config (Port 587 STARTTLS):", {
+    console.log("[mailer] SMTP Config:", {
       host: config.host,
       port: config.port,
       secure: config.secure,
