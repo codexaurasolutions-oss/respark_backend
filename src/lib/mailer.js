@@ -73,8 +73,8 @@ const withTimeout = async (promise, timeoutMs) => {
       new Promise((_, reject) => {
         timer = setTimeout(() => {
           reject(new Error(`Email delivery timed out after ${timeoutMs}ms`));
-        }, timeoutMs)
-      ])
+        }, timeoutMs);
+      })
     ]);
   } finally {
     if (timer) clearTimeout(timer);
