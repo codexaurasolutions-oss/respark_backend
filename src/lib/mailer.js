@@ -12,35 +12,18 @@ const createTransporter = () => {
   if (smtpConfigured()) {
     const isGmail = process.env.SMTP_HOST?.toLowerCase().includes("gmail");
 
-    if (isGmail && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      console.log("[mailer] Configuring Nodemailer with service: 'gmail'");
-      return nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS || ""
-        },
-        connectionTimeout: DEFAULT_TIMEOUT_MS,
-        greetingTimeout: DEFAULT_TIMEOUT_MS,
-        socketTimeout: DEFAULT_TIMEOUT_MS
-      });
-    }
-
-    const secureSetting = process.env.SMTP_SECURE;
-    const secure = 
-      secureSetting === "true" || 
-      secureSetting === "1" || 
-      secureSetting === true;
-
+    // Force port 587 with STARTTLS for Railway/cloud egress compatibility
     const config = {
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: secure,
-      connectionTimeout: DEFAULT_TIMEOUT_MS,
-      greetingTimeout: DEFAULT_TIMEOUT_MS,
-      socketTimeout: DEFAULT_TIMEOUT_MS,
+      host: isGmail ? "smtp.gmail.com" : process.env.SMTP_HOST,
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
       tls: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
+        ciphers: "SSLv3"
       }
     };
 
@@ -51,12 +34,11 @@ const createTransporter = () => {
       };
     }
 
-    console.log("[mailer] SMTP Config:", {
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: secure,
-      hasAuth: !!process.env.SMTP_USER,
-      timeout: DEFAULT_TIMEOUT_MS
+    console.log("[mailer] SMTP Config (Port 587 STARTTLS):", {
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      hasAuth: !!process.env.SMTP_USER
     });
 
     return nodemailer.createTransport(config);
