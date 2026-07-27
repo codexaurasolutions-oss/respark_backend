@@ -571,7 +571,9 @@ export const registerBillingRoutes = (ownerRouter) => {
           } else if (removed.itemType === "SERVICE" && removed.serviceId) {
             const svc = await tx.service.findUnique({ where: { id: removed.serviceId }, include: { consumables: true } });
             if (svc && svc.consumables && svc.consumables.length > 0) {
-              for (const cons of svc.consumables) {
+              const serviceVariation = removed.variation || null;
+              const matchedConsumables = svc.consumables.filter(c => c.variation === serviceVariation || (serviceVariation == null && c.variation == null));
+              for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
                 await createStockMovement(tx, {
                   salonId: req.salonId,
                   branchId: existingInvoice.branchId,
@@ -638,7 +640,9 @@ export const registerBillingRoutes = (ownerRouter) => {
               if (newQty !== oldQty) {
                 const svc = await tx.service.findUnique({ where: { id: existingItem.serviceId }, include: { consumables: true } });
                 if (svc && svc.consumables && svc.consumables.length > 0) {
-                  for (const cons of svc.consumables) {
+                  const serviceVariation = existingItem.variation || null;
+                  const matchedConsumables = svc.consumables.filter(c => c.variation === serviceVariation || (serviceVariation == null && c.variation == null));
+                  for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
                     const qtyDiff = (newQty - oldQty) * Number(cons.reqdQty);
                     if (qtyDiff < 0) {
                       await createStockMovement(tx, {
@@ -687,7 +691,9 @@ export const registerBillingRoutes = (ownerRouter) => {
             if (item.itemType === "SERVICE" && item.serviceId) {
               const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: { include: { product: true } } } });
               if (svc && svc.consumables && svc.consumables.length > 0) {
-                for (const cons of svc.consumables) {
+                const serviceVariation = item.variation || null;
+                const matchedConsumables = svc.consumables.filter(c => c.variation === serviceVariation || (serviceVariation == null && c.variation == null));
+                for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
                   const overrideKey = `${item.serviceId}:${cons.productId}`;
                   const overrideQty = req.body?.consumableOverrides?.[overrideKey];
                   const qtyToDeduct = overrideQty != null && !isNaN(Number(overrideQty)) ? Number(overrideQty) : Number(cons.reqdQty);

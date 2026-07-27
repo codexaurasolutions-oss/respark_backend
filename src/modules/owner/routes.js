@@ -687,7 +687,7 @@ ownerRouter.post("/services", requireSalonPermission("services", "create"), vali
   });
   if (Array.isArray(consumables) && consumables.length > 0) {
     await prisma.serviceConsumable.createMany({
-      data: consumables.map(c => ({ serviceId: service.id, productId: c.productId, reqdQty: toAmount(c.reqdQty) }))
+      data: consumables.map(c => ({ serviceId: service.id, productId: c.productId, variation: c.variation || null, reqdQty: toAmount(c.reqdQty) }))
     });
   }
   if (Array.isArray(serviceTaxes) && serviceTaxes.length > 0) {
@@ -726,7 +726,7 @@ ownerRouter.patch("/services/:id", requireSalonPermission("services", "edit"), v
     await prisma.serviceConsumable.deleteMany({ where: { serviceId: req.params.id } });
     if (consumables.length > 0) {
       await prisma.serviceConsumable.createMany({
-        data: consumables.map(c => ({ serviceId: req.params.id, productId: c.productId, reqdQty: toAmount(c.reqdQty) }))
+        data: consumables.map(c => ({ serviceId: req.params.id, productId: c.productId, variation: c.variation || null, reqdQty: toAmount(c.reqdQty) }))
       });
     }
   }

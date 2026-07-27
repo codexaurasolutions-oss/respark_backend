@@ -797,7 +797,9 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       if (item.itemType === "SERVICE" && item.serviceId) {
         const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: { include: { product: true } } } });
         if (svc && svc.consumables && svc.consumables.length > 0) {
-          for (const cons of svc.consumables) {
+          const serviceVariation = item.variation || null;
+          const matchedConsumables = svc.consumables.filter(c => c.variation === serviceVariation || (serviceVariation == null && c.variation == null));
+          for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
             const overrideKey = `${item.serviceId}:${cons.productId}`;
             const overrideQty = body.consumableOverrides?.[overrideKey];
             const qtyToDeduct = overrideQty != null ? Number(overrideQty) : Number(cons.reqdQty);

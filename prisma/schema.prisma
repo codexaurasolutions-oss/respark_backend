@@ -578,11 +578,12 @@ model ServiceConsumable {
   id        String  @id @default(cuid())
   serviceId String
   productId String
+  variation String? @db.VarChar(20)
   reqdQty   Decimal @default(0) @db.Decimal(10, 2)
   service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@unique([serviceId, productId])
+  @@unique([serviceId, productId, variation])
 }
 
 model ServiceTax {
