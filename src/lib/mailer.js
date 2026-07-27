@@ -12,18 +12,18 @@ const createTransporter = () => {
   if (smtpConfigured()) {
     const isGmail = process.env.SMTP_HOST?.toLowerCase().includes("gmail");
 
-    // Force port 587 with STARTTLS for Railway/cloud egress compatibility
+    // Force port 587 with STARTTLS and IPv4 (family: 4) for Railway cloud compatibility
     const config = {
       host: isGmail ? "smtp.gmail.com" : process.env.SMTP_HOST,
       port: 587,
       secure: false,
       requireTLS: true,
+      family: 4,
       connectionTimeout: 15000,
       greetingTimeout: 15000,
       socketTimeout: 15000,
       tls: {
-        rejectUnauthorized: false,
-        ciphers: "SSLv3"
+        rejectUnauthorized: false
       }
     };
 
