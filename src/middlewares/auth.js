@@ -4,7 +4,8 @@ import { defaultOwnerPermissions } from "../lib/permissions.js";
 
 export const authMiddleware = async (req, res, next) => {
   try {
-    if (req.path.startsWith("/api/v1/public") || req.path.startsWith("/api/v1/auth") || req.path.startsWith("/api/v1/test-email") || req.path.startsWith("/uploads")) {
+    const url = req.originalUrl || req.path || "";
+    if (url.includes("/public") || url.includes("/auth") || url.includes("/test-email") || url.includes("/uploads")) {
       return next();
     }
     let token = null;
