@@ -2,29 +2,57 @@ import nodemailer from "nodemailer";
 
 let transporter;
 
-const DEFAULT_TIMEOUT_MS = Number(process.env.SMTP_TIMEOUT_MS || 10000);
+// Increase timeout to 30 seconds for better reliability
+const DEFAULT_TIMEOUT_MS = Number(process.env.SMTP_TIMEOUT_MS || 30000);
 
 const smtpConfigured = () =>
   Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_FROM);
 
 const createTransporter = () => {
   if (smtpConfigured()) {
-    return nodemailer.createTransport({
+    // Parse SMTP_SECURE properly: handle "true", "false", "1", "0", true, false
+    const secureSetting = process.env.SMTP_SECURE;
+    const secure = 
+      secureSetting === "true" || 
+      secureSetting === "1" || 
+      secureSetting === true;
+
+    const config = {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
-      secure: String(process.env.SMTP_SECURE || "false") === "true",
+      secure: secure,
       connectionTimeout: DEFAULT_TIMEOUT_MS,
       greetingTimeout: DEFAULT_TIMEOUT_MS,
       socketTimeout: DEFAULT_TIMEOUT_MS,
-      auth: process.env.SMTP_USER
-        ? {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS || ""
-          }
-        : undefined
+      // Add pool for better connection handling
+      pool: {
+        maxConnections: 5,
+        maxMessages: 100,
+        rateDelta: 2000,
+        rateLimit: 14
+      }
+    };
+
+    // Only add auth if SMTP_USER is provided
+    if (process.env.SMTP_USER) {
+      config.auth = {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS || ""
+      };
+    }
+
+    console.log("[mailer] SMTP Config:", {
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      secure: secure,
+      hasAuth: !!process.env.SMTP_USER,
+      timeout: DEFAULT_TIMEOUT_MS
     });
+
+    return nodemailer.createTransport(config);
   }
 
+  // Fallback to JSON transport if SMTP not configured
   return nodemailer.createTransport({
     jsonTransport: true
   });
@@ -45,8 +73,8 @@ const withTimeout = async (promise, timeoutMs) => {
       new Promise((_, reject) => {
         timer = setTimeout(() => {
           reject(new Error(`Email delivery timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
-      })
+        }, timeoutMs)
+      ])
     ]);
   } finally {
     if (timer) clearTimeout(timer);
@@ -54,17 +82,28 @@ const withTimeout = async (promise, timeoutMs) => {
 };
 
 export const sendMail = async (options) => {
-  const mail = await withTimeout(
-    getMailer().sendMail({
-      from: process.env.SMTP_FROM || "Skillify <no-reply@skillify.local>",
-      ...options
-    }),
-    DEFAULT_TIMEOUT_MS
-  );
+  try {
+    const mail = await withTimeout(
+      getMailer().sendMail({
+        from: process.env.SMTP_FROM || "Skillify <no-reply@skillify.local>",
+        ...options
+      }),
+      DEFAULT_TIMEOUT_MS
+    );
 
-  return {
-    mode: mailerMode(),
-    messageId: mail.messageId || null,
-    preview: typeof mail.message === "string" ? mail.message : null
-  };
+    return {
+      mode: mailerMode(),
+      messageId: mail.messageId || null,
+      preview: typeof mail.message === "string" ? mail.message : null
+    };
+  } catch (error) {
+    console.error("[mailer] Send error:", {
+      message: error.message,
+      code: error.code,
+      to: options.to,
+      timeout: DEFAULT_TIMEOUT_MS
+    });
+    throw error;
+  }
 };
+
