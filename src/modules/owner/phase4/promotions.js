@@ -14,11 +14,13 @@ const addDays = (days) => {
 const buildCouponData = (body, couponSettings) => {
   const discountType = body.discountType;
   const discountValue = toRuleNumber(body.discountValue);
-  const maxPercent = toRuleNumber(couponSettings.maxDiscountPercent, 0);
-  if (discountType === "PERCENT" && maxPercent > 0 && discountValue > maxPercent) {
-    const error = new Error(`Coupon discount cannot exceed ${maxPercent}% as configured in settings`);
-    error.status = 400;
-    throw error;
+  if (discountType === "PERCENT") {
+    const maxPercent = toRuleNumber(couponSettings.maxDiscountPercent, 0);
+    if (maxPercent > 0 && discountValue > maxPercent) {
+      const error = new Error(`Coupon discount cannot exceed ${maxPercent}% as configured in settings`);
+      error.status = 400;
+      throw error;
+    }
   }
   const settingsMinBill = toRuleNumber(couponSettings.minimumBillAmount, 0);
   const minBillAmount = Math.max(toRuleNumber(body.minBillAmount, 0), settingsMinBill);
@@ -402,5 +404,50 @@ export const registerPromotionRoutes = (ownerRouter) => {
       redemptions,
       totalRedeemed: redemptions.reduce((sum, row) => sum + Number(row.amountUsed || 0), 0)
     });
+  });
+
+  // ─── Wallet Routes ────────────────────────────────────────────────────────
+  ownerRouter.get("/wallets/:customerId", requireSalonPermission("customers", "view"), async (req, res) => {
+    const wallet = await prisma.wallet.findFirst({ where: { salonId: req.salonId, customerId: req.params.customerId } });
+    if (!wallet) return res.json({ wallet: null, transactions: [] });
+    const transactions = await prisma.walletTransaction.findMany({ where: { walletId: wallet.id }, orderBy: { createdAt: "desc" }, take: 50 });
+    res.json({ wallet, transactions });
+  });
+
+  ownerRouter.post("/wallets/:customerId/deposit", requireSalonPermission("customers", "edit"), async (req, res) => {
+    const amount = Number(req.body.amount || 0);
+    if (amount <= 0) return res.status(400).json({ message: "Amount must be positive" });
+    const note = req.body.note || null;
+    const wallet = await prisma.$transaction(async (tx) => {
+      let w = await tx.wallet.findFirst({ where: { salonId: req.salonId, customerId: req.params.customerId } });
+      if (!w) {
+        w = await tx.wallet.create({ data: { salonId: req.salonId, customerId: req.params.customerId, balance: amount, totalDeposited: amount, totalUsed: 0 } });
+      } else {
+        const newBalance = Number(w.balance) + amount;
+        const newTotal = Number(w.totalDeposited) + amount;
+        w = await tx.wallet.update({ where: { id: w.id }, data: { balance: newBalance, totalDeposited: newTotal } });
+      }
+      await tx.walletTransaction.create({ data: { salonId: req.salonId, walletId: w.id, customerId: req.params.customerId, type: "DEPOSIT", amount, balanceAfter: Number(w.balance), note, createdByUserId: req.user.id } });
+      return w;
+    });
+    res.json(wallet);
+  });
+
+  ownerRouter.post("/wallets/:customerId/deduct", requireSalonPermission("customers", "edit"), async (req, res) => {
+    const amount = Number(req.body.amount || 0);
+    if (amount <= 0) return res.status(400).json({ message: "Amount must be positive" });
+    const note = req.body.note || null;
+    const referenceId = req.body.referenceId || null;
+    const wallet = await prisma.$transaction(async (tx) => {
+      const w = await tx.wallet.findFirst({ where: { salonId: req.salonId, customerId: req.params.customerId } });
+      if (!w) return res.status(404).json({ message: "Wallet not found" });
+      if (Number(w.balance) < amount) return res.status(400).json({ message: "Insufficient wallet balance" });
+      const newBalance = Number(w.balance) - amount;
+      const newTotalUsed = Number(w.totalUsed) + amount;
+      const updated = await tx.wallet.update({ where: { id: w.id }, data: { balance: newBalance, totalUsed: newTotalUsed } });
+      await tx.walletTransaction.create({ data: { salonId: req.salonId, walletId: w.id, customerId: req.params.customerId, type: "DEDUCTION", amount, balanceAfter: newBalance, referenceId, note, createdByUserId: req.user.id } });
+      return updated;
+    });
+    res.json(wallet);
   });
 };

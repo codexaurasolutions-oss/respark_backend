@@ -1057,7 +1057,7 @@ export const schemas = {
       code: z.string().trim().min(2).max(50),
       title: z.string().trim().min(2).max(200),
       description: z.string().max(1000).nullable().optional(),
-      discountType: z.enum(["PERCENT", "FIXED"]),
+      discountType: z.enum(["PERCENT", "FIXED", "CAMPAIGN"]),
       discountValue: z.number().min(0).max(9999999),
       minBillAmount: z.number().min(0).max(9999999).optional(),
       usageLimit: z.number().int().min(0).max(999999).nullable().optional(),
