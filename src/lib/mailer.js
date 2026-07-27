@@ -10,7 +10,22 @@ const smtpConfigured = () =>
 
 const createTransporter = () => {
   if (smtpConfigured()) {
-    // Parse SMTP_SECURE properly: handle "true", "false", "1", "0", true, false
+    const isGmail = process.env.SMTP_HOST?.toLowerCase().includes("gmail");
+
+    if (isGmail && process.env.SMTP_USER && process.env.SMTP_PASS) {
+      console.log("[mailer] Configuring Nodemailer with service: 'gmail'");
+      return nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS || ""
+        },
+        connectionTimeout: DEFAULT_TIMEOUT_MS,
+        greetingTimeout: DEFAULT_TIMEOUT_MS,
+        socketTimeout: DEFAULT_TIMEOUT_MS
+      });
+    }
+
     const secureSetting = process.env.SMTP_SECURE;
     const secure = 
       secureSetting === "true" || 
@@ -19,21 +34,16 @@ const createTransporter = () => {
 
     const config = {
       host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
+      port: Number(process.env.SMTP_PORT || 587),
       secure: secure,
       connectionTimeout: DEFAULT_TIMEOUT_MS,
       greetingTimeout: DEFAULT_TIMEOUT_MS,
       socketTimeout: DEFAULT_TIMEOUT_MS,
-      // Add pool for better connection handling
-      pool: {
-        maxConnections: 5,
-        maxMessages: 100,
-        rateDelta: 2000,
-        rateLimit: 14
+      tls: {
+        rejectUnauthorized: false
       }
     };
 
-    // Only add auth if SMTP_USER is provided
     if (process.env.SMTP_USER) {
       config.auth = {
         user: process.env.SMTP_USER,
@@ -52,7 +62,6 @@ const createTransporter = () => {
     return nodemailer.createTransport(config);
   }
 
-  // Fallback to JSON transport if SMTP not configured
   return nodemailer.createTransport({
     jsonTransport: true
   });
