@@ -146,6 +146,7 @@ const resolveMembershipPermissions = async (salonId, customRoleId, explicitPermi
   } else {
     base = { ...STAFF_SELF_SERVICE_DEFAULTS };
   }
+  for (const [k, v] of Object.entries(base)) { if (Array.isArray(v)) base[k] = v.filter((a) => a !== "delete"); }
   return base;
 };
 
@@ -1350,11 +1351,17 @@ ownerRouter.get("/staff-users", requireSalonPermission("staff", "view"), async (
 ownerRouter.get("/custom-roles", requireSalonPermission("staff", "view"), async (req, res) => {
   res.json(await prisma.customRole.findMany({ where: { salonId: req.salonId }, orderBy: { createdAt: "desc" } }));
 });
+const stripDeletePerms = (perms) => {
+  if (!perms || typeof perms !== "object") return perms;
+  const out = {};
+  for (const [k, v] of Object.entries(perms)) { out[k] = Array.isArray(v) ? v.filter((a) => a !== "delete") : v; }
+  return out;
+};
 ownerRouter.post("/custom-roles", requireSalonPermission("staff", "create"), validate(schemas.customRole), async (req, res) => {
   const existing = await prisma.customRole.findFirst({ where: { salonId: req.salonId, name: req.body.name } });
   if (existing) return res.status(400).json({ message: "A custom role with this name already exists" });
   res.status(201).json(await prisma.customRole.create({
-    data: { salonId: req.salonId, name: req.body.name, description: req.body.description || null, permissions: req.body.permissions }
+    data: { salonId: req.salonId, name: req.body.name, description: req.body.description || null, permissions: stripDeletePerms(req.body.permissions) }
   }));
 });
 ownerRouter.patch("/custom-roles/:id", requireSalonPermission("staff", "edit"), validate(schemas.customRole), async (req, res) => {
@@ -1362,7 +1369,7 @@ ownerRouter.patch("/custom-roles/:id", requireSalonPermission("staff", "edit"), 
   if (!role) return res.status(404).json({ message: "Custom role not found" });
   res.json(await prisma.customRole.update({
     where: { id: role.id },
-    data: { name: req.body.name, description: req.body.description || null, permissions: req.body.permissions }
+    data: { name: req.body.name, description: req.body.description || null, permissions: stripDeletePerms(req.body.permissions) }
   }));
 });
 ownerRouter.post("/users", requireSalonPermission("staff", "create"), validate(schemas.ownerUser), async (req, res) => {
