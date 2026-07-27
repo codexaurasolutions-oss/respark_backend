@@ -694,7 +694,8 @@ export const registerReferralRoutes = (ownerRouter) => {
           return { wallet: updatedWallet, transaction };
         });
 
-        res.json(result);
+        const ratios = await readAffiliateRatios(prisma, salonId);
+        res.json({ ...result, serviceConversionRatio: ratios.service, cashConversionRatio: ratios.cash });
       } catch (err) { next(err); }
     }
   );

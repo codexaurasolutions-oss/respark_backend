@@ -929,6 +929,25 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
             note: `Earned from coupon ${coupon.code} on invoice ${invoice.invoiceNumber}`,
           },
         });
+        try {
+          await tx.referralCode.upsert({
+            where: { salonId_code: { salonId, code: coupon.code } },
+            create: { salonId, customerId: referralCouponFull.partnerCustomerId, code: coupon.code, refereeId: body.customerId || null, redeemedAt: new Date(), status: "REDEEMED", referrerReward: partnerCreditsEarned, refereeReward: 0 },
+            update: { refereeId: body.customerId || undefined, redeemedAt: new Date(), status: "REDEEMED" },
+          });
+        } catch (_) {}
+        try {
+          const partnerName = referralCouponFull.title || "Partner";
+          await tx.customerNotification.create({
+            data: {
+              salonId,
+              customerId: referralCouponFull.partnerCustomerId,
+              title: "Credits Earned!",
+              message: `You earned ${Number(partnerCreditsEarned).toFixed(1)} credits from referral coupon ${coupon.code}. Invoice: ${invoice.invoiceNumber}`,
+              linkUrl: `/admin/referral-program`,
+            },
+          });
+        } catch (_) {}
       }
     }
 
