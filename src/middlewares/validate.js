@@ -623,7 +623,9 @@ export const schemas = {
       length: z.number().min(0).nullable().optional(),
       width: z.number().min(0).nullable().optional(),
       height: z.number().min(0).nullable().optional(),
-      unit: z.string().max(20).nullable().optional()
+      unit: z.string().max(20).nullable().optional(),
+      unitConversion: z.number().min(0).nullable().optional(),
+      favourite: z.boolean().optional()
     })
   }),
   stockMovement: z.object({

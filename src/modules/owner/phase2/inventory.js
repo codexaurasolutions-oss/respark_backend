@@ -105,7 +105,9 @@ export const registerInventoryRoutes = (ownerRouter) => {
         length: req.body.length ?? null,
         width: req.body.width ?? null,
         height: req.body.height ?? null,
-        unit: req.body.unit || null
+        unit: req.body.unit || null,
+        unitConversion: req.body.unitConversion ?? null,
+        favourite: Boolean(req.body.favourite)
       }
     }));
   });
@@ -144,7 +146,9 @@ export const registerInventoryRoutes = (ownerRouter) => {
         length: req.body.length !== undefined ? req.body.length : product.length,
         width: req.body.width !== undefined ? req.body.width : product.width,
         height: req.body.height !== undefined ? req.body.height : product.height,
-        unit: req.body.unit !== undefined ? req.body.unit : product.unit
+        unit: req.body.unit !== undefined ? req.body.unit : product.unit,
+        unitConversion: req.body.unitConversion !== undefined ? req.body.unitConversion : product.unitConversion,
+        favourite: req.body.favourite !== undefined ? Boolean(req.body.favourite) : product.favourite
       }
     }));
   });
