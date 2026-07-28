@@ -628,6 +628,66 @@ export const processLifecycleNotifications = async () => {
   return results;
 };
 
+// ─── Scheduled CRM follow-up email processor ────────────────────────────────
+// Checks CustomerTimeline FOLLOW_UP entries where scheduledAt has passed
+// and emailSent is false. Sends the user's message as email to the customer.
+
+export const processScheduledFollowUps = async () => {
+  const now = new Date();
+  const timelines = await prisma.customerTimeline.findMany({
+    where: {
+      eventType: "FOLLOW_UP",
+      details: { contains: "SCHEDULED" }
+    },
+    include: { customer: true }
+  });
+
+  const results = [];
+  for (const entry of timelines) {
+    try {
+      const details = typeof entry.details === "string" ? JSON.parse(entry.details) : entry.details;
+      if (!details || details.emailSent) continue;
+      if (details.type !== "email") continue;
+      if (!details.scheduledAt) continue;
+
+      const scheduledTime = new Date(details.scheduledAt);
+      if (scheduledTime > now) continue;
+
+      const customer = entry.customer;
+      if (!customer?.email) continue;
+
+      const salonId = customer.salonId;
+      const emailEnabled = await areNotificationEmailsEnabled(salonId).catch(() => false);
+      if (!emailEnabled) continue;
+
+      const messageContent = details.message || "Follow-up scheduled by our team.";
+      const staffName = details.staffName || "our team";
+
+      await sendMail({
+        to: customer.email,
+        subject: `Follow-Up from ReSpark`,
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <p>Hi ${customer.name || "Customer"},</p>
+          <p>${messageContent}</p>
+          <p style="color: #64748b; font-size: 0.85rem;">— ${staffName}, ReSpark</p>
+        </div>`,
+        text: `Hi ${customer.name || "Customer"},\n\n${messageContent}\n\n— ${staffName}, ReSpark`
+      }).catch(() => {});
+
+      details.emailSent = true;
+      await prisma.customerTimeline.update({
+        where: { id: entry.id },
+        data: { details: JSON.stringify(details) }
+      });
+
+      results.push({ timelineId: entry.id, customerId: customer.id, sent: true });
+    } catch (err) {
+      console.error("[emailAutomation] Follow-up email failed:", err.message);
+    }
+  }
+  return results;
+};
+
 let schedulerHandle = null;
 let schedulerRunning = false;
 
@@ -638,6 +698,7 @@ const runEmailAutomationPass = async () => {
     await processScheduledCampaigns();
     await processAppointmentReminderEmails();
     await processLifecycleNotifications();
+    await processScheduledFollowUps();
   } catch (error) {
     console.error("Email automation pass failed", error);
   } finally {

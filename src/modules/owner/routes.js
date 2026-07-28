@@ -1289,12 +1289,17 @@ ownerRouter.post("/follow-ups", requireSalonPermission("customers", "edit"), val
   if (!staffUser) return res.status(400).json({ message: "Assigned staff not found for this salon" });
 
   const title = `Follow-up scheduled (${String(req.body.type || "call").toUpperCase()})`;
+  const scheduledAt = req.body.date && req.body.time
+    ? `${req.body.date}T${req.body.time}`
+    : req.body.date || null;
   const details = {
     date: req.body.date,
     time: req.body.time || "",
     message: req.body.message,
     type: req.body.type,
     status: "SCHEDULED",
+    emailSent: false,
+    scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
     staffUserId: staffUser.id,
     staffName: staffUser.user?.name || staffUser.user?.email || staffUser.id
   };

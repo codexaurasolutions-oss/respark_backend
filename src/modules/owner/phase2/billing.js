@@ -81,14 +81,6 @@ const sendInvoiceAutomationEmails = async (salonId, invoice) => {
       message: `Your appointment invoice ${invoice.invoiceNumber || ""} is ready to view.`,
       linkUrl: invoiceLink
     }).catch(() => {});
-    if (emailEnabled && toEmail) {
-      await attemptCustomerTemplateEmail({
-        salonId,
-        toEmail,
-        templateType: "invoice_template",
-        context: { invoiceId: invoice?.id, customerId }
-      }).catch(() => {});
-    }
   }
 
   if (customerId && invoice?.appointmentId && invoice?.status === "PAID" && isOn("combineFeedbackAndInvoiceSms")) {
@@ -939,7 +931,7 @@ export const registerBillingRoutes = (ownerRouter) => {
       toEmail: invoice?.customer?.email || "",
       templateType: "payment_receipt_template",
       context: { invoiceId: invoice?.id, customerId: invoice?.customerId }
-    });
+    }).catch(() => {});
     res.status(201).json(payment);
   });
 
@@ -956,7 +948,7 @@ export const registerBillingRoutes = (ownerRouter) => {
       toEmail: invoice?.customer?.email || "",
       templateType: "invoice_refund_template",
       context: { invoiceId: invoice?.id, customerId: invoice?.customerId }
-    });
+    }).catch(() => {});
     res.json(invoice);
   });
 
@@ -1042,7 +1034,7 @@ export const registerBillingRoutes = (ownerRouter) => {
       toEmail: invoice.customer?.email || "",
       templateType: "invoice_template",
       context: { invoiceId: invoice.id, customerId: invoice.customerId }
-    });
+    }).catch(() => {});
     res.status(201).json({
       invoiceId: updated.id,
       invoiceNumber: updated.invoiceNumber,

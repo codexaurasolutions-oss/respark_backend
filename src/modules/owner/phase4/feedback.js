@@ -141,7 +141,7 @@ export const registerFeedbackRoutes = (ownerRouter) => {
         customerId: row.customerId,
         customer_name: row.customer?.name || "Customer"
       }
-    });
+    }).catch(() => {});
     await createAuditLog({
       salonId: req.salonId,
       actorUserId: req.user.userId,
