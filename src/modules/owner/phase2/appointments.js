@@ -575,6 +575,18 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       return created;
     });
 
+    if (invoice?.customer?.email) {
+      const { isOn, emailEnabled } = await getNotificationToggles(req.salonId, invoice.branchId).catch(() => ({ isOn: () => true, emailEnabled: true }));
+      if (isOn("advanceReceivedInvoice") && emailEnabled) {
+        void attemptCustomerTemplateEmail({
+          salonId: req.salonId,
+          toEmail: invoice.customer.email,
+          templateType: "invoice_template",
+          context: { invoiceId: invoice.id, customerId: invoice.customerId }
+        }).catch(() => {});
+      }
+    }
+
     res.status(201).json(invoice);
   });
 
