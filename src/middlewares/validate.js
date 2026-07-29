@@ -443,6 +443,7 @@ export const schemas = {
       branchId: z.string().optional(),
       appointmentId: z.string().max(50).optional(),
       appliedMembershipId: z.string().max(50).optional(),
+      mode: z.enum(["draft", "complete", "start"]).optional(),
       discount: z.number().min(0).max(9999999).default(0),
       tax: z.number().min(0).max(9999999).default(0),
       notes: z.string().max(2000).optional(),
