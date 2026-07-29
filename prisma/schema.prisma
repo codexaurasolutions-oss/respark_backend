@@ -709,6 +709,7 @@ model InvoiceItem {
   staffUserSalonId     String?
   serviceName          String
   staffName            String?
+  variationName        String?
   qty                  Int
   unitPrice            Decimal         @db.Decimal(10, 2)
   taxPct               Decimal         @db.Decimal(5, 2)

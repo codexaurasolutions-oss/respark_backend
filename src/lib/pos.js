@@ -249,8 +249,9 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         itemType,
         productId: product.id,
         staffUserSalonId: null,
-        serviceName: product.name,
+        serviceName: item.productName || product.name,
         staffName: item.staffName || null,
+        variationName: item.variationName || null,
         qty,
         unitPrice,
         taxPct,
@@ -663,6 +664,7 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
           create: itemDrafts.map((item) => ({
             serviceName: item.serviceName,
             staffName: item.staffName,
+            variationName: item.variationName || null,
             qty: item.qty,
             unitPrice: item.unitPrice,
             taxPct: item.taxPct,
