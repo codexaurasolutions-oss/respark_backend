@@ -521,6 +521,7 @@ export const registerBillingRoutes = (ownerRouter) => {
           unitPrice,
           taxPct,
           lineTotal: inclusiveTax && taxPct > 0 ? lineBase : lineBase + lineTax,
+          complimentaryRemark: rawItem?.complimentaryRemark || null,
           ...(rawItem?.serviceId ? { serviceId: String(rawItem.serviceId) } : {}),
           ...(rawItem?.productId ? { product: { connect: { id: String(rawItem.productId) } } } : {}),
           ...(rawItem?.membershipPlanId ? { membershipPlan: { connect: { id: String(rawItem.membershipPlanId) } } } : {}),
@@ -595,7 +596,8 @@ export const registerBillingRoutes = (ownerRouter) => {
             qty: item.qty,
             unitPrice: item.unitPrice,
             taxPct: item.taxPct,
-            lineTotal: item.lineTotal
+            lineTotal: item.lineTotal,
+            complimentaryRemark: item.complimentaryRemark || null
           };
 
           if (item.id) {

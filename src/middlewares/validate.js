@@ -193,6 +193,7 @@ const invoiceItemSchema = z.object({
   staffUserId: z.string().max(50).optional(),
   staffName: z.string().max(200).optional(),
   variationName: z.string().max(100).optional(),
+  complimentaryRemark: z.string().max(500).optional(),
   qty: z.number().positive().max(99999),
   unitPrice: z.number().nonnegative().max(9999999).optional(),
   taxPct: z.number().min(0).max(100).default(0),

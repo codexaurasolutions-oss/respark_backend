@@ -229,7 +229,8 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         appliedBenefitType,
         appliedBenefitValue,
         membershipWalletUsed,
-        commissionAmount
+        commissionAmount,
+        complimentaryRemark: item.complimentaryRemark || null
       });
       continue;
     }
@@ -258,7 +259,8 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         lineTotal: inclusiveTax && taxPct > 0
           ? preTax
           : preTax + (preTax * taxPct) / 100,
-        commissionAmount: 0
+        commissionAmount: 0,
+        complimentaryRemark: null
       });
       continue;
     }
@@ -299,7 +301,8 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         unitPrice: toAmount(plan.price),
         taxPct,
         lineTotal: preTax + (preTax * taxPct) / 100,
-        commissionAmount: 0
+        commissionAmount: 0,
+        complimentaryRemark: null
       });
       continue;
     }
@@ -339,7 +342,8 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         unitPrice: toAmount(pack.price),
         taxPct,
         lineTotal: preTax + (preTax * taxPct) / 100,
-        commissionAmount: 0
+        commissionAmount: 0,
+        complimentaryRemark: null
       });
 
       if (item.customProducts && item.customProducts.length > 0) {
@@ -356,7 +360,8 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
               unitPrice: 0,
               taxPct: 0,
               lineTotal: 0,
-              commissionAmount: 0
+              commissionAmount: 0,
+              complimentaryRemark: null
             });
           }
         }
@@ -378,6 +383,7 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         taxPct,
         lineTotal: preTax + (preTax * taxPct) / 100,
         commissionAmount: 0,
+        complimentaryRemark: null,
         validityDays,
         gcCode: item.gcCode || null
       });
@@ -674,6 +680,7 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
             appliedBenefitValue: item.appliedBenefitValue || null,
             membershipWalletUsed: item.membershipWalletUsed || null,
             commissionAmount: item.commissionAmount || null,
+            complimentaryRemark: item.complimentaryRemark || null,
             ...(item.serviceId ? { serviceId: item.serviceId } : {}),
             ...(item.productId ? { product: { connect: { id: item.productId } } } : {}),
             ...(item.membershipPlanId ? { membershipPlan: { connect: { id: item.membershipPlanId } } } : {}),

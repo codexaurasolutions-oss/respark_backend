@@ -187,9 +187,21 @@ export const registerInventoryRoutes = (ownerRouter) => {
         }));
       }
     }
-    if (minStock !== undefined) data.minStock = Number(minStock);
-    if (onFloor !== undefined) data.onFloor = Number(onFloor);
-    if (netWeight !== undefined) data.netWeight = netWeight !== null ? Number(netWeight) : null;
+    if (minStock !== undefined) {
+      const v = Number(minStock);
+      if (v < 0) return res.status(400).json({ message: "Min stock cannot be negative" });
+      data.minStock = v;
+    }
+    if (onFloor !== undefined) {
+      const v = Number(onFloor);
+      if (v < 0) return res.status(400).json({ message: "On floor cannot be negative" });
+      const maxStock = data.currentStock !== undefined ? data.currentStock : Number(product.currentStock);
+      if (v > maxStock) return res.status(400).json({ message: "On floor cannot exceed total stock" });
+      data.onFloor = v;
+    }
+    if (netWeight !== undefined) {
+      data.netWeight = netWeight !== null ? Number(netWeight) : null;
+    }
     if (unit !== undefined) data.unit = unit || null;
     if (productType !== undefined && ["RETAIL", "CONSUMABLE"].includes(productType)) data.productType = productType;
 

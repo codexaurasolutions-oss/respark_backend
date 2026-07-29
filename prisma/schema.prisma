@@ -720,6 +720,7 @@ model InvoiceItem {
   packageSessionsUsed  Int?            @default(0)
   membershipWalletUsed Decimal?        @db.Decimal(10, 2)
   commissionAmount     Decimal?        @db.Decimal(10, 2)
+  complimentaryRemark  String?
   invoice              Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product              Product?        @relation(fields: [productId], references: [id])
   membershipPlan       MembershipPlan? @relation(fields: [membershipPlanId], references: [id])
