@@ -41,6 +41,7 @@ enum PaymentMode {
 
 enum InvoiceStatus {
   DRAFT
+  STARTED
   PAID
   PARTIAL
   UNPAID
@@ -251,7 +252,9 @@ model User {
   isActive                 Boolean              @default(true)
   passwordSetupRequired    Boolean              @default(false)
   isDemoAccount            Boolean              @default(false)
-  createdAt                DateTime             @default(now())
+  createdAt             DateTime                     @default(now())
+  startedAt             DateTime?
+  completedAt           DateTime?
   updatedAt                DateTime             @updatedAt
   memberships              UserSalon[]
   passwordSetupTokens      PasswordSetupToken[]

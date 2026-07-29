@@ -374,7 +374,55 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       await tx.appointment.update({ where: { id: appointment.id }, data: { status: req.body.status } });
       await logAppointmentChange(tx, appointment.id, req.user.id, "STATUS_CHANGED", appointment.status, req.body.status, req.body.note || null);
     });
-    if (req.body.status === "CONFIRMED") {
+    if (req.body.status === "IN_PROGRESS") {
+      const fullAppt = await fetchAppointment(req.salonId, appointment.id);
+      if (fullAppt && !fullAppt.convertedInvoiceId) {
+        const existingInvoice = await prisma.invoice.findFirst({ where: { appointmentId: appointment.id, salonId: req.salonId, status: "STARTED" } });
+        if (!existingInvoice) {
+          const { createInvoiceNumber } = await import("./shared.js");
+          const salon = await prisma.salon.findUnique({ where: { id: req.salonId } });
+          const invoiceNumber = await createInvoiceNumber(prisma, req.salonId, appointment.branchId);
+          let subtotal = 0;
+          for (const svc of fullAppt.services || []) {
+            subtotal += Number(svc.price || 0) * Number(svc.qty || 1);
+          }
+          const taxPct = Number(salon?.taxRate || 0);
+          const tax = (subtotal * taxPct) / 100;
+          const total = subtotal + tax;
+          const newInvoice = await prisma.invoice.create({
+            data: {
+              salonId: req.salonId,
+              branchId: appointment.branchId,
+              customerId: appointment.customerId,
+              appointmentId: appointment.id,
+              invoiceNumber,
+              status: "STARTED",
+              startedAt: new Date(),
+              subtotal,
+              discount: 0,
+              tax,
+              total,
+              paidAmount: 0,
+              balanceAmount: total,
+              items: {
+                create: (fullAppt.services || []).map(svc => ({
+                  serviceName: svc.service?.name || "Service",
+                  staffName: svc.staff?.[0]?.user?.name || null,
+                  staffUserSalonId: svc.staff?.[0]?.id || null,
+                  serviceId: svc.serviceId,
+                  qty: Number(svc.qty || 1),
+                  unitPrice: Number(svc.price || 0),
+                  taxPct,
+                  lineTotal: Number(svc.price || 0) * Number(svc.qty || 1) + (Number(svc.price || 0) * Number(svc.qty || 1) * taxPct) / 100,
+                  itemType: "SERVICE"
+                }))
+              }
+            }
+          });
+          await prisma.appointment.update({ where: { id: appointment.id }, data: { convertedInvoiceId: newInvoice.id } });
+        }
+      }
+    } else if (req.body.status === "CONFIRMED") {
       void dispatchAppointmentEvent(req.salonId, appointment.id, {
         toggleKey: "appointmentConfirmedToCustomer",
         templateType: "appointment_confirmation",

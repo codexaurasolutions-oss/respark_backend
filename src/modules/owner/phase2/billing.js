@@ -360,7 +360,8 @@ export const registerBillingRoutes = (ownerRouter) => {
         include: {
           customer: { select: { id: true, name: true, phone: true } },
           items: true,
-          payments: true
+          payments: true,
+          appointment: { select: { id: true, status: true } }
         },
         orderBy: { createdAt: "desc" },
         take,
@@ -397,6 +398,7 @@ export const registerBillingRoutes = (ownerRouter) => {
       unpaidInvoices: rows.filter((row) => row.status === "UNPAID").length,
       partialInvoices: rows.filter((row) => row.status === "PARTIAL").length,
       paidInvoices: rows.filter((row) => row.status === "PAID").length,
+      startedInvoices: rows.filter((row) => row.status === "STARTED").length,
       cancelledInvoices: rows.filter((row) => row.status === "CANCELLED").length
     });
   });
@@ -729,6 +731,7 @@ export const registerBillingRoutes = (ownerRouter) => {
             total,
             balanceAmount: nextBalance,
             status: nextStatus,
+            ...(nextStatus === "PAID" && existingInvoice.status !== "PAID" ? { completedAt: new Date() } : {}),
             notes
           }
         });
@@ -908,6 +911,27 @@ export const registerBillingRoutes = (ownerRouter) => {
       context: { invoiceId: invoice.id, customerId: invoice.customerId }
     }).catch(() => {});
     res.json({ message: "Invoice cancelled and loyalty points reversed" });
+  });
+
+  ownerRouter.patch("/invoices/:id/start", requireSalonPermission("invoices", "edit"), async (req, res) => {
+    const staffBranchFilter = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? { branchId: req.user.branchId } : {};
+    const invoice = await prisma.invoice.findFirst({ where: { id: req.params.id, salonId: req.salonId, ...staffBranchFilter } });
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+    if (invoice.status !== "DRAFT" && invoice.status !== "UNPAID") return res.status(400).json({ message: "Only draft or unpaid invoices can be started" });
+    const updated = await prisma.invoice.update({ where: { id: invoice.id }, data: { status: "STARTED", startedAt: new Date() } });
+    if (invoice.appointmentId) {
+      await prisma.appointment.update({ where: { id: invoice.appointmentId }, data: { status: "IN_PROGRESS" } }).catch(() => {});
+    }
+    res.json(updated);
+  });
+
+  ownerRouter.get("/invoices/active-by-customer/:customerId", requireSalonPermission("invoices", "view"), async (req, res) => {
+    const invoices = await prisma.invoice.findMany({
+      where: { salonId: req.salonId, customerId: req.params.customerId, status: "STARTED" },
+      include: { items: true, appointment: true },
+      orderBy: { createdAt: "desc" }
+    });
+    res.json(invoices);
   });
 
   ownerRouter.post("/payments", requireSalonPermission("payments", "create"), validate(schemas.payment), async (req, res) => {
