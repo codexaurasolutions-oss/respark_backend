@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN "onFloor" DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE "Product" ADD COLUMN "netWeight" DECIMAL(12,2);

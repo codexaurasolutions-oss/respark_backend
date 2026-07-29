@@ -89,6 +89,8 @@ export const registerInventoryRoutes = (ownerRouter) => {
         salePrice: req.body.salePrice ?? null,
         currentStock: req.body.currentStock || 0,
         minStock: req.body.minStock || 0,
+        onFloor: req.body.onFloor || 0,
+        netWeight: req.body.netWeight ?? null,
         expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
         allowNegativeStock: Boolean(req.body.allowNegativeStock),
         featured: Boolean(req.body.featured),
@@ -130,6 +132,8 @@ export const registerInventoryRoutes = (ownerRouter) => {
         sellingPrice: req.body.sellingPrice,
         salePrice: req.body.salePrice ?? null,
         minStock: req.body.minStock ?? product.minStock,
+        onFloor: req.body.onFloor ?? product.onFloor,
+        netWeight: req.body.netWeight !== undefined ? req.body.netWeight : product.netWeight,
         expiryDate: req.body.expiryDate ? new Date(req.body.expiryDate) : null,
         allowNegativeStock: Boolean(req.body.allowNegativeStock),
         featured: req.body.featured !== undefined ? Boolean(req.body.featured) : product.featured,
@@ -157,6 +161,41 @@ export const registerInventoryRoutes = (ownerRouter) => {
     const product = await prisma.product.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
     if (!product) return res.status(404).json({ message: "Product not found" });
     res.json(await prisma.product.update({ where: { id: product.id }, data: { isActive: false } }));
+  });
+
+  ownerRouter.patch("/inventory/products/:id/stock-details", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "edit"), async (req, res) => {
+    const product = await prisma.product.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    const { currentStock, minStock, onFloor, netWeight, unit, productType } = req.body;
+
+    const data = {};
+    if (currentStock !== undefined) {
+      const newStock = Number(currentStock);
+      if (newStock < 0) return res.status(400).json({ message: "Stock cannot be negative" });
+      if (newStock !== Number(product.currentStock)) {
+        const diff = newStock - Number(product.currentStock);
+        data.currentStock = newStock;
+        await prisma.$transaction((tx) => createStockMovement(tx, {
+          salonId: req.salonId,
+          branchId: product.branchId,
+          productId: product.id,
+          quantity: diff,
+          movementType: diff > 0 ? "STOCK_IN" : "STOCK_OUT",
+          createdByUserId: req.user.id,
+          note: "Stock details update"
+        }));
+      }
+    }
+    if (minStock !== undefined) data.minStock = Number(minStock);
+    if (onFloor !== undefined) data.onFloor = Number(onFloor);
+    if (netWeight !== undefined) data.netWeight = netWeight !== null ? Number(netWeight) : null;
+    if (unit !== undefined) data.unit = unit || null;
+    if (productType !== undefined && ["RETAIL", "CONSUMABLE"].includes(productType)) data.productType = productType;
+
+    if (Object.keys(data).length === 0) return res.status(400).json({ message: "No fields to update" });
+
+    res.json(await prisma.product.update({ where: { id: product.id }, data }));
   });
 
   ownerRouter.post("/inventory/stock-movements", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "edit"), validate(schemas.stockMovement), async (req, res) => {
