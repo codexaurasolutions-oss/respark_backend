@@ -69,7 +69,7 @@ const dispatchAppointmentEvent = async (salonId, appointmentId, {
       }).catch(() => {});
     }
 
-    // 3. Owner / salon-wide in-app notification
+    // 3. Owner / salon-wide in-app notification + email
     if (!skipOwnerEmail && (forceOwnerEmail || (ownerToggleKey && isOn(ownerToggleKey))) && ownerTitle) {
       await createStaffNotification({
         salonId,
@@ -79,6 +79,23 @@ const dispatchAppointmentEvent = async (salonId, appointmentId, {
         type: "APPOINTMENT",
         linkUrl: `/admin/appointments/${appointmentId}`
       }).catch(() => {});
+
+      // Send actual email to salon owner
+      if (forceOwnerEmail && emailEnabled) {
+        const salonOwner = await prisma.userSalon.findFirst({
+          where: { salonId, role: "SALON_OWNER" },
+          include: { user: true }
+        });
+        const ownerEmail = salonOwner?.user?.email;
+        if (ownerEmail) {
+          await attemptCustomerTemplateEmail({
+            salonId,
+            toEmail: ownerEmail,
+            templateType: "appointment_confirmation",
+            context: { appointmentId, customerId: appointment.customerId }
+          }).catch(() => {});
+        }
+      }
     }
 
     // 4. Staff in-app notification
