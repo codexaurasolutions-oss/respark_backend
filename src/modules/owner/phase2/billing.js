@@ -929,6 +929,60 @@ export const registerBillingRoutes = (ownerRouter) => {
     res.json(updated);
   });
 
+  ownerRouter.patch("/invoices/:id/complete", requireSalonPermission("invoices", "edit"), async (req, res) => {
+    const staffBranchFilter = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? { branchId: req.user.branchId } : {};
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: req.params.id, salonId: req.salonId, ...staffBranchFilter },
+      include: { items: true, payments: true, customer: true, branch: true }
+    });
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+    if (invoice.status === "PAID" || invoice.status === "COMPLETED" || invoice.status === "CANCELLED" || invoice.status === "REFUNDED") {
+      return res.status(400).json({ message: "Invoice is already completed or cannot be completed" });
+    }
+    try {
+      const paidAmount = invoice.payments.filter(p => p.type !== "TIP").reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const refundAmount = invoice.payments.filter(p => p.type === "REFUND").reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const total = Number(invoice.total || 0);
+      const balanceAmount = Math.max(0, total - Math.max(0, paidAmount - refundAmount));
+
+      if (balanceAmount > 0) {
+        await addInvoicePayment({
+          salonId: req.salonId,
+          invoiceId: invoice.id,
+          amount: balanceAmount,
+          mode: req.body?.mode || "CASH",
+          note: req.body?.note || "Completed from POS dashboard",
+          actorUser: req.user
+        });
+      }
+
+      const updated = await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: "PAID", balanceAmount: 0, completedAt: new Date() }
+      });
+
+      if (invoice.appointmentId) {
+        await prisma.appointment.update({ where: { id: invoice.appointmentId }, data: { status: "COMPLETED" } }).catch(() => {});
+      }
+
+      const finalInvoice = await prisma.invoice.findFirst({
+        where: { id: invoice.id, salonId: req.salonId },
+        include: { customer: true, items: true, payments: true, branch: true, appointment: true }
+      });
+
+      await attemptCustomerTemplateEmail({
+        salonId: req.salonId,
+        toEmail: invoice.customer?.email || "",
+        templateType: "invoice_template",
+        context: { invoiceId: invoice.id, customerId: invoice.customerId }
+      }).catch(() => {});
+
+      res.json(finalInvoice);
+    } catch (error) {
+      return sendRouteError(res, error, "Could not complete invoice");
+    }
+  });
+
   ownerRouter.get("/invoices/active-by-customer/:customerId", requireSalonPermission("invoices", "view"), async (req, res) => {
     const invoices = await prisma.invoice.findMany({
       where: { salonId: req.salonId, customerId: req.params.customerId, status: "STARTED" },
