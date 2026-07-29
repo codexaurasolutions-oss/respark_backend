@@ -382,11 +382,11 @@ export const registerAppointmentRoutes = (ownerRouter) => {
           const { createInvoiceNumber } = await import("./shared.js");
           const salon = await prisma.salon.findUnique({ where: { id: req.salonId } });
           const invoiceNumber = await createInvoiceNumber(prisma, req.salonId, appointment.branchId);
-          let subtotal = 0;
-          for (const svc of fullAppt.services || []) {
-            subtotal += Number(svc.price || 0) * Number(svc.qty || 1);
-          }
           const taxPct = Number(salon?.taxRate || 0);
+          let subtotal = 0;
+          for (const item of fullAppt.items || []) {
+            subtotal += Number(item.service?.price || 0);
+          }
           const tax = (subtotal * taxPct) / 100;
           const total = subtotal + tax;
           const newInvoice = await prisma.invoice.create({
@@ -405,17 +405,21 @@ export const registerAppointmentRoutes = (ownerRouter) => {
               paidAmount: 0,
               balanceAmount: total,
               items: {
-                create: (fullAppt.services || []).map(svc => ({
-                  serviceName: svc.service?.name || "Service",
-                  staffName: svc.staff?.[0]?.user?.name || null,
-                  staffUserSalonId: svc.staff?.[0]?.id || null,
-                  serviceId: svc.serviceId,
-                  qty: Number(svc.qty || 1),
-                  unitPrice: Number(svc.price || 0),
-                  taxPct,
-                  lineTotal: Number(svc.price || 0) * Number(svc.qty || 1) + (Number(svc.price || 0) * Number(svc.qty || 1) * taxPct) / 100,
-                  itemType: "SERVICE"
-                }))
+                create: (fullAppt.items || []).map(item => {
+                  const svcPrice = Number(item.service?.price || 0);
+                  const lineTax = (svcPrice * taxPct) / 100;
+                  return {
+                    serviceName: item.service?.name || "Service",
+                    staffName: item.assignedStaff?.[0]?.userSalon?.user?.name || null,
+                    staffUserSalonId: item.assignedStaff?.[0]?.userSalonId || null,
+                    serviceId: item.serviceId,
+                    qty: 1,
+                    unitPrice: svcPrice,
+                    taxPct,
+                    lineTotal: svcPrice + lineTax,
+                    itemType: "SERVICE"
+                  };
+                })
               }
             }
           });

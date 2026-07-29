@@ -736,6 +736,10 @@ export const registerBillingRoutes = (ownerRouter) => {
           }
         });
 
+        if (nextStatus === "PAID" && existingInvoice.appointmentId) {
+          await prisma.appointment.update({ where: { id: existingInvoice.appointmentId }, data: { status: "COMPLETED" } }).catch(() => {});
+        }
+
         if (existingInvoice.onlineOrders?.length) {
           await tx.onlineOrder.updateMany({
             where: { invoiceId: existingInvoice.id, salonId: req.salonId },

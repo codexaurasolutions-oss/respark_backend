@@ -693,7 +693,15 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
       include: { items: true }
     });
 
+    const isStartMode = body.mode === "start";
+
+    if (!isStartMode) {
     await createPaymentRows(tx, salonId, invoice.id, allPayments.filter(p => p.mode !== "BALANCE"));
+
+    const finalInvoice = await tx.invoice.findUnique({ where: { id: invoice.id } });
+    if (finalInvoice && normalizeStatus(toAmount(finalInvoice.paidAmount), toAmount(finalInvoice.total)) === "PAID") {
+      await tx.invoice.update({ where: { id: invoice.id }, data: { completedAt: new Date() } });
+    }
 
     for (const redemption of affiliateCreditRedemptions) {
       const wallet = await tx.affiliateCreditWallet.findUnique({
@@ -1082,6 +1090,14 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
         data: { convertedInvoiceId: invoice.id }
       });
     }
+    } // end !isStartMode
+
+    if (isStartMode) {
+      await tx.appointment.update({
+        where: { id: body.appointmentId },
+        data: { convertedInvoiceId: invoice.id }
+      }).catch(() => {});
+    }
 
     await logCustomerTimeline(tx, body.customerId, "INVOICE", "POS invoice created", invoice.invoiceNumber, invoice.id);
     await refreshCustomerInsights(tx, body.customerId);
@@ -1129,12 +1145,14 @@ export const addInvoicePayment = async ({ salonId, invoiceId, amount, mode, note
         type: ["PARTIAL", "UNPAID"].includes(invoice.status) ? "BALANCE" : "PAYMENT"
       }
     });
+    const nextStatus = normalizeStatus(nextPaid, toAmount(invoice.total), toAmount(invoice.refundAmount));
     await tx.invoice.update({
       where: { id: invoice.id },
       data: {
         paidAmount: nextPaid,
         balanceAmount: Math.max(0, toAmount(invoice.total) - nextPaid),
-        status: normalizeStatus(nextPaid, toAmount(invoice.total), toAmount(invoice.refundAmount))
+        status: nextStatus,
+        ...(nextStatus === "PAID" && invoice.status !== "PAID" ? { completedAt: new Date() } : {})
       }
     });
     return payment;
