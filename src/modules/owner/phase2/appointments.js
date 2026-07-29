@@ -381,15 +381,28 @@ export const registerAppointmentRoutes = (ownerRouter) => {
           const existingInvoice = await prisma.invoice.findFirst({ where: { appointmentId: appointment.id, salonId: req.salonId, status: "STARTED" } });
           if (!existingInvoice) {
             const { createInvoiceNumber } = await import("./shared.js");
-            const salon = await prisma.salon.findUnique({ where: { id: req.salonId } });
             const invoiceNumber = await createInvoiceNumber(prisma, req.salonId, appointment.branchId);
-            const taxPct = Number(salon?.taxRate || 0);
             let subtotal = 0;
-            for (const item of fullAppt.items || []) {
-              subtotal += Number(item.service?.price || 0);
-            }
-            const tax = (subtotal * taxPct) / 100;
-            const total = subtotal + tax;
+            let totalTax = 0;
+            const invoiceItems = (fullAppt.items || []).map(item => {
+              const svcPrice = Number(item.service?.price || 0);
+              const itemTaxPct = Number(item.service?.taxRate || 0);
+              const lineTax = (svcPrice * itemTaxPct) / 100;
+              subtotal += svcPrice;
+              totalTax += lineTax;
+              return {
+                serviceName: item.service?.name || "Service",
+                staffName: item.assignedStaff?.[0]?.userSalon?.user?.name || null,
+                staffUserSalonId: item.assignedStaff?.[0]?.userSalonId || null,
+                serviceId: item.serviceId,
+                qty: 1,
+                unitPrice: svcPrice,
+                taxPct: itemTaxPct,
+                lineTotal: svcPrice + lineTax,
+                itemType: "SERVICE"
+              };
+            });
+            const total = subtotal + totalTax;
             const newInvoice = await prisma.invoice.create({
               data: {
                 salonId: req.salonId,
@@ -401,27 +414,11 @@ export const registerAppointmentRoutes = (ownerRouter) => {
                 startedAt: new Date(),
                 subtotal,
                 discount: 0,
-                tax,
+                tax: totalTax,
                 total,
                 paidAmount: 0,
                 balanceAmount: total,
-                items: {
-                  create: (fullAppt.items || []).map(item => {
-                    const svcPrice = Number(item.service?.price || 0);
-                    const lineTax = (svcPrice * taxPct) / 100;
-                    return {
-                      serviceName: item.service?.name || "Service",
-                      staffName: item.assignedStaff?.[0]?.userSalon?.user?.name || null,
-                      staffUserSalonId: item.assignedStaff?.[0]?.userSalonId || null,
-                      serviceId: item.serviceId,
-                      qty: 1,
-                      unitPrice: svcPrice,
-                      taxPct,
-                      lineTotal: svcPrice + lineTax,
-                      itemType: "SERVICE"
-                    };
-                  })
-                }
+                items: { create: invoiceItems }
               }
             });
             await prisma.appointment.update({ where: { id: appointment.id }, data: { convertedInvoiceId: newInvoice.id } });
@@ -453,7 +450,7 @@ export const registerAppointmentRoutes = (ownerRouter) => {
         await maybeSendFeedbackRequestForAppointment({
           salonId: req.salonId,
           appointmentId: appointment.id,
-          actorUserId: req.user.userId,
+          actorUserId: req.user.id,
           actorMembershipId: req.user.membershipId
         });
       }

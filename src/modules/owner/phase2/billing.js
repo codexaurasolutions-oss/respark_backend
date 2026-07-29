@@ -404,8 +404,9 @@ export const registerBillingRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/invoices/:id", requireSalonPermission("invoices", "view"), async (req, res) => {
+    const staffBranchFilter = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? { branchId: req.user.branchId } : {};
     const invoice = await prisma.invoice.findFirst({
-      where: { id: req.params.id, salonId: req.salonId },
+      where: { id: req.params.id, salonId: req.salonId, ...staffBranchFilter },
       include: { customer: true, items: true, payments: true, branch: true, appointment: true }
     });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
@@ -984,8 +985,9 @@ export const registerBillingRoutes = (ownerRouter) => {
   });
 
   ownerRouter.get("/invoices/active-by-customer/:customerId", requireSalonPermission("invoices", "view"), async (req, res) => {
+    const staffBranchFilter = req.user.salonRole !== "SALON_OWNER" && req.user.branchId ? { branchId: req.user.branchId } : {};
     const invoices = await prisma.invoice.findMany({
-      where: { salonId: req.salonId, customerId: req.params.customerId, status: "STARTED" },
+      where: { salonId: req.salonId, customerId: req.params.customerId, status: "STARTED", ...staffBranchFilter },
       include: { items: true, appointment: true },
       orderBy: { createdAt: "desc" }
     });
@@ -1203,8 +1205,8 @@ const pdfSafe = (str) => {
     const dateStr = invDate.toLocaleDateString("en-GB", { day:"2-digit", month:"2-digit", year:"numeric" }).replace(/\//g,"-");
     const timeStr = invDate.toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit", hour12:true });
     const statusUp = (inv.status || "UNPAID").toUpperCase();
-    const statusColor = { PAID: "#166534", UNPAID: "#dc2626", PARTIAL: "#d97706", CANCELLED: "#475569" }[statusUp] || "#475569";
-    const statusBg = { PAID: "#dcfce7", UNPAID: "#fef2f2", PARTIAL: "#fffbeb", CANCELLED: "#f1f5f9" }[statusUp] || "#f1f5f9";
+    const statusColor = { PAID: "#166534", UNPAID: "#dc2626", PARTIAL: "#d97706", CANCELLED: "#475569", STARTED: "#1d4ed8" }[statusUp] || "#475569";
+    const statusBg = { PAID: "#dcfce7", UNPAID: "#fef2f2", PARTIAL: "#fffbeb", CANCELLED: "#f1f5f9", STARTED: "#dbeafe" }[statusUp] || "#f1f5f9";
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invoice ${inv.invoiceNumber}</title>
 <style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');*{margin:0;padding:0;box-sizing:border-box;}</style>
