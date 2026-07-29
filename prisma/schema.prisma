@@ -253,8 +253,6 @@ model User {
   passwordSetupRequired    Boolean              @default(false)
   isDemoAccount            Boolean              @default(false)
   createdAt             DateTime                     @default(now())
-  startedAt             DateTime?
-  completedAt           DateTime?
   updatedAt                DateTime             @updatedAt
   memberships              UserSalon[]
   passwordSetupTokens      PasswordSetupToken[]
@@ -680,6 +678,8 @@ model Invoice {
   paymentLinkStatus     String?
   paymentLinkExpiresAt  DateTime?
   createdAt             DateTime                     @default(now())
+  startedAt             DateTime?
+  completedAt           DateTime?
   salon                 Salon                        @relation(fields: [salonId], references: [id])
   branch                Branch?                      @relation(fields: [branchId], references: [id])
   customer              Customer                     @relation(fields: [customerId], references: [id])
