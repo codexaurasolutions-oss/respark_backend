@@ -724,6 +724,7 @@ model InvoiceItem {
   membershipWalletUsed Decimal?        @db.Decimal(10, 2)
   commissionAmount     Decimal?        @db.Decimal(10, 2)
   complimentaryRemark  String?
+  consumableData       Json?
   invoice              Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product              Product?        @relation(fields: [productId], references: [id])
   membershipPlan       MembershipPlan? @relation(fields: [membershipPlanId], references: [id])
