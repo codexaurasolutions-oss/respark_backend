@@ -308,14 +308,14 @@ export const registerOperationsRoutes = (ownerRouter) => {
     }
 
     const branches = await prisma.branch.findMany({ where: { salonId: req.salonId, isActive: true } });
-    const invoices = await prisma.invoice.findMany({ where: { salonId: req.salonId, status: "PAID", ...dateFilter }, select: { totalAmount: true, branchId: true } });
+    const invoices = await prisma.invoice.findMany({ where: { salonId: req.salonId, status: "PAID", ...dateFilter }, select: { total: true, branchId: true } });
     const appointments = await prisma.appointment.count({ where: { salonId: req.salonId, status: { not: "CANCELLED" }, ...dateFilter } });
     const customers = await prisma.customer.count({ where: { salonId: req.salonId, ...dateFilter } });
     
-    const totalRevenue = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
+    const totalRevenue = invoices.reduce((sum, inv) => sum + Number(inv.total || 0), 0);
     const branchPerformance = branches.map(b => {
       const branchInvoices = invoices.filter(inv => inv.branchId === b.id);
-      const rev = branchInvoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
+      const rev = branchInvoices.reduce((sum, inv) => sum + Number(inv.total || 0), 0);
       return {
         id: b.id,
         name: b.name,
