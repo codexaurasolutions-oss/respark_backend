@@ -186,7 +186,7 @@ superAdminRouter.post("/salons", asyncHandler(async (req, res) => {
         const frontendUrl = process.env.FRONTEND_APP_URL || "https://saas-frontend-six.vercel.app";
         const token = jwt.sign({ email: ownerEmail, purpose: "set-password" }, process.env.JWT_SECRET, { expiresIn: "7d" });
         const verifyLink = `${frontendUrl}/reset-password?token=${encodeURIComponent(token)}&email=${encodeURIComponent(ownerEmail)}&access=salon`;
-        await sendMail({
+        sendMail({
           to: ownerEmail,
           subject: `Welcome to Salon Nest - Your Salon "${salon.name}" is Ready`,
           html: `<div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
@@ -195,10 +195,8 @@ superAdminRouter.post("/salons", asyncHandler(async (req, res) => {
             <a href="${verifyLink}" style="display: inline-block; background: linear-gradient(135deg, #4f46e5, #3b82f6); color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; margin: 16px 0;">Set Your Password</a>
             <p style="color: #94a3b8; font-size: 0.8rem; margin-top: 24px;">If you did not expect this email, please ignore it.</p>
           </div>`
-        });
-      } catch (emailErr) {
-        console.error("[salon-create] Failed to send verification email:", emailErr.message);
-      }
+        }).catch(emailErr => console.error("[salon-create] Failed to send verification email:", emailErr.message));
+      } catch (err) {}
     }
 
     res.status(201).json(salon);
@@ -1392,7 +1390,7 @@ superAdminRouter.post("/staff", asyncHandler(async (req, res) => {
     const frontendUrl = process.env.FRONTEND_APP_URL || "https://saas-frontend-six.vercel.app";
     const token = jwt.sign({ userId: staff.id, email: staff.email, purpose: "set-password" }, process.env.JWT_SECRET, { expiresIn: "7d" });
     const verifyLink = `${frontendUrl}/reset-password?token=${encodeURIComponent(token)}&email=${encodeURIComponent(staff.email)}&access=super-admin`;
-    await sendMail({
+    sendMail({
       to: staff.email,
       subject: "Welcome to Salon Nest Platform - Set Your Password",
       html: `<div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
@@ -1401,10 +1399,8 @@ superAdminRouter.post("/staff", asyncHandler(async (req, res) => {
         <a href="${verifyLink}" style="display: inline-block; background: linear-gradient(135deg, #4f46e5, #3b82f6); color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 700; margin: 16px 0;">Set Your Password</a>
         <p style="color: #94a3b8; font-size: 0.8rem; margin-top: 24px;">If you did not expect this email, please ignore it.</p>
       </div>`
-    });
-  } catch (emailErr) {
-    console.error("[staff] Failed to send verification email:", emailErr.message);
-  }
+    }).catch(emailErr => console.error("[staff] Failed to send verification email:", emailErr.message));
+  } catch (err) {}
 
   res.status(201).json(staff);
 }));
