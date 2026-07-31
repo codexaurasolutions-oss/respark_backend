@@ -298,10 +298,19 @@ const buildAttendanceExportRows = (rows) => rows.map((row, index) => ({
 
 export const registerOperationsRoutes = (ownerRouter) => {
   ownerRouter.get("/operations/global-dashboard", requireSalonPermission("dashboard", "view"), async (req, res) => {
+    const { startDate, endDate } = req.query;
+    const dateFilter = {};
+    if (startDate && endDate) {
+      dateFilter.createdAt = {
+        gte: new Date(startDate),
+        lte: new Date(endDate + "T23:59:59.999Z")
+      };
+    }
+
     const branches = await prisma.branch.findMany({ where: { salonId: req.salonId, isActive: true } });
-    const invoices = await prisma.invoice.findMany({ where: { salonId: req.salonId, status: "PAID" }, select: { totalAmount: true, branchId: true } });
-    const appointments = await prisma.appointment.count({ where: { salonId: req.salonId, status: { not: "CANCELLED" } } });
-    const customers = await prisma.customer.count({ where: { salonId: req.salonId } });
+    const invoices = await prisma.invoice.findMany({ where: { salonId: req.salonId, status: "PAID", ...dateFilter }, select: { totalAmount: true, branchId: true } });
+    const appointments = await prisma.appointment.count({ where: { salonId: req.salonId, status: { not: "CANCELLED" }, ...dateFilter } });
+    const customers = await prisma.customer.count({ where: { salonId: req.salonId, ...dateFilter } });
     
     const totalRevenue = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
     const branchPerformance = branches.map(b => {
