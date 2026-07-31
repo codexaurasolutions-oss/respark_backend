@@ -1623,7 +1623,7 @@ superAdminRouter.get("/financial-reports", asyncHandler(async (req, res) => {
   const endFilter = dateTo ? new Date(dateTo) : undefined;
   if (endFilter) endFilter.setHours(23, 59, 59, 999);
 
-  const paymentWhere = { status: { in: ["PAID", "COMPLETED", "SUCCESS"] }, createdAt: { gte: start, ...(endFilter ? { lte: endFilter } : {}) } };
+  const paymentWhere = { createdAt: { gte: start, ...(endFilter ? { lte: endFilter } : {}) } };
 
   const [payments, subscriptions] = await Promise.all([
     prisma.payment.findMany({ where: paymentWhere }),
