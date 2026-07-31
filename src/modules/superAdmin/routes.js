@@ -1623,7 +1623,7 @@ superAdminRouter.get("/financial-reports", asyncHandler(async (req, res) => {
 
   const [payments, subscriptions] = await Promise.all([
     prisma.payment.findMany({ where: paymentWhere }),
-    prisma.subscription.findMany({ where: { createdAt: { gte: start }, status: "ACTIVE" }, include: { plan: true } })
+    prisma.subscription.findMany({ where: { startsAt: { gte: start }, status: "ACTIVE" }, include: { plan: true } })
   ]);
 
   const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
