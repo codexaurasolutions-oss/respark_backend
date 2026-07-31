@@ -66,9 +66,7 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
     })));
   });
 
-  ownerRouter.get("/reports/payroll", requireFeatureEnabled("payroll"), requireSalonPermission("payroll", "view"), async (req, res) => {
-    res.json([]);
-  });
+
 
   ownerRouter.get("/reports/tax", requireFeatureEnabled("advancedReports"), requireSalonPermission("advancedReports", "view"), async (req, res) => {
     const bs = branchScope(req);
@@ -205,5 +203,72 @@ export const registerAdvancedReportRoutes = (ownerRouter) => {
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename=\"${moduleKey}-report.csv\"`);
     res.send(csv);
+  });
+
+  ownerRouter.get("/financial-reports", requireFeatureEnabled("advancedReports"), requireSalonPermission("advancedReports", "view"), async (req, res) => {
+    const bs = branchScope(req);
+    const period = req.query.period || "thisMonth";
+    const now = new Date();
+    let start = new Date(now);
+    if (period === "today") start.setHours(0, 0, 0, 0);
+    else if (period === "thisMonth") { start.setDate(1); start.setHours(0, 0, 0, 0); }
+    else if (period === "thisQuarter") { start.setMonth(Math.floor(now.getMonth() / 3) * 3, 1); start.setHours(0, 0, 0, 0); }
+    else if (period === "thisYear") { start.setMonth(0, 1); start.setHours(0, 0, 0, 0); }
+    else if (period === "custom" && req.query.start) { start = new Date(req.query.start); }
+    else { start.setDate(1); start.setHours(0, 0, 0, 0); }
+
+    const dateFilter = { gte: start };
+    const [invoices, expenses, payments] = await Promise.all([
+      prisma.invoice.findMany({ where: { salonId: req.salonId, ...bs, status: { not: "CANCELLED" }, createdAt: dateFilter } }),
+      prisma.expense.findMany({ where: { salonId: req.salonId, ...bs, status: { in: ["APPROVED", "PAID"] }, expenseDate: dateFilter } }),
+      prisma.payment.findMany({ where: { salonId: req.salonId, ...bs, createdAt: dateFilter } })
+    ]);
+
+    const totalRevenue = invoices.reduce((s, r) => s + toNumber(r.total), 0);
+    const totalTax = invoices.reduce((s, r) => s + toNumber(r.tax), 0);
+    const totalExpenses = expenses.reduce((s, r) => s + toNumber(r.amount), 0);
+    const serviceRevenue = invoices.reduce((s, r) => s + toNumber(r.total) - toNumber(r.productTotal || 0), 0);
+    const productRevenue = invoices.reduce((s, r) => s + toNumber(r.productTotal || 0), 0);
+
+    const inflows = { CASH: 0, CARD: 0, UPI: 0, BANK_TRANSFER: 0, WALLET: 0, ONLINE: 0 };
+    payments.forEach(p => { const m = (p.mode || "CASH").toUpperCase(); if (inflows[m] !== undefined) inflows[m] += toNumber(p.amount); });
+    const inflowTotal = Object.values(inflows).reduce((a, b) => a + b, 0);
+
+    const outflows = { CASH: 0, CARD: 0, UPI: 0, BANK_TRANSFER: 0, WALLET: 0, ONLINE: 0 };
+    expenses.forEach(e => { const m = (e.paymentMode || "CASH").toUpperCase(); if (outflows[m] !== undefined) outflows[m] += toNumber(e.amount); });
+    const outflowTotal = Object.values(outflows).reduce((a, b) => a + b, 0);
+
+    const expenseByCategory = {};
+    expenses.forEach(e => { const cat = e.categoryName || "Other"; expenseByCategory[cat] = (expenseByCategory[cat] || 0) + toNumber(e.amount); });
+
+    res.json({
+      summary: {
+        totalGrossIncome: totalRevenue,
+        grossProfit: totalRevenue - totalExpenses,
+        grossMargin: totalRevenue ? Math.round(((totalRevenue - totalExpenses) / totalRevenue) * 100) : 0,
+        totalExpensesPayroll: totalExpenses,
+        netProfit: totalRevenue - totalExpenses,
+        netMargin: totalRevenue ? Math.round(((totalRevenue - totalExpenses) / totalRevenue) * 100) : 0
+      },
+      pnl: {
+        revenue: { services: serviceRevenue, products: productRevenue, memberships: 0, packages: 0, giftCards: 0, total: totalRevenue },
+        costOfGoodsSold: 0,
+        grossProfit: totalRevenue,
+        expenses: { rent: expenseByCategory["Rent"] || 0, utilities: expenseByCategory["Utilities"] || 0, supplies: expenseByCategory["Supplies"] || 0, marketing: expenseByCategory["Marketing"] || 0, other: totalExpenses, total: totalExpenses },
+        payroll: expenseByCategory["Payroll"] || 0,
+        netProfit: totalRevenue - totalExpenses
+      },
+      cashFlow: {
+        inflows: { ...inflows, total: inflowTotal },
+        outflows: { ...outflows, total: outflowTotal },
+        netCashFlow: inflowTotal - outflowTotal
+      },
+      gst: {
+        taxableTurnover: totalRevenue - totalTax,
+        totalGSTCollected: totalTax,
+        gstByRate: [{ rate: "default", amount: totalTax }],
+        hsnSummary: []
+      }
+    });
   });
 };

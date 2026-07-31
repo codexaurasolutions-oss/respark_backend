@@ -83,7 +83,7 @@ const dispatchAppointmentEvent = async (salonId, appointmentId, {
       // Send actual email to salon owner
       if (forceOwnerEmail && emailEnabled) {
         const salonOwner = await prisma.userSalon.findFirst({
-          where: { salonId, role: "SALON_OWNER" },
+          where: { salonId, salonRole: "SALON_OWNER" },
           include: { user: true }
         });
         const ownerEmail = salonOwner?.user?.email;

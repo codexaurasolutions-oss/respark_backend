@@ -3,6 +3,8 @@ import { prisma } from "../../lib/prisma.js";
 import { validate, schemas } from "../../middlewares/validate.js";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { registerPublicPhase3Routes } from "./phase3.js";
+import { resolvePublicSalonBySlug } from "../../lib/phase3.js";
+import { signLoginAccessToken } from "../../lib/tokens.js";
 
 export const publicRouter = Router();
 
@@ -30,7 +32,7 @@ publicRouter.get("/settings", asyncHandler(async (req, res) => {
 }));
 
 publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
-  const salon = await prisma.salon.findUnique({ 
+  let salon = await prisma.salon.findUnique({ 
     where: { slug: req.params.slug },
     include: {
       catalogSettings: true,
@@ -38,11 +40,27 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
       settings: { where: { branchId: null }, take: 1 }
     }
   });
+  if (!salon) {
+    const customSlugSetting = await prisma.catalogSetting.findFirst({
+      where: { customSlug: req.params.slug },
+      select: { salonId: true }
+    });
+    if (customSlugSetting) {
+      salon = await prisma.salon.findUnique({
+        where: { id: customSlugSetting.salonId },
+        include: {
+          catalogSettings: true,
+          ecommerceSettings: true,
+          settings: { where: { branchId: null }, take: 1 }
+        }
+      });
+    }
+  }
   if (!salon) return res.status(404).json({ message: "Salon not found" });
   const catalogSettings = salon.catalogSettings.find((item) => item.branchId === null) || salon.catalogSettings[0] || null;
   if (catalogSettings?.catalogEnabled === false) return res.status(403).json({ message: "Public catalog is disabled for this salon" });
 
-  const ecommerceSettings = salon.ecommerceSettings[0] || null;
+  const ecommerceSettings = Array.isArray(salon.ecommerceSettings) ? salon.ecommerceSettings[0] : (salon.ecommerceSettings || null);
   const salonSettings = salon.settings[0] || null;
   const genericSettings = typeof salonSettings?.advancedSettings === "object"
     ? salonSettings.advancedSettings?.genericSettings || {}
@@ -62,25 +80,65 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
   const showServices = catalogSettings?.showServices !== false;
   const showProducts = catalogSettings?.showProducts !== false && ecommerceSettings?.storeEnabled === true;
 
-  const [services, products] = await Promise.all([
+  const [services, products, categories] = await Promise.all([
     showServices ? prisma.service.findMany({ where: { salonId: salon.id, isActive: true, isPublicVisible: true } }) : [],
-    showProducts ? prisma.product.findMany({ where: { salonId: salon.id, isActive: true, isOnlineVisible: true }, include: { category: true, branch: true } }) : []
+    showProducts ? prisma.product.findMany({ where: { salonId: salon.id, isActive: true, isOnlineVisible: true }, include: { category: true, branch: true } }) : [],
+    showProducts ? prisma.productCategory.findMany({ where: { salonId: salon.id, isActive: true, isPublicVisible: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }) : []
   ]);
   res.json({
     salon: { ...salon, settings: undefined, catalogSettings: undefined, ecommerceSettings: undefined },
     services,
     products,
+    categories,
     websiteConfig: {
       heroTitle: String(websiteConfig.heroTitle || ""),
       heroSubtitle: String(websiteConfig.heroSubtitle || ""),
-      heroImage: String(websiteConfig.heroImage || "")
+      heroImage: String(websiteConfig.heroImage || ""),
+      heroBtn1Text: String(websiteConfig.heroBtn1Text || ""),
+      heroBtn1Link: String(websiteConfig.heroBtn1Link || ""),
+      heroBtn2Text: String(websiteConfig.heroBtn2Text || ""),
+      heroBtn2Link: String(websiteConfig.heroBtn2Link || ""),
+      aboutTitle: String(websiteConfig.aboutTitle || ""),
+      aboutDescription: String(websiteConfig.aboutDescription || ""),
+      aboutImage: String(websiteConfig.aboutImage || ""),
+      aboutMission: String(websiteConfig.aboutMission || ""),
+      aboutVision: String(websiteConfig.aboutVision || ""),
+      galleryImages: Array.isArray(websiteConfig.galleryImages) ? websiteConfig.galleryImages : [],
+      contactPhone: String(websiteConfig.contactPhone || ""),
+      contactEmail: String(websiteConfig.contactEmail || ""),
+      contactAddress: String(websiteConfig.contactAddress || ""),
+      contactMapUrl: String(websiteConfig.contactMapUrl || ""),
+      socialFacebook: String(websiteConfig.socialFacebook || ""),
+      socialInstagram: String(websiteConfig.socialInstagram || ""),
+      socialYoutube: String(websiteConfig.socialYoutube || ""),
+      socialTiktok: String(websiteConfig.socialTiktok || ""),
+      socialTwitter: String(websiteConfig.socialTwitter || ""),
+      businessHours: Array.isArray(websiteConfig.businessHours) ? websiteConfig.businessHours : [],
+      ctaTitle: String(websiteConfig.ctaTitle || ""),
+      ctaSubtitle: String(websiteConfig.ctaSubtitle || ""),
+      ctaBtnText: String(websiteConfig.ctaBtnText || ""),
+      ctaBtnLink: String(websiteConfig.ctaBtnLink || ""),
+      ctaImage: String(websiteConfig.ctaImage || ""),
+      testimonials: Array.isArray(websiteConfig.testimonials) ? websiteConfig.testimonials : [],
+      primaryColor: String(websiteConfig.primaryColor || ""),
+      secondaryColor: String(websiteConfig.secondaryColor || ""),
+      bannerImage: String(websiteConfig.bannerImage || ""),
+      bannerTitle: String(websiteConfig.bannerTitle || ""),
+      bannerSubtitle: String(websiteConfig.bannerSubtitle || ""),
+      bannerBtnText: String(websiteConfig.bannerBtnText || ""),
+      bannerBtnLink: String(websiteConfig.bannerBtnLink || ""),
+      cardShape: String(websiteConfig.cardShape || "rounded"),
+      sections: Array.isArray(websiteConfig.sections) ? websiteConfig.sections : [],
+      footerText: String(websiteConfig.footerText || ""),
+      salonName: String(websiteConfig.salonName || ""),
+      logoUrl: String(websiteConfig.logoUrl || salon.logoUrl || "")
     },
     genericSettings,
     legalContent,
     uiSettings,
     footerContent,
     catalogSettings,
-    ecommerceSettings,
+    ecommerceSettings: ecommerceSettings ? { ...ecommerceSettings, razorpayKeySecret: undefined } : null,
     visibility: {
       services: showServices,
       products: showProducts,
@@ -91,53 +149,376 @@ publicRouter.get("/salon/:slug", asyncHandler(async (req, res) => {
   });
 }));
 
-registerPublicPhase3Routes(publicRouter);
-
-publicRouter.get("/legal", asyncHandler(async (req, res) => {
-  try {
-    // Try to find the salon by slug first, then fallback to first salon
-    const slug = req.query.slug ? String(req.query.slug) : null;
-    let salonSettings = null;
-
-    if (slug) {
-      const salon = await prisma.salon.findUnique({ where: { slug }, include: { settings: { where: { branchId: null }, take: 1 } } });
-      salonSettings = salon?.settings?.[0] || null;
-    }
-
-    if (!salonSettings) {
-      const firstSetting = await prisma.salonSetting.findFirst({ where: { branchId: null }, orderBy: { createdAt: "asc" } });
-      salonSettings = firstSetting;
-    }
-
-    const legalContent = typeof salonSettings?.advancedSettings === "object"
-      ? salonSettings.advancedSettings?.legalContent || {}
-      : {};
-
-    const globalSettings = await prisma.globalSetting.findFirst();
-
-    res.json({
-      privacyPolicy: legalContent.privacyPolicy || "",
-      termsAndConditions: legalContent.termsAndConditions || "",
-      businessName: globalSettings?.systemName || "Skillify",
-      supportEmail: globalSettings?.supportEmail || globalSettings?.contactEmail || ""
-    });
-  } catch {
-    res.json({ privacyPolicy: "", termsAndConditions: "", businessName: "Skillify", supportEmail: "" });
+publicRouter.get("/salon/:slug/categories", asyncHandler(async (req, res) => {
+  let salon = await prisma.salon.findUnique({ where: { slug: req.params.slug }, select: { id: true } });
+  if (!salon) {
+    const custom = await prisma.catalogSetting.findFirst({ where: { customSlug: req.params.slug }, select: { salonId: true } });
+    if (custom) salon = await prisma.salon.findUnique({ where: { id: custom.salonId }, select: { id: true } });
   }
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+  const categories = await prisma.productCategory.findMany({
+    where: { salonId: salon.id, isActive: true, isPublicVisible: true },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }]
+  });
+  res.json(categories);
 }));
+
+publicRouter.get("/salon/:slug/products", asyncHandler(async (req, res) => {
+  let salon = await prisma.salon.findUnique({ where: { slug: req.params.slug }, select: { id: true } });
+  if (!salon) {
+    const custom = await prisma.catalogSetting.findFirst({ where: { customSlug: req.params.slug }, select: { salonId: true } });
+    if (custom) salon = await prisma.salon.findUnique({ where: { id: custom.salonId }, select: { id: true } });
+  }
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+  const where = { salonId: salon.id, isActive: true, isOnlineVisible: true };
+  if (req.query.categoryId) where.categoryId = req.query.categoryId;
+  if (req.query.search) where.name = { contains: req.query.search };
+  const products = await prisma.product.findMany({
+    where,
+    include: { category: true, branch: true },
+    orderBy: { createdAt: "desc" }
+  });
+  res.json(products);
+}));
+
+publicRouter.get("/salon/:slug/product/:productId", asyncHandler(async (req, res) => {
+  let salon = await prisma.salon.findUnique({ where: { slug: req.params.slug }, select: { id: true } });
+  if (!salon) {
+    const custom = await prisma.catalogSetting.findFirst({ where: { customSlug: req.params.slug }, select: { salonId: true } });
+    if (custom) salon = await prisma.salon.findUnique({ where: { id: custom.salonId }, select: { id: true } });
+  }
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+  const product = await prisma.product.findFirst({
+    where: { id: req.params.productId, salonId: salon.id, isActive: true },
+    include: { category: true, branch: true }
+  });
+  if (!product) return res.status(404).json({ message: "Product not found" });
+  res.json(product);
+}));
+
+// Public order tracking — customer can track order by order number + phone/email
+publicRouter.get("/salon/:slug/track-order", asyncHandler(async (req, res) => {
+  let salon = await prisma.salon.findUnique({ where: { slug: req.params.slug }, select: { id: true } });
+  if (!salon) {
+    const custom = await prisma.catalogSetting.findFirst({ where: { customSlug: req.params.slug }, select: { salonId: true } });
+    if (custom) salon = await prisma.salon.findUnique({ where: { id: custom.salonId }, select: { id: true } });
+  }
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+  const { orderNumber, phone, email } = req.query;
+  if (!orderNumber) return res.status(400).json({ message: "Order number is required" });
+  const where = { salonId: salon.id, orderNumber: String(orderNumber) };
+  if (phone) where.customerPhone = String(phone);
+  if (email) where.customerEmail = String(email);
+  const order = await prisma.onlineOrder.findFirst({
+    where,
+    include: {
+      items: { include: { product: true } },
+      logs: { orderBy: { createdAt: "asc" } }
+    }
+  });
+  if (!order) return res.status(404).json({ message: "Order not found. Please check your order number and contact details." });
+  res.json({
+    orderNumber: order.orderNumber,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    paymentMode: order.paymentMode,
+    fulfillmentMethod: order.fulfillmentMethod,
+    total: order.total,
+    createdAt: order.createdAt,
+    completedAt: order.completedAt,
+    items: order.items.map(i => ({
+      name: i.product?.name || i.productName,
+      qty: i.qty,
+      unitPrice: i.unitPrice,
+      lineTotal: i.lineTotal
+    })),
+    timeline: order.logs.map(l => ({
+      status: l.toStatus,
+      note: l.note,
+      createdAt: l.createdAt
+    }))
+  });
+}));
+
+// Public enquiry submission
+publicRouter.post("/salon/:slug/enquiry", asyncHandler(async (req, res) => {
+  let salon = await prisma.salon.findUnique({ where: { slug: req.params.slug }, select: { id: true } });
+  if (!salon) {
+    const custom = await prisma.catalogSetting.findFirst({ where: { customSlug: req.params.slug }, select: { salonId: true } });
+    if (custom) salon = await prisma.salon.findUnique({ where: { id: custom.salonId }, select: { id: true } });
+  }
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+  const { name, email, phone, message } = req.body;
+  if (!name || !email || !phone || !message) return res.status(400).json({ message: "Name, email, phone, and message are required" });
+  const enquiry = await prisma.enquiry.create({
+    data: { salonId: salon.id, name, email, phone, message, source: "WEBSITE" }
+  });
+  res.status(201).json({ ok: true, id: enquiry.id });
+}));
+
+publicRouter.post("/salon/:slug/track", asyncHandler(async (req, res) => {
+  const { slug } = req.params;
+  const resolved = await resolvePublicSalonBySlug(slug);
+  const salon = resolved?.salon || resolved;
+  if (!salon?.id) return res.status(404).json({ message: "Salon not found" });
+  const { path } = req.body;
+  const ip = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || null;
+  const userAgent = req.headers["user-agent"] || null;
+  const referrer = req.headers["referer"] || null;
+  await prisma.websiteVisit.create({
+    data: { salonId: salon.id, path: path || "/", ip, userAgent, referrer }
+  });
+  res.json({ ok: true });
+}));
+
+registerPublicPhase3Routes(publicRouter);
 
 publicRouter.get("/plans", asyncHandler(async (req, res) => {
   const plans = await prisma.plan.findMany({ orderBy: { monthlyPrice: "asc" } });
-  res.json(plans.length ? plans : [
-    { id: "starter", name: "Starter", monthlyPrice: 4999, yearlyPrice: 49990, trialDays: 7, branchLimit: 9999, userLimit: 5, customerLimit: 500, invoiceLimit: 1000, storageLimit: 5 },
-    { id: "growth", name: "Growth", monthlyPrice: 9999, yearlyPrice: 99990, trialDays: 7, branchLimit: 9999, userLimit: 20, customerLimit: 3000, invoiceLimit: 10000, storageLimit: 20 }
+  res.json(plans.length ? plans.slice(0, 1) : [
+    { id: "starter", name: "Standard Plan", monthlyPrice: 4999, yearlyPrice: 49990, trialDays: 7, branchLimit: 99999, userLimit: 9999, customerLimit: 99999, invoiceLimit: 99999, storageLimit: 999 }
   ]);
 }));
 
+publicRouter.post("/demo-leads", validate(schemas.demoLead), asyncHandler(async (req, res) => {
+  const { name, email, phone, company, message } = req.body;
+  const lead = await prisma.demoLead.create({
+    data: { name, email, phone, company, message, status: "NEW" }
+  });
+  res.status(201).json(lead);
+}));
+
+publicRouter.get("/demo-checkout-info/:leadId/:planId", asyncHandler(async (req, res) => {
+  const lead = await prisma.demoLead.findUnique({ where: { id: req.params.leadId } });
+  if (!lead) return res.status(404).json({ message: "Demo lead not found" });
+  if (lead.status === "CONVERTED" && lead.salonId) {
+    return res.status(409).json({ message: "ALREADY_CONVERTED", email: lead.email });
+  }
+  const plan = await prisma.plan.findUnique({ where: { id: req.params.planId } });
+  if (!plan) return res.status(404).json({ message: "Plan not found" });
+  res.json({
+    leadName: lead.name,
+    leadEmail: lead.email,
+    company: lead.company,
+    planName: plan.name,
+    price: plan.monthlyPrice,
+    limits: {
+      branches: plan.branchLimit,
+      users: plan.userLimit,
+      customers: plan.customerLimit,
+      invoices: plan.invoiceLimit
+    }
+  });
+}));
+
+publicRouter.post("/demo-checkout/verify-razorpay", asyncHandler(async (req, res) => {
+  const { leadId, planId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+  
+  const keySecret = process.env.RAZORPAY_SECRET_KEY;
+  
+  if (!keySecret) {
+    return res.status(503).json({ message: "Payment gateway is not configured." });
+  }
+
+  const lead = await prisma.demoLead.findUnique({ where: { id: leadId } });
+  if (!lead) return res.status(404).json({ message: "Demo lead not found" });
+
+  if (lead.status === "CONVERTED" && lead.salonId && lead.approvedUserId) {
+    const user = await prisma.user.findUnique({ where: { id: lead.approvedUserId } });
+    if (user) {
+      const loginAccessToken = signLoginAccessToken({ userId: user.id, email: user.email, salonId: lead.salonId });
+      return res.json({ ok: true, setupToken: null, loginAccessToken, email: user.email, alreadyConverted: true });
+    }
+  }
+  
+  const { default: crypto } = await import("node:crypto");
+  const generated_signature = crypto
+    .createHmac("sha256", keySecret)
+    .update(razorpayOrderId + "|" + razorpayPaymentId)
+    .digest("hex");
+
+  if (generated_signature === razorpaySignature) {
+    const updatedLead = await prisma.demoLead.update({
+      where: { id: leadId },
+      data: {
+        paymentCompleted: true,
+        paymentSessionId: razorpayPaymentId,
+        selectedPlanId: planId
+      }
+    });
+
+    const { approveDemoLead } = await import("../../lib/demoInvites.js");
+    const result = await approveDemoLead({
+      leadId,
+      actorName: "System Auto-Approval (Paid Checkout)",
+      planId,
+      trialDays: 30,
+      salonName: updatedLead.company || updatedLead.name,
+      businessType: "Salon",
+      reviewNote: "Automated paid checkout setup via Razorpay"
+    });
+
+    if (result.error) {
+      return res.status(result.error.status || 400).json({ message: result.error.message });
+    }
+
+    res.json({
+      ok: true,
+      setupToken: result.rawToken,
+      loginAccessToken: result.loginAccessToken,
+      email: lead.email
+    });
+  } else {
+    res.status(400).json({ message: "Payment verification failed. Invalid signature." });
+  }
+}));
+
+publicRouter.post("/demo-checkout/:leadId", asyncHandler(async (req, res) => {
+  const lead = await prisma.demoLead.findUnique({ where: { id: req.params.leadId } });
+  if (!lead) return res.status(404).json({ message: "Demo lead not found" });
+  const { planId, paymentSessionId } = req.body;
+  const updated = await prisma.demoLead.update({
+    where: { id: req.params.leadId },
+    data: {
+      paymentCompleted: true,
+      paymentSessionId: paymentSessionId || `demo_pay_${Date.now()}`,
+      selectedPlanId: planId || lead.selectedPlanId
+    }
+  });
+  res.json({ ok: true, lead: updated });
+}));
+
+publicRouter.post("/demo-checkout/:leadId/razorpay-order", asyncHandler(async (req, res) => {
+  const { planId } = req.body;
+  const lead = await prisma.demoLead.findUnique({ where: { id: req.params.leadId } });
+  if (!lead) return res.status(404).json({ message: "Demo lead not found" });
+  if (lead.status === "CONVERTED" && lead.salonId) {
+    return res.status(409).json({ message: "ALREADY_CONVERTED" });
+  }
+  const plan = await prisma.plan.findUnique({ where: { id: planId } });
+  if (!plan) return res.status(404).json({ message: "Plan not found" });
+
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_SECRET_KEY;
+
+  if (!keyId || !keySecret) {
+    return res.status(503).json({ message: "Payment gateway is not configured. Please contact support to complete your subscription." });
+  }
+
+  const authHeader = `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`;
+  const response = await fetch("https://api.razorpay.com/v1/orders", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": authHeader
+    },
+    body: JSON.stringify({
+      amount: plan.monthlyPrice * 100, // in Paise
+      currency: "INR",
+      receipt: `rcpt_${lead.id.substring(0, 8)}_${Date.now().toString().substring(8)}`
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error("Razorpay Order Error:", errorData);
+    return res.status(400).json({ message: errorData.error?.description || "Razorpay order creation failed" });
+  }
+
+  const order = await response.json();
+  res.json({
+    orderId: order.id,
+    amount: order.amount,
+    currency: order.currency,
+    keyId: keyId,
+    leadName: lead.name,
+    leadEmail: lead.email,
+    leadPhone: lead.phone
+  });
+}));
+
 // SECURITY: The following 3 debug endpoints have been REMOVED from production.
-// They previously allowed anyone with the hardcoded key "respark123" to:
+// They previously allowed anyone with the hardcoded key "salonnest123" to:
 //   1. /public/debug-db       - read all users, settings, gift cards
 //   2. /public/debug-code     - read source code (security disclosure)
 //   3. /public/run-seed-services - WIPE all services & categories and re-seed
 // These endpoints were removed for security reasons.
 // If you need to seed services, use the seeder script in prisma/seed/seed.js instead.
+
+// E-Commerce Razorpay Order Creation
+// E-Commerce Razorpay Order Creation (uses per-salon Razorpay credentials)
+publicRouter.post("/salon/:slug/razorpay-order", asyncHandler(async (req, res) => {
+  let salon = await prisma.salon.findUnique({
+    where: { slug: req.params.slug },
+    select: { id: true, name: true, ecommerceSettings: true }
+  });
+  if (!salon) {
+    const custom = await prisma.catalogSetting.findFirst({ where: { customSlug: req.params.slug }, select: { salonId: true } });
+    if (custom) salon = await prisma.salon.findUnique({ where: { id: custom.salonId }, select: { id: true, name: true, ecommerceSettings: true } });
+  }
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+
+  const ecomSettings = salon.ecommerceSettings?.[0] || await prisma.ecommerceSetting.findUnique({ where: { salonId: salon.id } });
+  const keyId = ecomSettings?.razorpayKeyId || process.env.RAZORPAY_KEY_ID;
+  const keySecret = ecomSettings?.razorpayKeySecret || process.env.RAZORPAY_SECRET_KEY;
+
+  if (!keyId || !keySecret) {
+    return res.status(503).json({ message: "Online payment gateway is not configured for this salon. Please select Pay at Salon or COD." });
+  }
+
+  const { amount, currency = "INR", receipt } = req.body;
+  if (!amount || Number(amount) <= 0) {
+    return res.status(400).json({ message: "Invalid payment amount" });
+  }
+
+  const authHeader = `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`;
+  const response = await fetch("https://api.razorpay.com/v1/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": authHeader },
+    body: JSON.stringify({
+      amount: Math.round(Number(amount) * 100),
+      currency,
+      receipt: receipt || `order_${salon.id.substring(0, 8)}_${Date.now().toString().substring(8)}`
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error("Razorpay Order Error for salon", salon.id, ":", errorData);
+    return res.status(400).json({ message: errorData.error?.description || "Razorpay order creation failed" });
+  }
+
+  const order = await response.json();
+  res.json({ orderId: order.id, amount: order.amount, currency: order.currency, keyId });
+}));
+
+// E-Commerce Razorpay Payment Verification (uses per-salon Secret)
+publicRouter.post("/salon/:slug/verify-razorpay-payment", asyncHandler(async (req, res) => {
+  let salon = await prisma.salon.findUnique({
+    where: { slug: req.params.slug },
+    select: { id: true, ecommerceSettings: true }
+  });
+  if (!salon) {
+    const custom = await prisma.catalogSetting.findFirst({ where: { customSlug: req.params.slug }, select: { salonId: true } });
+    if (custom) salon = await prisma.salon.findUnique({ where: { id: custom.salonId }, select: { id: true, ecommerceSettings: true } });
+  }
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+
+  const ecomSettings = salon.ecommerceSettings?.[0] || await prisma.ecommerceSetting.findUnique({ where: { salonId: salon.id } });
+  const keySecret = ecomSettings?.razorpayKeySecret || process.env.RAZORPAY_SECRET_KEY;
+
+  if (!keySecret) return res.status(503).json({ message: "Payment gateway secret is missing." });
+
+  const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+  const { default: crypto } = await import("node:crypto");
+  const generatedSignature = crypto
+    .createHmac("sha256", keySecret)
+    .update(razorpayOrderId + "|" + razorpayPaymentId)
+    .digest("hex");
+
+  if (generatedSignature !== razorpaySignature) {
+    return res.status(400).json({ message: "Payment verification failed. Invalid signature." });
+  }
+
+  res.json({ ok: true, verified: true });
+}));

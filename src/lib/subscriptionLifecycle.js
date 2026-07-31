@@ -16,29 +16,31 @@ const getSalonOwner = async (salonId) => {
 };
 
 export const buildTrialReminderEmail = ({ ownerName, salonName, endsAt, loginLink, daysLeft }) => {
-  const subject = `${salonName} trial expires in ${daysLeft} day(s)`;
+  const subject = `⚠️ Action Required: Your SalonNest subscription for ${salonName} is expiring soon`;
   const text = [
     `Hi ${ownerName},`,
     "",
-    `Your Skillify trial for ${salonName} expires on ${formatDate(endsAt)}.`,
+    `This is a friendly reminder that your active SalonNest subscription for ${salonName} is set to expire on ${formatDate(endsAt)} (in ${daysLeft} days).`,
     "",
-    `Login here: ${loginLink}`,
+    `To ensure uninterrupted service and operations for your salon, please login and renew or manage your plan details:`,
+    `Login Link: ${loginLink}`,
     "",
-    "If you want to continue without interruption, please upgrade your subscription before the trial ends.",
-    "",
-    "Skillify Team"
+    "Best regards,",
+    "SalonNest Operations Team"
   ].join("\n");
 
   const html = `
     <div style="font-family:Arial,sans-serif;background:#f7f4ef;padding:32px;color:#18212c;">
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:24px;padding:32px;border:1px solid rgba(24,33,44,0.08);">
-        <p style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#8a4b08;margin:0 0 12px;">Trial Reminder</p>
-        <h1 style="margin:0 0 14px;font-size:30px;line-height:1.15;">Your trial expires in ${daysLeft} day(s).</h1>
-        <p style="font-size:16px;line-height:1.7;margin:0 0 18px;">Hi ${ownerName}, your Skillify trial for <strong>${salonName}</strong> ends on <strong>${formatDate(endsAt)}</strong>.</p>
-        <div style="background:#fff7ed;border-radius:18px;padding:18px 20px;margin:0 0 20px;">
-          <p style="margin:0;"><strong>Login link:</strong> <a href="${loginLink}" style="color:#0f766e;">Open panel</a></p>
+        <p style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#c2410c;margin:0 0 12px;">Subscription Expiry Alert</p>
+        <h1 style="margin:0 0 14px;font-size:26px;line-height:1.15;color:#c2410c;">Your subscription expires in ${daysLeft} days.</h1>
+        <p style="font-size:16px;line-height:1.7;margin:0 0 18px;">Hi ${ownerName},</p>
+        <p style="font-size:16px;line-height:1.7;margin:0 0 18px;">This is an automated reminder that your active subscription for <strong>${salonName}</strong> will expire on <strong>${formatDate(endsAt)}</strong>.</p>
+        <div style="background:#fff7ed;border-radius:18px;padding:18px 20px;margin:0 0 20px;border-left:4px solid #c2410c;">
+          <p style="margin:0 0 8px;"><strong>Expiry Date:</strong> ${formatDate(endsAt)}</p>
+          <p style="margin:0;"><strong>Manage Subscription:</strong> <a href="${loginLink}" style="color:#0f766e;font-weight:bold;text-decoration:underline;">Login to Panel</a></p>
         </div>
-        <p style="margin:0;color:#516170;line-height:1.7;">Upgrade before the trial ends if you want uninterrupted access.</p>
+        <p style="margin:0;color:#516170;line-height:1.7;">Please ensure your payment methods are updated to avoid any service disruptions.</p>
       </div>
     </div>
   `;
@@ -51,19 +53,19 @@ export const buildConversionEmail = ({ ownerName, salonName, planName, endsAt, l
   const text = [
     `Hi ${ownerName},`,
     "",
-    `${salonName} has been converted from trial to the ${planName} plan.`,
+    `${salonName} has been upgraded to the ${planName} plan.`,
     `Subscription active until: ${formatDate(endsAt)}`,
     "",
     `Login here: ${loginLink}`,
     "",
-    "Skillify Team"
+    "Salon Nest Team"
   ].join("\n");
 
   const html = `
     <div style="font-family:Arial,sans-serif;background:#f7f4ef;padding:32px;color:#18212c;">
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:24px;padding:32px;border:1px solid rgba(24,33,44,0.08);">
         <p style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#0f766e;margin:0 0 12px;">Subscription Active</p>
-        <h1 style="margin:0 0 14px;font-size:30px;line-height:1.15;">Your trial has been converted successfully.</h1>
+        <h1 style="margin:0 0 14px;font-size:30px;line-height:1.15;">Your subscription has been upgraded successfully.</h1>
         <p style="font-size:16px;line-height:1.7;margin:0 0 18px;">Hi ${ownerName}, <strong>${salonName}</strong> is now active on the <strong>${planName}</strong> plan.</p>
         <div style="background:#ecfeff;border-radius:18px;padding:18px 20px;margin:0 0 20px;">
           <p style="margin:0 0 8px;"><strong>Active until:</strong> ${formatDate(endsAt)}</p>
@@ -82,9 +84,6 @@ export const sendTrialReminder = async ({ subscriptionId, actorName }) => {
     include: { salon: true, plan: true }
   });
   if (!subscription) return { error: { status: 404, message: "Subscription not found" } };
-  if (subscription.status !== "TRIAL") {
-    return { error: { status: 400, message: "Only trial subscriptions can receive trial reminders." } };
-  }
 
   const owner = await getSalonOwner(subscription.salonId);
   if (!owner) return { error: { status: 404, message: "No salon owner found for this subscription." } };
@@ -127,7 +126,7 @@ export const sendTrialReminder = async ({ subscriptionId, actorName }) => {
   await prisma.subscriptionHistory.create({
     data: {
       subscriptionId: subscription.id,
-      action: "TRIAL_REMINDER_SENT",
+      action: "EXPIRY_REMINDER_SENT",
       createdBy: actorName,
       fromStatus: subscription.status,
       toStatus: subscription.status,
@@ -147,7 +146,7 @@ export const convertDemoToPaid = async ({ subscriptionId, actorName, planId, end
   });
   if (!existing) return { error: { status: 404, message: "Subscription not found" } };
   if (!["TRIAL", "ACTIVE"].includes(existing.status)) {
-    return { error: { status: 400, message: "Only trial or active subscriptions can be converted through this flow." } };
+    return { error: { status: 400, message: "Only active or pending subscriptions can be upgraded through this flow." } };
   }
 
   const targetPlan = planId && planId !== existing.planId

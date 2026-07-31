@@ -32,8 +32,9 @@ const getAllowedOrigins = (overrideOrigins = null) => {
   return normalizeOrigins([
     process.env.FRONTEND_APP_URL,
     process.env.FRONTEND_APP_URLS,
-    "https://respark-frontend.vercel.app",
-    "https://respark-frontend-phi.vercel.app",
+    "https://salonnest-frontend.vercel.app",
+    "https://salonnest-frontend-phi.vercel.app",
+    "https://saas-seven-blush-46.vercel.app",
     "http://127.0.0.1:5173",
     "http://localhost:5173"
   ]);
@@ -48,7 +49,7 @@ export const createApp = ({
   jsonLimit = process.env.JSON_BODY_LIMIT || "1mb",
   rateLimitWindowMs = parseNumber(process.env.RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
   rateLimitMax = parseNumber(process.env.RATE_LIMIT_MAX, 300),
-  trustProxy = process.env.TRUST_PROXY === "true"
+  trustProxy = process.env.TRUST_PROXY !== "false"
 } = {}) => {
   const app = express();
   const resolvedOrigins = new Set(getAllowedOrigins(allowedOrigins));

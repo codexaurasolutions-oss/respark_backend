@@ -45,8 +45,14 @@ export const logAppointmentChange = async (tx, appointmentId, actorUserId, actio
   });
 
 export const nextNumber = async (tx, model, salonId, prefix) => {
-  const count = await tx[model].count({ where: { salonId } });
-  return `${prefix}-${String(count + 1).padStart(5, "0")}`;
+  const latest = await tx[model].findFirst({
+    where: { salonId },
+    orderBy: { createdAt: "desc" },
+    select: { invoiceNumber: true, appointmentNumber: true, poNumber: true, orderNumber: true }
+  });
+  const lastNum = latest?.invoiceNumber || latest?.appointmentNumber || latest?.poNumber || latest?.orderNumber;
+  const lastSeq = lastNum ? parseInt(String(lastNum).split("-").pop(), 10) || 0 : 0;
+  return `${prefix}-${String(lastSeq + 1).padStart(5, "0")}`;
 };
 
 export const assignAppointmentItems = async (tx, appointmentId, items) => {

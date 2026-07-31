@@ -50,9 +50,12 @@ enum InvoiceStatus {
 }
 
 enum DemoLeadStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  NEW
+  CONNECTED
+  DEMO_SCHEDULED
+  TRIAL_STARTED
+  CONVERTED
+  CANCELED
 }
 
 enum AppointmentStatus {
@@ -252,7 +255,8 @@ model User {
   isActive                 Boolean              @default(true)
   passwordSetupRequired    Boolean              @default(false)
   isDemoAccount            Boolean              @default(false)
-  createdAt             DateTime                     @default(now())
+  pagePermissions          Json?
+  createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
   memberships              UserSalon[]
   passwordSetupTokens      PasswordSetupToken[]
@@ -351,6 +355,8 @@ model Salon {
   affiliateWallets      AffiliateCreditWallet[]
   affiliateTransactions AffiliateCreditTransaction[]
   payoutRequests        CreditPayoutRequest[]
+  websiteVisits         WebsiteVisit[]
+  staffRequirements     StaffRequirement[]
 }
 
 model UserSalon {
@@ -426,6 +432,7 @@ model Plan {
   invoiceLimit  Int            @default(1000)
   storageLimit  Int?
   isCustom      Boolean        @default(false)
+  isPopular     Boolean        @default(false)
   featureFlags  Json?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -456,13 +463,18 @@ model DemoLead {
   phone               String
   company             String?
   message             String?
-  status              DemoLeadStatus       @default(PENDING)
+  status              DemoLeadStatus       @default(NEW)
   salonId             String?
   approvedUserId      String?
+  selectedPlanId      String?
   reviewedAt          DateTime?
   reviewedByName      String?
   reviewNote          String?
   inviteSentAt        DateTime?
+  meetingScheduledAt  DateTime?
+  meetingLink         String?
+  leadSource          String?
+  leadNotes           String?
   createdAt           DateTime             @default(now())
   salon               Salon?               @relation(fields: [salonId], references: [id])
   passwordSetupTokens PasswordSetupToken[]
@@ -522,6 +534,7 @@ model Branch {
   designations         Designation[]
   taxRates             TaxRate[]
   whatsAppSettings     WhatsAppSetting[]
+  staffRequirements    StaffRequirement[]
 }
 
 model ServiceCategory {
@@ -2328,4 +2341,58 @@ model PnlCategory {
   salon          Salon    @relation(fields: [salonId], references: [id])
 
   @@index([salonId])
+}
+
+model StaffRequirement {
+  id          String   @id @default(cuid())
+  salonId     String
+  branchId    String?
+  title       String
+  description String?
+  department  String?
+  position    String?
+  salary      String?
+  shift       String?  @default("Full-Time")
+  urgency     String?  @default("MEDIUM")
+  skills      String?
+  count       Int      @default(1)
+  priority    String   @default("MEDIUM")
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  salon  Salon? @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([salonId])
+  @@index([branchId])
+}
+
+model ProductRequirement {
+  id          String   @id @default(cuid())
+  productName String
+  description String?
+  category    String?
+  quantity    Int      @default(1)
+  unitPrice   Decimal? @db.Decimal(10, 2)
+  priority    String   @default("MEDIUM")
+  status      String   @default("PENDING")
+  vendor      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WebsiteVisit {
+  id        String   @id @default(cuid())
+  salonId   String
+  path      String
+  ip        String?
+  referrer  String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  salon     Salon    @relation(fields: [salonId], references: [id])
+
+  @@index([salonId])
+  @@index([createdAt])
+  @@index([salonId, createdAt])
 }

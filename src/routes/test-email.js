@@ -21,14 +21,14 @@ testEmailRouter.get("/send", async (req, res) => {
 
     const mailOptions = {
       to: toEmail,
-      subject: "🎉 Respark Email System Test - WORKING!",
+      subject: "🎉 Salon Nest Email System Test - WORKING!",
       html: `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; min-height: 100vh;">
           <div style="background: white; max-width: 600px; margin: 0 auto; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
             
             <div style="text-align: center; margin-bottom: 30px;">
               <h1 style="color: #27ae60; font-size: 32px; margin: 0;">✅ EMAIL SYSTEM WORKING!</h1>
-              <p style="color: #666; font-size: 16px; margin: 10px 0 0 0;">Respark Backend - Production Ready</p>
+              <p style="color: #666; font-size: 16px; margin: 10px 0 0 0;">Salon Nest Backend - Production Ready</p>
             </div>
 
             <hr style="border: none; border-top: 2px solid #eee; margin: 20px 0;">
@@ -55,14 +55,14 @@ testEmailRouter.get("/send", async (req, res) => {
 
             <div style="text-align: center; margin-top: 30px;">
               <p style="color: #666; font-size: 15px;">
-                🎉 <strong>Respark Email System is 100% Ready!</strong>
+                🎉 <strong>Salon Nest Email System is 100% Ready!</strong>
               </p>
             </div>
 
           </div>
         </div>
       `,
-      text: "Respark Email System Test - Email delivery is working!"
+      text: "Salon Nest Email System Test - Email delivery is working!"
     };
 
     const result = await sendMail(mailOptions);
