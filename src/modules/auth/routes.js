@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 
 const generateOtpCode = () => "123456";
-import { signAccessToken, signRefreshToken, verifyLoginAccessToken, verifyRefreshToken } from "../../lib/tokens.js";
+import { signAccessToken, signRefreshToken, verifyLoginAccessToken, verifyRefreshToken, revokeToken } from "../../lib/tokens.js";
 import jwt from "jsonwebtoken";
 import { validate, schemas } from "../../middlewares/validate.js";
 import { hashPasswordSetupToken, generateRawPasswordSetupToken } from "../../lib/passwordSetup.js";
