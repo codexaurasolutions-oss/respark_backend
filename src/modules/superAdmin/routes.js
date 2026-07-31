@@ -157,8 +157,10 @@ superAdminRouter.post("/salons", asyncHandler(async (req, res) => {
       });
 
       if (ownerEmail && ownerName && ownerPassword) {
-        const owner = await tx.user.create({
-          data: {
+        const owner = await tx.user.upsert({
+          where: { email: ownerEmail },
+          update: {},
+          create: {
             name: ownerName,
             email: ownerEmail,
             passwordHash: await bcrypt.hash(ownerPassword, 10),
