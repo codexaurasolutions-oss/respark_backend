@@ -540,6 +540,7 @@ model Branch {
 model ServiceCategory {
   id                       String                   @id @default(cuid())
   salonId                  String
+  branchId                 String?
   name                     String
   parentId                 String?
   isActive                 Boolean                  @default(true)
