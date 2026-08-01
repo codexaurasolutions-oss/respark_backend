@@ -408,6 +408,15 @@ superAdminRouter.post("/subscriptions", validate(schemas.subscription), asyncHan
         endsAt: new Date(req.body.endsAt)
       }
     });
+
+    const newPlan = await tx.plan.findUnique({ where: { id: created.planId } });
+    if (newPlan) {
+      await tx.salon.update({
+        where: { id: created.salonId },
+        data: { featureFlags: newPlan.featureFlags }
+      });
+    }
+
     await tx.subscriptionHistory.create({
       data: {
         subscriptionId: created.id,
@@ -470,6 +479,14 @@ superAdminRouter.patch("/subscriptions/:id", asyncHandler(async (req, res) => {
     });
 
     const planChanged = req.body.planId && req.body.planId !== existing.planId;
+    
+    if (planChanged && nextPlan) {
+      await tx.salon.update({
+        where: { id: existing.salonId },
+        data: { featureFlags: nextPlan.featureFlags }
+      });
+    }
+
     const oldMonthly = toAmount(existing.plan?.monthlyPrice || 0);
     const nextMonthly = toAmount(nextPlan?.monthlyPrice || 0);
     const action = planChanged
