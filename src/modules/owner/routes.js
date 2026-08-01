@@ -51,7 +51,10 @@ const forceBranchForUploads = (req, res, next) => {
 
 const findScoped = (model, salonId, id) => prisma[model].findFirst({ where: { id, salonId } });
 const toAmount = (value) => Number(value || 0);
-const normalizeBranchId = (value) => (value ? String(value) : null);
+const normalizeBranchId = (value) => {
+  if (!value || value === "undefined" || value === "null" || value === "ALL") return null;
+  return String(value);
+};
 const withBranchFilter = (salonId, branchId, req) => {
   if (req?.user?.salonRole && req.user.salonRole !== "SALON_OWNER" && req.user.branchId) {
     return { salonId, branchId: req.user.branchId };

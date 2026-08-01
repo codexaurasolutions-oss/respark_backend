@@ -6,12 +6,12 @@ import { schemas, validate } from "../../../middlewares/validate.js";
 
 export const registerMembershipRoutes = (ownerRouter) => {
   ownerRouter.get("/memberships/plans", requireSalonPermission("memberships", "view"), async (req, res) => {
-    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    const branchId = normalizeBranchId(req.query.branchId);
     res.json(await prisma.membershipPlan.findMany({ where: { salonId: req.salonId, isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) }, include: { services: { include: { service: true } } } }));
   });
 
   ownerRouter.get("/memberships", requireSalonPermission("memberships", "view"), async (req, res) => {
-    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    const branchId = normalizeBranchId(req.query.branchId);
     res.json(await prisma.membershipPlan.findMany({ where: { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) }, include: { services: { include: { service: true } } }, orderBy: { createdAt: "desc" } }));
   });
 
@@ -341,7 +341,7 @@ export const registerMembershipRoutes = (ownerRouter) => {
 
   ownerRouter.get("/packages", requireSalonPermission("packages", "view"), async (req, res) => {
     const branchId = normalizeBranchId(req.query.branchId);
-    const where = { salonId: req.salonId, ...(branchId ? { branchId } : {}) };
+    const where = { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
     res.json(await prisma.package.findMany({ where, include: { services: { include: { service: true } } }, orderBy: { createdAt: "desc" } }));
   });
 
