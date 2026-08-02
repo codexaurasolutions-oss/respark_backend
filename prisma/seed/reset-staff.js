@@ -156,14 +156,14 @@ async function main() {
   const joharBranch = branches.find((b) => b.name.includes("Johar")) || branches[3];
 
   const staffList = [
-    { name: "Rahul Sharma", email: "rahul.sharma@respark.local", phone: "+919876543201", salonRole: "STAFF", customRoleId: createdRoles["Senior Stylist"].id, branchId: mainBranch.id, designation: "Senior Stylist", perms: staffPermissions },
-    { name: "Priya Kapoor", email: "priya.kapoor@respark.local", phone: "+919876543202", salonRole: "RECEPTIONIST", customRoleId: createdRoles["Receptionist Manager"].id, branchId: mainBranch.id, designation: "Receptionist Manager", perms: receptionistPermissions },
-    { name: "Amit Verma", email: "amit.verma@respark.local", phone: "+919876543203", salonRole: "MANAGER", customRoleId: null, branchId: mainBranch.id, designation: "Salon Manager", perms: managerPermissions },
-    { name: "Sneha Iyer", email: "sneha.iyer@respark.local", phone: "+919876543204", salonRole: "STAFF", customRoleId: createdRoles["Skin Care Specialist"].id, branchId: dhaBranch.id, designation: "Skin Care Specialist", perms: staffPermissions },
-    { name: "Vikram Rajput", email: "vikram.rajput@respark.local", phone: "+919876543205", salonRole: "STAFF", customRoleId: createdRoles["Senior Stylist"].id, branchId: gulbergBranch.id, designation: "Senior Barber", perms: staffPermissions },
-    { name: "Neha Joshi", email: "neha.joshi@respark.local", phone: "+919876543206", salonRole: "STAFF", customRoleId: createdRoles["Makeup Artist"].id, branchId: joharBranch.id, designation: "Makeup Artist", perms: staffPermissions },
-    { name: "Arjun Nair", email: "arjun.nair@respark.local", phone: "+919876543207", salonRole: "STAFF", customRoleId: createdRoles["Junior Stylist"].id, branchId: dhaBranch.id, designation: "Junior Stylist", perms: staffPermissions },
-    { name: "Kavita Deshmukh", email: "kavita.deshmukh@respark.local", phone: "+919876543208", salonRole: "STAFF", customRoleId: createdRoles["Skin Care Specialist"].id, branchId: joharBranch.id, designation: "Skin Care Specialist", perms: staffPermissions }
+    { name: "Rahul Sharma", email: "rahul.sharma@salonnest.in", phone: "+919876543201", salonRole: "STAFF", customRoleId: createdRoles["Senior Stylist"].id, branchId: mainBranch.id, designation: "Senior Stylist", perms: staffPermissions },
+    { name: "Priya Kapoor", email: "priya.kapoor@salonnest.in", phone: "+919876543202", salonRole: "RECEPTIONIST", customRoleId: createdRoles["Receptionist Manager"].id, branchId: mainBranch.id, designation: "Receptionist Manager", perms: receptionistPermissions },
+    { name: "Amit Verma", email: "amit.verma@salonnest.in", phone: "+919876543203", salonRole: "MANAGER", customRoleId: null, branchId: mainBranch.id, designation: "Salon Manager", perms: managerPermissions },
+    { name: "Sneha Iyer", email: "sneha.iyer@salonnest.in", phone: "+919876543204", salonRole: "STAFF", customRoleId: createdRoles["Skin Care Specialist"].id, branchId: dhaBranch.id, designation: "Skin Care Specialist", perms: staffPermissions },
+    { name: "Vikram Rajput", email: "vikram.rajput@salonnest.in", phone: "+919876543205", salonRole: "STAFF", customRoleId: createdRoles["Senior Stylist"].id, branchId: gulbergBranch.id, designation: "Senior Barber", perms: staffPermissions },
+    { name: "Neha Joshi", email: "neha.joshi@salonnest.in", phone: "+919876543206", salonRole: "STAFF", customRoleId: createdRoles["Makeup Artist"].id, branchId: joharBranch.id, designation: "Makeup Artist", perms: staffPermissions },
+    { name: "Arjun Nair", email: "arjun.nair@salonnest.in", phone: "+919876543207", salonRole: "STAFF", customRoleId: createdRoles["Junior Stylist"].id, branchId: dhaBranch.id, designation: "Junior Stylist", perms: staffPermissions },
+    { name: "Kavita Deshmukh", email: "kavita.deshmukh@salonnest.in", phone: "+919876543208", salonRole: "STAFF", customRoleId: createdRoles["Skin Care Specialist"].id, branchId: joharBranch.id, designation: "Skin Care Specialist", perms: staffPermissions }
   ];
 
   const passwordHash = await bcrypt.hash("Staff@123", 10);

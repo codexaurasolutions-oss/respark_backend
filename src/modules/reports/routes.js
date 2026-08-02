@@ -797,16 +797,16 @@ reportsRouter.get("/memberships", async (req, res) => {
         }
       } : {})
     },
-    include: { membershipPlan: true, customer: true, soldInvoice: true, usageLogs: true },
+    include: { membershipPlan: true, customer: true, soldInvoice: { include: { branch: true } }, usageLogs: true },
     orderBy: { createdAt: "desc" }
   });
   const mapped = rows.map((r) => ({
     Date: r.createdAt,
     Customer: r.customer?.name || "-",
     "Membership Plan": r.membershipPlan?.name || "-",
-    Price: r.pricePaid ?? toAmount(r.soldInvoice?.total),
-    Validity: r.validUntil ? new Date(r.validUntil).toISOString().slice(0, 10) : (r.membershipPlan?.validityDays ? `${r.membershipPlan.validityDays} days` : "-"),
-    Branch: r.soldInvoice?.branchName || "-"
+    Price: toAmount(r.soldInvoice?.total),
+    Validity: r.endsAt ? new Date(r.endsAt).toISOString().slice(0, 10) : (r.membershipPlan?.validityDays ? `${r.membershipPlan.validityDays} days` : "-"),
+    Branch: r.soldInvoice?.branch?.name || "-"
   }));
   res.json(appendTotalRow(mapped, "Customer", "TOTAL", ["Price"]));
 });
@@ -843,10 +843,10 @@ reportsRouter.get("/packages", async (req, res) => {
     const staff = packageItem?.staffUserSalon?.user?.name || packageItem?.staffName || "-";
     const purchaseDate = r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-") : "-";
     const businessDate = inv?.createdAt ? new Date(inv.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-") : purchaseDate;
-    const expiryDate = r.validUntil ? new Date(r.validUntil).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-") : "-";
-    const subtotal = toAmount(packageItem?.lineTotal) || toAmount(inv?.subtotal) || toAmount(r.pricePaid);
+    const expiryDate = r.endsAt ? new Date(r.endsAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-") : "-";
+    const subtotal = toAmount(packageItem?.lineTotal) || toAmount(inv?.subtotal) || 0;
     const tax = toAmount(inv?.tax) || 0;
-    const total = toAmount(inv?.total) || toAmount(r.pricePaid);
+    const total = toAmount(inv?.total) || 0;
     const paymentModes = inv?.payments?.map(p => p.mode).filter(Boolean).join(", ") || "-";
     const purchaseSource = inv?.invoiceNumber?.toString().toUpperCase().startsWith("PCK") ? "POS" : "Online";
 
@@ -1251,14 +1251,14 @@ reportsRouter.get("/service-reminder", async (req, res) => {
   const salonId = req.salonId;
   const { start, end } = req.query;
 
-  const salon = await prisma.salon.findUnique({ where: { id: salonId }, select: { serviceReminderDays: true } });
+  const salon = await prisma.salon.findUnique({ where: { id: salonId }, select: { featureFlags: true } });
   const reminderDays = salon?.serviceReminderDays || 30;
 
   const sinceDate = start ? parseDateSafe(start) : new Date(Date.now() - reminderDays * 24 * 60 * 60 * 1000);
   const untilDate = end ? parseDateSafe(end, true) : new Date();
 
   const customers = await prisma.customer.findMany({
-    where: { salonId, isDeleted: false },
+    where: { salonId },
     include: {
       invoices: {
         where: { salonId, createdAt: { gte: sinceDate, lte: untilDate } },

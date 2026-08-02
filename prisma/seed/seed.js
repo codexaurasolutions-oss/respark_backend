@@ -5,8 +5,8 @@ import { defaultOwnerPermissions } from "../../src/lib/permissions.js";
 const prisma = new PrismaClient();
 
 async function main() {
-  const superAdminEmail = "superadmin@respark.local";
-  const ownerEmail = "owner@respark.local";
+  const superAdminEmail = "superadmin@salonnest.in";
+  const ownerEmail = "owner@salonnest.in";
 
   console.log("Cleaning up existing database records...");
 
@@ -24,33 +24,106 @@ async function main() {
   };
 
   const tables = [
-    "CustomerTimeline",
-    "CustomerMembership",
-    "CustomerPackage",
-    "PackageService",
-    "MembershipPlanService",
-    "InvoiceItem",
-    "Payment",
-    "Invoice",
+    "WebsiteVisit",
+    "AuditLog",
+    "Notification",
+    "SupportTicketEvent",
+    "SupportTicketMessage",
+    "SupportTicket",
+    "PasswordSetupToken",
+    "AppointmentLog",
     "AppointmentServiceStaff",
     "AppointmentService",
     "Appointment",
+    "InvoiceItem",
+    "Payment",
+    "Invoice",
     "StockMovement",
+    "StockTransferItem",
+    "StockTransfer",
+    "StockReconciliationItem",
+    "StockReconciliation",
+    "PurchaseOrderItem",
+    "PurchaseOrder",
+    "VendorItem",
+    "Vendor",
     "Product",
     "ProductCategory",
+    "ServiceConsumable",
+    "ServiceTax",
     "Service",
     "ServiceCategory",
     "StaffSchedule",
+    "StaffBreak",
+    "StaffServiceAssignment",
+    "AttendanceRecord",
+    "LeaveRequest",
     "UserSalon",
-    "Branch",
     "CustomRole",
-    "Subscription",
+    "Branch",
+    "CatalogBanner",
+    "CatalogOffer",
+    "CatalogAnalyticsEvent",
     "CatalogSetting",
     "EcommerceSetting",
+    "OnlineOrderItem",
+    "OnlineOrderStatusLog",
+    "OnlineOrder",
     "SalonSetting",
+    "CampaignLog",
+    "CampaignConversion",
+    "Campaign",
+    "CampaignTemplate",
+    "MessageTemplate",
+    "CustomerCoupon",
+    "CustomerNotification",
+    "CustomerFeedback",
+    "FeedbackType",
+    "LoyaltyTransaction",
+    "LoyaltyRule",
+    "CouponRedemption",
+    "Coupon",
+    "GiftCardRedemption",
+    "GiftCard",
+    "WalletTransaction",
+    "Wallet",
+    "CustomerTimeline",
+    "CustomerMembership",
+    "MembershipUsage",
+    "MembershipPlanService",
+    "MembershipPlan",
+    "PackageService",
+    "PackageUsage",
+    "CustomerPackage",
+    "EnquiryFollowUp",
+    "Enquiry",
+    "ExpenseCategory",
+    "Expense",
+    "ReferralCode",
+    "ReferralCouponCategory",
+    "ReferralCouponService",
+    "ReferralRule",
+    "AffiliateCreditTransaction",
+    "CreditPayoutRequest",
+    "AffiliateCreditWallet",
+    "TaxSlab",
+    "TaxRate",
+    "PnlCategory",
+    "Designation",
+    "ShiftDay",
+    "ShiftBreak",
+    "Shift",
+    "WhatsAppLog",
+    "WhatsAppAutomation",
+    "WhatsAppSetting",
+    "SubscriptionHistory",
+    "Subscription",
+    "DemoLead",
     "User",
     "Salon",
-    "Plan"
+    "Plan",
+    "StaffRequirement",
+    "ProductRequirement"
   ];
 
   for (const table of tables) {
@@ -209,12 +282,12 @@ async function main() {
   console.log("Seeding staff users (6 total)...");
 
   const staffData = [
-    { name: "Rohan Sharma", email: "rohan@respark.local", role: "STAFF", branchId: branch1.id, customRoleId: seniorStylistRole.id, phone: "+919876543231" },
-    { name: "Pooja Patel", email: "pooja@respark.local", role: "STAFF", branchId: branch2.id, customRoleId: seniorStylistRole.id, phone: "+919876543232" },
-    { name: "Amit Kumar", email: "amit@respark.local", role: "STAFF", branchId: branch3.id, phone: "+919876543233" },
-    { name: "Sneha Reddy", email: "sneha@respark.local", role: "MANAGER", branchId: branch1.id, phone: "+919876543234" },
-    { name: "Vikram Singh", email: "vikram@respark.local", role: "RECEPTIONIST", branchId: branch4.id, customRoleId: receptionistRole.id, phone: "+919876543235" },
-    { name: "Neha Gupta", email: "neha@respark.local", role: "STAFF", branchId: branch4.id, phone: "+919876543236" }
+    { name: "Rohan Sharma", email: "rohan@salonnest.in", role: "STAFF", branchId: branch1.id, customRoleId: seniorStylistRole.id, phone: "+919876543231" },
+    { name: "Pooja Patel", email: "pooja@salonnest.in", role: "STAFF", branchId: branch2.id, customRoleId: seniorStylistRole.id, phone: "+919876543232" },
+    { name: "Amit Kumar", email: "amit@salonnest.in", role: "STAFF", branchId: branch3.id, phone: "+919876543233" },
+    { name: "Sneha Reddy", email: "sneha@salonnest.in", role: "MANAGER", branchId: branch1.id, phone: "+919876543234" },
+    { name: "Vikram Singh", email: "vikram@salonnest.in", role: "RECEPTIONIST", branchId: branch4.id, customRoleId: receptionistRole.id, phone: "+919876543235" },
+    { name: "Neha Gupta", email: "neha@salonnest.in", role: "STAFF", branchId: branch4.id, phone: "+919876543236" }
   ];
 
   for (const staff of staffData) {

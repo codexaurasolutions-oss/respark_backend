@@ -44,7 +44,6 @@ export const requireSalonContext = async (req, res, next) => {
   });
   if (ownerMembership) {
     req.salonId = ownerMembership.salonId;
-    req.user.salonRole = "SALON_OWNER";
     return next();
   }
   return res.status(403).json({ message: "Salon context required" });

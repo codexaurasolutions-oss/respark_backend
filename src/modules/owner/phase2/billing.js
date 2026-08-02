@@ -178,7 +178,7 @@ export const registerBillingRoutes = (ownerRouter) => {
     const params = branchId ? { OR: [{ branchId }, { branchId: null }] } : {};
     const [customers, branches, services, staffUsers, products, memberships, packages, coupons, giftCards, settings] = await Promise.all([
       prisma.customer.findMany({
-        where: { salonId: req.salonId }, 
+        where: { salonId: req.salonId, ...(branchId ? { branchId } : {}) }, 
         orderBy: { createdAt: "desc" },
         include: {
           memberships: { 

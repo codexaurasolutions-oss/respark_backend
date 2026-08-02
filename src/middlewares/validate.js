@@ -232,7 +232,7 @@ const appointmentServiceItemSchema = z.object({
 
 export const schemas = {
   register: z.object({ body: z.object({ name: z.string().min(2), email: emailLikeSchema, password: z.string().min(6), salonId: z.string().optional() }) }),
-  login: z.object({ body: z.object({ email: emailLikeSchema, password: z.string().min(6), loginAccessToken: z.string().optional() }) }),
+  login: z.object({ body: z.object({ email: emailLikeSchema, password: z.string().min(6), loginAccessToken: z.string().optional(), rememberMe: z.boolean().optional() }) }),
   forgotPassword: z.object({ body: z.object({ email: emailLikeSchema }) }),
   validateResetToken: z.object({ body: z.object({ token: z.string().min(12) }) }),
   resetPassword: z.object({ body: z.object({ token: z.string().min(12), password: z.string().min(8) }) }),
@@ -244,12 +244,8 @@ export const schemas = {
       businessType: optionalString,
       logoUrl: optionalString,
       email: optionalEmailLike,
-      phone: optionalIndianPhoneSchema,
+      phone: optionalString,
       address: optionalString,
-      city: optionalString,
-      country: optionalString,
-      timezone: optionalString,
-      currency: optionalString,
       taxRate: z.number().min(0).optional(),
       trialStartsAt: optionalDateString,
       trialEndsAt: optionalDateString,
@@ -272,6 +268,37 @@ export const schemas = {
       invoiceLimit: z.number().int().min(0),
       storageLimit: z.number().int().min(0).optional(),
       isCustom: z.boolean().optional(),
+      isPopular: z.boolean().optional(),
+      featureFlags: z.record(z.boolean()).optional()
+    })
+  }),
+  salonUpdate: z.object({
+    body: z.object({
+      name: z.string().min(2).optional(),
+      slug: z.string().min(2).optional(),
+      businessType: optionalString,
+      logoUrl: optionalString,
+      email: optionalEmailLike,
+      phone: optionalString,
+      address: optionalString,
+      taxRate: z.number().min(0).optional(),
+      internalNote: optionalString,
+      featureFlags: z.record(z.boolean()).optional()
+    })
+  }),
+  planUpdate: z.object({
+    body: z.object({
+      name: z.string().min(1).optional(),
+      monthlyPrice: z.number().min(0).optional(),
+      yearlyPrice: z.number().min(0).optional(),
+      trialDays: z.number().int().min(0).optional(),
+      branchLimit: z.number().int().min(0).optional(),
+      userLimit: z.number().int().min(0).optional(),
+      customerLimit: z.number().int().min(0).optional(),
+      invoiceLimit: z.number().int().min(0).optional(),
+      storageLimit: z.number().int().min(0).optional(),
+      isCustom: z.boolean().optional(),
+      isPopular: z.boolean().optional(),
       featureFlags: z.record(z.boolean()).optional()
     })
   }),
@@ -716,6 +743,7 @@ export const schemas = {
     body: z.object({
       name: z.string().min(2),
       description: optionalString,
+      branchId: z.string().nullable().optional(),
       benefits: z.array(z.object({
         label: z.string().min(1),
         value: optionalString

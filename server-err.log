@@ -1,0 +1,9 @@
+[1c37ddfa-6f8b-4741-80fc-80abbdc1e990] {
+  "stack": "SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n    at JSON.parse (<anonymous>)\n    at parse (D:\\saas_Respark\\backend\\node_modules\\body-parser\\lib\\types\\json.js:92:19)\n    at D:\\saas_Respark\\backend\\node_modules\\body-parser\\lib\\read.js:128:18\n    at AsyncResource.runInAsyncScope (node:async_hooks:227:14)\n    at invokeCallback (D:\\saas_Respark\\backend\\node_modules\\raw-body\\index.js:238:16)\n    at done (D:\\saas_Respark\\backend\\node_modules\\raw-body\\index.js:227:7)\n    at IncomingMessage.onEnd (D:\\saas_Respark\\backend\\node_modules\\raw-body\\index.js:287:7)\n    at IncomingMessage.emit (node:events:509:28)\n    at endReadableNT (node:internal/streams/readable:1729:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)",
+  "message": "Expected property name or '}' in JSON at position 1 (line 1 column 2)",
+  "expose": true,
+  "statusCode": 400,
+  "status": 400,
+  "body": "{tempToken:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbXM4MXBuNDcwMDAzcTFsNG90aXE1MW5qIiwic2Fsb25JZCI6ImNtczgxcG40ZDAwMDRxMWw0aW12dHZneDQiLCJvdHAiOiIxMjM0NTYiLCJyZW1lbWJlck1lIjpmYWxzZSwicHVycG9zZSI6Ik9UUF9WRVJJRklDQVRJT04iLCJhdHRlbXB0cyI6MCwiY3JlYXRlZEF0IjoxNzg1NDU3MDk0MDA2LCJpYXQiOjE3ODU0NTcwOTQsImV4cCI6MTc4NTQ1NzM5NH0.d8USfyfPOW18lemkq9Gez3-ERMWMLYNePTOTDEadvdg,otp:123456}",
+  "type": "entity.parse.failed"
+}

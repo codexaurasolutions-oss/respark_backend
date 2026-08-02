@@ -31,19 +31,12 @@ const buildInviteLink = ({ token, loginAccessToken, email }) =>
 const buildOwnerLoginLink = ({ email, loginAccessToken }) =>
   `${frontendBaseUrl()}/login?email=${encodeURIComponent(email)}&access=${encodeURIComponent(loginAccessToken)}`;
 
-export const buildInviteEmail = ({ ownerName, salonName, trialEndsAt, inviteLink, loginLink }) => {
-  const trialEndLabel = new Date(trialEndsAt).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  });
-
-  const subject = `Your Skillify demo is ready for ${salonName}`;
+export const buildInviteEmail = ({ ownerName, salonName, inviteLink, loginLink }) => {
+  const subject = `Your SalonNest workspace is ready for ${salonName}`;
   const text = [
     `Hi ${ownerName},`,
     "",
-    `Your 7-day Skillify trial for ${salonName} is now ready.`,
-    `Trial ends: ${trialEndLabel}`,
+    `Your SalonNest workspace for ${salonName} is now ready.`,
     "",
     "Use this secure link to set your password:",
     inviteLink,
@@ -52,18 +45,15 @@ export const buildInviteEmail = ({ ownerName, salonName, trialEndsAt, inviteLink
     loginLink,
     "",
     "Regards,",
-    "Skillify Team"
+    "SalonNest Team"
   ].join("\n");
 
   const html = `
     <div style="font-family:Arial,sans-serif;background:#f7f4ef;padding:32px;color:#18212c;">
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:24px;padding:32px;border:1px solid rgba(24,33,44,0.08);">
-        <p style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#8a4b08;margin:0 0 12px;">Skillify Demo Access</p>
-        <h1 style="margin:0 0 14px;font-size:32px;line-height:1.15;">Your ${salonName} trial is ready.</h1>
-        <p style="font-size:16px;line-height:1.7;margin:0 0 20px;">Hi ${ownerName}, your 7-day trial environment has been created. Set your password using the secure link below and then access your panel with your account email.</p>
-        <div style="background:#fff7ed;border-radius:18px;padding:18px 20px;margin:0 0 20px;">
-          <p style="margin:0;"><strong>Trial ends:</strong> ${trialEndLabel}</p>
-        </div>
+        <p style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#0f766e;margin:0 0 12px;">SalonNest Subscription Activated</p>
+        <h1 style="margin:0 0 14px;font-size:32px;line-height:1.15;">Your ${salonName} workspace is ready.</h1>
+        <p style="font-size:16px;line-height:1.7;margin:0 0 20px;">Hi ${ownerName}, your subscription has been activated and your workspace has been created. Set your password using the secure link below and then access your panel with your account email.</p>
         <p style="margin:0 0 18px;"><a href="${inviteLink}" style="display:inline-block;background:linear-gradient(135deg,#c2410c,#0f766e);color:#fff;text-decoration:none;padding:14px 20px;border-radius:999px;font-weight:700;">Set your password</a></p>
         <p style="font-size:14px;line-height:1.7;margin:0 0 12px;">After setting the password, open your login page here:</p>
         <p style="margin:0 0 16px;"><a href="${loginLink}" style="color:#0f766e;">${loginLink}</a></p>
@@ -96,11 +86,11 @@ export const approveDemoLead = async ({ leadId, actorName, trialDays = 7, planId
   if (!lead) {
     return { error: { status: 404, message: "Demo lead not found" } };
   }
-  if (lead.status === "REJECTED") {
-    return { error: { status: 400, message: "Rejected demo lead cannot be approved directly" } };
+  if (lead.status === "CANCELED") {
+    return { error: { status: 400, message: "Canceled demo leads cannot be approved directly." } };
   }
-  if (lead.status === "APPROVED" && lead.salonId && lead.approvedUserId) {
-    return { error: { status: 400, message: "Demo lead is already approved. Use resend invite if needed." } };
+  if (lead.status === "CONVERTED" && lead.salonId && lead.approvedUserId) {
+    return { error: { status: 400, message: "Demo lead is already converted. Use resend invite if needed." } };
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email: lead.email } });
@@ -118,7 +108,7 @@ export const approveDemoLead = async ({ leadId, actorName, trialDays = 7, planId
 
   const startsAt = new Date();
   const endsAt = new Date(startsAt);
-  endsAt.setDate(endsAt.getDate() + Number(trialDays || 7));
+  endsAt.setDate(endsAt.getDate() + 30);
 
   const result = await prisma.$transaction(async (tx) => {
     const finalSalonName = salonName?.trim() || `${lead.name.split(" ")[0] || "Demo"} Salon`;
@@ -133,9 +123,9 @@ export const approveDemoLead = async ({ leadId, actorName, trialDays = 7, planId
         email: lead.email,
         phone: lead.phone,
         businessType: businessType || "Salon",
-        status: "TRIAL",
-        trialStartsAt: startsAt,
-        trialEndsAt: endsAt,
+        status: "ACTIVE",
+        trialStartsAt: null,
+        trialEndsAt: null,
         featureFlags: plan.featureFlags || { pos: true, crm: true, reports: true, publicCatalog: true, digitalCatalog: true }
       }
     });
@@ -147,7 +137,7 @@ export const approveDemoLead = async ({ leadId, actorName, trialDays = 7, planId
         systemRole: "SALON_USER",
         passwordHash: ownerPasswordHash,
         passwordSetupRequired: true,
-        isDemoAccount: true
+        isDemoAccount: !lead.paymentCompleted
       }
     });
 
@@ -164,9 +154,9 @@ export const approveDemoLead = async ({ leadId, actorName, trialDays = 7, planId
       data: {
         salonId: salon.id,
         planId: plan.id,
-        status: "TRIAL",
-        paymentStatus: "PENDING",
-        notes: "Auto-created from approved demo lead",
+        status: "ACTIVE",
+        paymentStatus: "PAID",
+        notes: "Auto-created active onboarding workspace",
         startsAt,
         endsAt
       }
@@ -175,14 +165,13 @@ export const approveDemoLead = async ({ leadId, actorName, trialDays = 7, planId
     await tx.subscriptionHistory.create({
       data: {
         subscriptionId: subscription.id,
-        action: "DEMO_APPROVED",
+        action: lead.paymentCompleted ? "ONBOARDING_PAID" : "DEMO_APPROVED",
         createdBy: actorName,
-        toStatus: "TRIAL",
-        toPaymentStatus: "PENDING",
-        notes: "7-day demo trial activated from demo lead approval"
+        toStatus: "ACTIVE",
+        toPaymentStatus: "PAID",
+        notes: lead.paymentCompleted ? "30-day paid subscription activated from onboarding" : "Active onboarding subscription activated from demo lead approval"
       }
     });
-
     const rawToken = await issuePasswordSetupToken({
       tx,
       userId: owner.id,
@@ -193,12 +182,12 @@ export const approveDemoLead = async ({ leadId, actorName, trialDays = 7, planId
     const updatedLead = await tx.demoLead.update({
       where: { id: lead.id },
       data: {
-        status: "APPROVED",
+        status: "CONVERTED",
         salonId: salon.id,
         approvedUserId: owner.id,
         reviewedAt: new Date(),
         reviewedByName: actorName,
-        reviewNote: reviewNote || "Approved for 7-day demo"
+        reviewNote: reviewNote || "Converted to demo workspace"
       }
     });
 
@@ -215,7 +204,6 @@ export const approveDemoLead = async ({ leadId, actorName, trialDays = 7, planId
   const emailContent = buildInviteEmail({
     ownerName: result.owner.name,
     salonName: result.salon.name,
-    trialEndsAt: result.subscription.endsAt,
     inviteLink,
     loginLink
   });
@@ -247,14 +235,16 @@ export const approveDemoLead = async ({ leadId, actorName, trialDays = 7, planId
     inviteLink,
     loginLink,
     delivery,
-    emailError
+    emailError,
+    rawToken: result.rawToken,
+    loginAccessToken
   };
 };
 
 export const resendDemoInvite = async ({ leadId }) => {
   const lead = await prisma.demoLead.findUnique({ where: { id: leadId } });
-  if (!lead || lead.status !== "APPROVED" || !lead.salonId || !lead.approvedUserId) {
-    return { error: { status: 400, message: "Only approved demo leads can receive a resent invite." } };
+  if (!lead || lead.status !== "CONVERTED" || !lead.salonId || !lead.approvedUserId) {
+    return { error: { status: 400, message: "Only converted demo leads can receive a resent invite." } };
   }
 
   const [owner, subscription, salon] = await Promise.all([
@@ -286,10 +276,8 @@ export const resendDemoInvite = async ({ leadId }) => {
   const emailContent = buildInviteEmail({
     ownerName: owner.name,
     salonName: salon.name,
-    trialEndsAt: subscription.endsAt,
     inviteLink,
-    loginLink,
-    salonId: salon.id
+    loginLink
   });
 
   let delivery;
