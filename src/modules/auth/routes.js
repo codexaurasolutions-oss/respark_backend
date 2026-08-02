@@ -134,7 +134,15 @@ authRouter.post("/login", validate(schemas.login), async (req, res) => {
   const mergedPermissions = membership
     ? membership.salonRole === "SALON_OWNER"
       ? { ...defaultOwnerPermissions, ...(membership.permissions || {}) }
-      : (membership.permissions || {})
+      : (await (async () => {
+          if (membership.customRoleId) {
+            const customRole = await prisma.customRole.findFirst({ where: { id: membership.customRoleId, salonId: membership.salonId } });
+            if (customRole) {
+              return { ...(membership.permissions || {}), ...(customRole.permissions || {}) };
+            }
+          }
+          return membership.permissions || {};
+        })())
     : null;
 
   res.json({
@@ -147,6 +155,7 @@ authRouter.post("/login", validate(schemas.login), async (req, res) => {
           salonName: salon?.name || membership.salon?.name || null,
           salonRole: membership.salonRole,
           branchId: membership.branchId || null,
+          customRoleId: membership.customRoleId || null,
           permissions: mergedPermissions || {},
           featureFlags: mergedFeatureFlags,
           plan: subscription?.plan

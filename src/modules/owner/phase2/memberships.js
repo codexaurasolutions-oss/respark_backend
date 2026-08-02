@@ -136,6 +136,9 @@ export const registerMembershipRoutes = (ownerRouter) => {
       if (!plan) return res.status(404).json({ message: "Membership plan not found" });
       const startsAt = req.body.startsAt ? new Date(req.body.startsAt) : new Date();
       const endsAt = new Date(startsAt.getTime() + plan.validityDays * 24 * 60 * 60 * 1000);
+      const membershipPrice = req.body.price != null ? Number(req.body.price) : Number(plan.price);
+      const walletBalance = plan.benefitType === "WALLET_VALUE" ? plan.walletValue : membershipPrice;
+
       const created = await prisma.customerMembership.create({
         data: {
           salonId: req.salonId,
@@ -144,7 +147,7 @@ export const registerMembershipRoutes = (ownerRouter) => {
           soldInvoiceId: req.body.soldInvoiceId || null,
           startsAt,
           endsAt,
-          remainingWalletValue: plan.benefitType === "WALLET_VALUE" ? plan.walletValue : null,
+          remainingWalletValue: walletBalance,
           remarks: req.body.remarks || null
         },
         include: { membershipPlan: true }

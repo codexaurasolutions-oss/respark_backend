@@ -128,7 +128,9 @@ const STAFF_SELF_SERVICE_DEFAULTS = {
   appointments: ["view"],
   customers: ["view"],
   feedback: ["view"],
-  branches: ["view"]
+  branches: ["view"],
+  reports: ["view"],
+  support: ["view"]
 };
 
 const resolveMembershipPermissions = async (salonId, customRoleId, explicitPermissions) => {
@@ -1375,10 +1377,25 @@ ownerRouter.post("/custom-roles", requireSalonPermission("staff", "create"), val
 ownerRouter.patch("/custom-roles/:id", requireSalonPermission("staff", "edit"), validate(schemas.customRole), async (req, res) => {
   const role = await prisma.customRole.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
   if (!role) return res.status(404).json({ message: "Custom role not found" });
-  res.json(await prisma.customRole.update({
+  const updatedPerms = stripDeletePerms(req.body.permissions);
+  const updated = await prisma.customRole.update({
     where: { id: role.id },
-    data: { name: req.body.name, description: req.body.description || null, permissions: stripDeletePerms(req.body.permissions) }
-  }));
+    data: { name: req.body.name, description: req.body.description || null, permissions: updatedPerms }
+  });
+  const affectedUsers = await prisma.userSalon.findMany({ where: { customRoleId: role.id, salonId: req.salonId } });
+  if (affectedUsers.length) {
+    const newPerms = { ...STAFF_SELF_SERVICE_DEFAULTS, ...updatedPerms };
+    for (const [k, v] of Object.entries(newPerms)) { if (Array.isArray(v)) newPerms[k] = v.filter((a) => a !== "delete"); }
+    await prisma.userSalon.updateMany({ where: { customRoleId: role.id, salonId: req.salonId }, data: { permissions: newPerms } });
+  }
+  res.json(updated);
+});
+ownerRouter.delete("/custom-roles/:id", requireSalonPermission("staff", "edit"), async (req, res) => {
+  const role = await prisma.customRole.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+  if (!role) return res.status(404).json({ message: "Custom role not found" });
+  await prisma.userSalon.updateMany({ where: { customRoleId: role.id, salonId: req.salonId }, data: { customRoleId: null, permissions: STAFF_SELF_SERVICE_DEFAULTS } });
+  await prisma.customRole.delete({ where: { id: role.id } });
+  res.json({ message: "Custom role deleted" });
 });
 ownerRouter.post("/users", requireSalonPermission("staff", "create"), validate(schemas.ownerUser), async (req, res) => {
   const result = await createLoginUserForSalon(req.salonId, req.body);
@@ -1400,7 +1417,7 @@ ownerRouter.patch("/users/:id", requireSalonPermission("staff", "edit"), validat
     const firstBranch = await prisma.branch.findFirst({ where: { salonId: req.salonId, isActive: true }, orderBy: { createdAt: "asc" } });
     if (firstBranch) branchId = firstBranch.id;
   }
-  const customRoleId = req.body.customRoleId === null ? null : (req.body.customRoleId ?? row.customRoleId ?? null);
+  const customRoleId = req.body.customRoleId === null ? null : (req.body.customRoleId !== undefined ? req.body.customRoleId : (req.body.permissions !== undefined ? null : (row.customRoleId ?? null)));
   if (branchId) await ensureBranch(req.salonId, branchId);
   const resolvedPermissions = await resolveMembershipPermissions(req.salonId, customRoleId, req.body.permissions);
   if (Array.isArray(req.body.serviceIds) && req.body.serviceIds.length) {
@@ -1487,7 +1504,7 @@ ownerRouter.patch("/staff-users/:id", requireSalonPermission("staff", "edit"), v
     if (dup) return res.status(400).json({ message: "Another staff member already uses this phone number" });
   }
   const branchId = req.body.branchId === null ? null : normalizeBranchId(req.body.branchId ?? row.branchId);
-  const customRoleId = req.body.customRoleId === null ? null : (req.body.customRoleId ?? row.customRoleId ?? null);
+  const customRoleId = req.body.customRoleId === null ? null : (req.body.customRoleId !== undefined ? req.body.customRoleId : (req.body.permissions !== undefined ? null : (row.customRoleId ?? null)));
   if (branchId) await ensureBranch(req.salonId, branchId);
   const resolvedPermissions = await resolveMembershipPermissions(req.salonId, customRoleId, req.body.permissions);
   const updated = await prisma.userSalon.update({
@@ -1940,7 +1957,7 @@ ownerRouter.get("/salon-details", requireSalonPermission("settings", "view"), as
     select: {
       id: true, name: true, slug: true, businessType: true, email: true, phone: true,
       address: true, city: true, currency: true, taxRate: true, status: true,
-      featureFlags: true, createdAt: true, trialStartsAt: true, trialEndsAt: true,
+      createdAt: true, trialStartsAt: true, trialEndsAt: true,
       _count: { select: { branches: true, users: true, services: true, customers: true, invoices: true, products: true } }
     }
   });
