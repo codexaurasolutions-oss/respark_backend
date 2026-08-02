@@ -248,8 +248,8 @@ const createLoginUserForSalon = async (salonId, payload) => {
 ownerRouter.get("/dashboard", requireSalonPermission("dashboard", "view"), async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
   const invoiceWhere = withBranchFilter(req.salonId, branchId, req);
-  const serviceWhere = { salonId: req.salonId, isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
-  const userWhere = { salonId: req.salonId, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
+  const serviceWhere = { salonId: req.salonId, isActive: true, ...(branchId ? { branchId } : {}) };
+  const userWhere = { salonId: req.salonId, ...(branchId ? { branchId } : {}) };
   const branchWhere = { salonId: req.salonId, isActive: true };
   const appointmentWhere = {
     salonId: req.salonId,
