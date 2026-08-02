@@ -944,7 +944,7 @@ export const registerBillingRoutes = (ownerRouter) => {
         });
       }
     });
-    await attemptCustomerTemplateEmail({
+    attemptCustomerTemplateEmail({
       salonId: req.salonId,
       toEmail: invoice.customer?.email || "",
       templateType: "invoice_cancel_template",
@@ -1054,7 +1054,7 @@ export const registerBillingRoutes = (ownerRouter) => {
         include: { customer: true, items: true, payments: true, branch: true, appointment: true }
       });
 
-      await attemptCustomerTemplateEmail({
+      attemptCustomerTemplateEmail({
         salonId: req.salonId,
         toEmail: invoice.customer?.email || "",
         templateType: "invoice_template",
@@ -1095,7 +1095,7 @@ export const registerBillingRoutes = (ownerRouter) => {
       where: { id: req.body.invoiceId, salonId: req.salonId },
       include: { customer: true, branch: true }
     });
-    await attemptCustomerTemplateEmail({
+    attemptCustomerTemplateEmail({
       salonId: req.salonId,
       toEmail: invoice?.customer?.email || "",
       templateType: "payment_receipt_template",
@@ -1112,7 +1112,7 @@ export const registerBillingRoutes = (ownerRouter) => {
       note: req.body.note,
       actorUser: req.user
     });
-    await attemptCustomerTemplateEmail({
+    attemptCustomerTemplateEmail({
       salonId: req.salonId,
       toEmail: invoice?.customer?.email || "",
       templateType: "invoice_refund_template",
@@ -1198,7 +1198,7 @@ export const registerBillingRoutes = (ownerRouter) => {
         notes: [invoice.notes, note].filter(Boolean).join("\n")
       }
     });
-    await attemptCustomerTemplateEmail({
+    attemptCustomerTemplateEmail({
       salonId: req.salonId,
       toEmail: invoice.customer?.email || "",
       templateType: "invoice_template",
