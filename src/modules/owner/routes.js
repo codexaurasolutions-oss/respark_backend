@@ -1934,6 +1934,32 @@ ownerRouter.get("/reports/trends", requireSalonPermission("reports", "view"), as
 
 
 
+ownerRouter.get("/salon-details", requireSalonPermission("settings", "view"), async (req, res) => {
+  const salon = await prisma.salon.findUnique({
+    where: { id: req.salonId },
+    select: {
+      id: true, name: true, slug: true, businessType: true, email: true, phone: true,
+      address: true, city: true, currency: true, taxRate: true, status: true,
+      featureFlags: true, createdAt: true, trialStartsAt: true, trialEndsAt: true,
+      _count: { select: { branches: true, users: true, services: true, customers: true, invoices: true, products: true } }
+    }
+  });
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+
+  const subscription = await prisma.subscription.findFirst({
+    where: { salonId: req.salonId },
+    include: { plan: { select: { id: true, name: true, branchLimit: true, userLimit: true, customerLimit: true, invoiceLimit: true, storageLimit: true, monthlyPrice: true, yearlyPrice: true } } },
+    orderBy: { createdAt: "desc" }
+  });
+
+  const branches = await prisma.branch.findMany({
+    where: { salonId: req.salonId },
+    select: { id: true, name: true, isActive: true }
+  });
+
+  res.json({ salon, subscription: subscription || null, branches });
+});
+
 registerPhase2OwnerRoutes(ownerRouter);
 registerPhase3OwnerRoutes(ownerRouter);
 registerPhase4OwnerRoutes(ownerRouter);

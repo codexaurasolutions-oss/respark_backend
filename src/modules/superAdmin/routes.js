@@ -711,7 +711,7 @@ superAdminRouter.get("/audit-logs", asyncHandler(async (req, res) => {
   res.json(logs);
 }));
 
-superAdminRouter.get("/product-requirements", requireAuth, requireSystemRole("SUPER_ADMIN"), asyncHandler(async (req, res) => {
+superAdminRouter.get("/product-requirements", asyncHandler(async (req, res) => {
   const where = {};
   if (req.query.status) where.status = req.query.status;
   if (req.query.priority) where.priority = req.query.priority;
@@ -727,7 +727,7 @@ superAdminRouter.get("/product-requirements", requireAuth, requireSystemRole("SU
   res.json(rows);
 }));
 
-superAdminRouter.post("/product-requirements", requireAuth, requireSystemRole("SUPER_ADMIN"), asyncHandler(async (req, res) => {
+superAdminRouter.post("/product-requirements", asyncHandler(async (req, res) => {
   const row = await prisma.productRequirement.create({ data: {
     productName: req.body.productName,
     description: req.body.description || null,
@@ -741,7 +741,7 @@ superAdminRouter.post("/product-requirements", requireAuth, requireSystemRole("S
   res.status(201).json(row);
 }));
 
-superAdminRouter.patch("/product-requirements/:id", requireAuth, requireSystemRole("SUPER_ADMIN"), asyncHandler(async (req, res) => {
+superAdminRouter.patch("/product-requirements/:id", asyncHandler(async (req, res) => {
   const existing = await prisma.productRequirement.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ message: "Not found" });
   const data = {};
@@ -756,12 +756,12 @@ superAdminRouter.patch("/product-requirements/:id", requireAuth, requireSystemRo
   res.json(await prisma.productRequirement.update({ where: { id: req.params.id }, data }));
 }));
 
-superAdminRouter.delete("/product-requirements/:id", requireAuth, requireSystemRole("SUPER_ADMIN"), asyncHandler(async (req, res) => {
+superAdminRouter.delete("/product-requirements/:id", asyncHandler(async (req, res) => {
   await prisma.productRequirement.delete({ where: { id: req.params.id } });
   res.json({ message: "Deleted" });
 }));
 
-superAdminRouter.get("/staff-requirements", requireAuth, requireSystemRole("SUPER_ADMIN"), asyncHandler(async (req, res) => {
+superAdminRouter.get("/staff-requirements", asyncHandler(async (req, res) => {
   const where = {};
   if (req.query.status) where.status = req.query.status;
   if (req.query.urgency) where.urgency = req.query.urgency;
@@ -779,7 +779,7 @@ superAdminRouter.get("/staff-requirements", requireAuth, requireSystemRole("SUPE
   res.json(rows);
 }));
 
-superAdminRouter.post("/staff-requirements", requireAuth, requireSystemRole("SUPER_ADMIN"), asyncHandler(async (req, res) => {
+superAdminRouter.post("/staff-requirements", asyncHandler(async (req, res) => {
   const skillsStr = Array.isArray(req.body.skills) ? req.body.skills.join(",") : (req.body.skills || null);
   const row = await prisma.staffRequirement.create({ data: {
     salonId: req.body.salonId || null,
@@ -799,7 +799,7 @@ superAdminRouter.post("/staff-requirements", requireAuth, requireSystemRole("SUP
   res.status(201).json(row);
 }));
 
-superAdminRouter.patch("/staff-requirements/:id", requireAuth, requireSystemRole("SUPER_ADMIN"), asyncHandler(async (req, res) => {
+superAdminRouter.patch("/staff-requirements/:id", asyncHandler(async (req, res) => {
   const existing = await prisma.staffRequirement.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ message: "Not found" });
   const data = {};
@@ -819,7 +819,209 @@ superAdminRouter.patch("/staff-requirements/:id", requireAuth, requireSystemRole
   res.json(await prisma.staffRequirement.update({ where: { id: req.params.id }, data }));
 }));
 
-superAdminRouter.delete("/staff-requirements/:id", requireAuth, requireSystemRole("SUPER_ADMIN"), asyncHandler(async (req, res) => {
+superAdminRouter.delete("/staff-requirements/:id", asyncHandler(async (req, res) => {
   await prisma.staffRequirement.delete({ where: { id: req.params.id } });
+  res.json({ message: "Deleted" });
+}));
+
+superAdminRouter.get("/branches/limit-info", asyncHandler(async (req, res) => {
+  const { salonId } = req.query;
+  if (!salonId) return res.status(400).json({ message: "salonId is required" });
+
+  const salon = await prisma.salon.findUnique({ where: { id: salonId }, select: { id: true, name: true } });
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+
+  const branchCount = await prisma.branch.count({ where: { salonId } });
+
+  const subscription = await prisma.subscription.findFirst({
+    where: { salonId },
+    include: { plan: { select: { id: true, name: true, branchLimit: true } } },
+    orderBy: { createdAt: "desc" }
+  });
+
+  const plan = subscription?.plan || null;
+  const branchLimit = plan?.branchLimit ?? 9999;
+  const remaining = Math.max(0, branchLimit - branchCount);
+
+  res.json({ salon, branchCount, branchLimit, remaining, planName: plan?.name || "No Plan" });
+}));
+
+superAdminRouter.get("/branches", asyncHandler(async (req, res) => {
+  const where = {};
+  if (req.query.salonId) where.salonId = req.query.salonId;
+  if (req.query.isActive !== undefined) where.isActive = req.query.isActive === "true";
+  if (req.query.q) {
+    where.OR = [
+      { name: { contains: req.query.q, mode: "insensitive" } },
+      { email: { contains: req.query.q, mode: "insensitive" } },
+      { phone: { contains: req.query.q, mode: "insensitive" } }
+    ];
+  }
+  const rows = await prisma.branch.findMany({
+    where,
+    include: { salon: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "desc" }
+  });
+  res.json(rows);
+}));
+
+superAdminRouter.post("/branches", asyncHandler(async (req, res) => {
+  const { salonId, name, phone, email, address, businessHours, weeklyOff, latitude, longitude, geofenceRadiusMeters } = req.body;
+  if (!salonId || !name) return res.status(400).json({ message: "salonId and name are required" });
+
+  const salon = await prisma.salon.findUnique({ where: { id: salonId } });
+  if (!salon) return res.status(404).json({ message: "Salon not found" });
+
+  const branchCount = await prisma.branch.count({ where: { salonId } });
+  const subscription = await prisma.subscription.findFirst({
+    where: { salonId },
+    include: { plan: { select: { branchLimit: true } } },
+    orderBy: { createdAt: "desc" }
+  });
+  const branchLimit = subscription?.plan?.branchLimit ?? 9999;
+
+  if (branchCount >= branchLimit) {
+    return res.status(400).json({ message: `Branch limit reached. Your ${subscription?.plan?.name || "plan"} allows ${branchLimit} branches. ${branchCount} already exist. Upgrade your plan to add more branches.` });
+  }
+
+  const existing = await prisma.branch.findFirst({ where: { salonId, name: { equals: name, mode: "insensitive" } } });
+  if (existing) return res.status(409).json({ message: `A branch named "${name}" already exists in this salon.` });
+
+  const row = await prisma.branch.create({ data: {
+    salonId,
+    name,
+    phone: phone || null,
+    email: email || null,
+    address: address || null,
+    businessHours: businessHours || null,
+    weeklyOff: weeklyOff || null,
+    latitude: latitude != null ? Number(latitude) : null,
+    longitude: longitude != null ? Number(longitude) : null,
+    geofenceRadiusMeters: geofenceRadiusMeters != null ? Number(geofenceRadiusMeters) : 200
+  }});
+
+  res.status(201).json(row);
+}));
+
+superAdminRouter.patch("/branches/:id", asyncHandler(async (req, res) => {
+  const existing = await prisma.branch.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ message: "Branch not found" });
+  const data = {};
+  if (req.body.name !== undefined) data.name = req.body.name;
+  if (req.body.phone !== undefined) data.phone = req.body.phone || null;
+  if (req.body.email !== undefined) data.email = req.body.email || null;
+  if (req.body.address !== undefined) data.address = req.body.address || null;
+  if (req.body.businessHours !== undefined) data.businessHours = req.body.businessHours || null;
+  if (req.body.weeklyOff !== undefined) data.weeklyOff = req.body.weeklyOff || null;
+  if (req.body.isActive !== undefined) data.isActive = Boolean(req.body.isActive);
+  if (req.body.latitude !== undefined) data.latitude = req.body.latitude != null ? Number(req.body.latitude) : null;
+  if (req.body.longitude !== undefined) data.longitude = req.body.longitude != null ? Number(req.body.longitude) : null;
+  if (req.body.geofenceRadiusMeters !== undefined) data.geofenceRadiusMeters = Number(req.body.geofenceRadiusMeters) || 200;
+  try {
+    res.json(await prisma.branch.update({ where: { id: req.params.id }, data }));
+  } catch (err) {
+    if (err?.code === "P2002") {
+      return res.status(409).json({ message: `A branch named "${req.body.name}" already exists in this salon.` });
+    }
+    throw err;
+  }
+}));
+
+superAdminRouter.delete("/branches/:id", asyncHandler(async (req, res) => {
+  const existing = await prisma.branch.findUnique({
+    where: { id: req.params.id },
+    include: {
+      _count: { select: { users: true, services: true, invoices: true, appointments: true, products: true } }
+    }
+  });
+  if (!existing) return res.status(404).json({ message: "Branch not found" });
+  const counts = existing._count;
+  const deps = [];
+  if (counts.users > 0) deps.push(`${counts.users} staff`);
+  if (counts.services > 0) deps.push(`${counts.services} services`);
+  if (counts.invoices > 0) deps.push(`${counts.invoices} invoices`);
+  if (counts.appointments > 0) deps.push(`${counts.appointments} appointments`);
+  if (counts.products > 0) deps.push(`${counts.products} products`);
+  if (deps.length > 0) {
+    return res.status(400).json({ message: `Cannot delete branch "${existing.name}" — it has ${deps.join(", ")}. Archive or reassign them first.` });
+  }
+  await prisma.branch.delete({ where: { id: req.params.id } });
+  res.json({ message: "Deleted" });
+}));
+
+const AVAILABLE_PAGES = [
+  { key: "dashboard", label: "Dashboard", group: "Platform Command" },
+  { key: "salons", label: "Salons Control", group: "Platform Command" },
+  { key: "branches", label: "Branch Management", group: "Platform Command" },
+  { key: "plans", label: "Plans Catalog", group: "Platform Command" },
+  { key: "subscriptions", label: "Customer Management", group: "Platform Command" },
+  { key: "staff", label: "Staff Management", group: "Platform Command" },
+  { key: "demo-leads", label: "Demo Pipeline", group: "Operations" },
+  { key: "support-tickets", label: "Support Queue", group: "Operations" },
+  { key: "traffic", label: "Traffic Analytics", group: "Operations" },
+  { key: "staff-requirements", label: "Staff Requirements", group: "Operations" },
+  { key: "product-requirements", label: "Product Requirements", group: "Operations" },
+  { key: "settings", label: "Global Settings", group: "System" },
+  { key: "audit-logs", label: "Platform Logs", group: "System" }
+];
+
+superAdminRouter.get("/available-pages", asyncHandler(async (req, res) => {
+  res.json(AVAILABLE_PAGES);
+}));
+
+superAdminRouter.get("/staff", asyncHandler(async (req, res) => {
+  const users = await prisma.user.findMany({
+    where: { systemRole: "SUPER_ADMIN" },
+    select: { id: true, name: true, email: true, isActive: true, createdAt: true, pagePermissions: true },
+    orderBy: { createdAt: "desc" }
+  });
+  res.json(users);
+}));
+
+superAdminRouter.post("/staff", asyncHandler(async (req, res) => {
+  const { name, email, password, pagePermissions } = req.body;
+  if (!name || !email || !password) return res.status(400).json({ message: "Name, email, and password are required." });
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return res.status(409).json({ message: "A user with this email already exists." });
+
+  const user = await prisma.user.create({
+    data: {
+      name,
+      email,
+      passwordHash: await bcrypt.hash(password, 10),
+      systemRole: "SUPER_ADMIN",
+      pagePermissions: pagePermissions || []
+    },
+    select: { id: true, name: true, email: true, isActive: true, createdAt: true, pagePermissions: true }
+  });
+  res.status(201).json(user);
+}));
+
+superAdminRouter.patch("/staff/:id", asyncHandler(async (req, res) => {
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ message: "Staff not found" });
+
+  const data = {};
+  if (req.body.name !== undefined) data.name = req.body.name;
+  if (req.body.pagePermissions !== undefined) data.pagePermissions = req.body.pagePermissions;
+  if (req.body.isActive !== undefined) data.isActive = Boolean(req.body.isActive);
+  if (req.body.password && req.body.password.trim()) {
+    data.passwordHash = await bcrypt.hash(req.body.password, 10);
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: req.params.id },
+    data,
+    select: { id: true, name: true, email: true, isActive: true, createdAt: true, pagePermissions: true }
+  });
+  res.json(updated);
+}));
+
+superAdminRouter.delete("/staff/:id", asyncHandler(async (req, res) => {
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ message: "Staff not found" });
+  if (existing.systemRole !== "SUPER_ADMIN") return res.status(400).json({ message: "Cannot delete non-super-admin users from here." });
+  await prisma.user.delete({ where: { id: req.params.id } });
   res.json({ message: "Deleted" });
 }));
