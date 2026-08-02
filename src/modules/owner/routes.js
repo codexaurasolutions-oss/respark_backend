@@ -1974,7 +1974,7 @@ ownerRouter.get("/subscription", async (req, res) => {
     const sub = await prisma.subscription.findFirst({
       where: { salonId: req.user.salonId },
       include: { plan: true },
-      orderBy: { createdAt: "desc" }
+      orderBy: { startsAt: "desc" }
     });
     res.json(sub || null);
   } catch {
@@ -2126,7 +2126,7 @@ ownerRouter.get("/salon-details", requireSalonPermission("settings", "view"), as
   const subscription = await prisma.subscription.findFirst({
     where: { salonId: req.salonId },
     include: { plan: { select: { id: true, name: true, branchLimit: true, userLimit: true, customerLimit: true, invoiceLimit: true, storageLimit: true, monthlyPrice: true, yearlyPrice: true } } },
-    orderBy: { createdAt: "desc" }
+    orderBy: { startsAt: "desc" }
   });
 
   const branches = await prisma.branch.findMany({

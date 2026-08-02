@@ -836,7 +836,7 @@ superAdminRouter.get("/branches/limit-info", asyncHandler(async (req, res) => {
   const subscription = await prisma.subscription.findFirst({
     where: { salonId },
     include: { plan: { select: { id: true, name: true, branchLimit: true } } },
-    orderBy: { createdAt: "desc" }
+    orderBy: { startsAt: "desc" }
   });
 
   const plan = subscription?.plan || null;
@@ -876,7 +876,7 @@ superAdminRouter.post("/branches", asyncHandler(async (req, res) => {
   const subscription = await prisma.subscription.findFirst({
     where: { salonId },
     include: { plan: { select: { branchLimit: true } } },
-    orderBy: { createdAt: "desc" }
+    orderBy: { startsAt: "desc" }
   });
   const branchLimit = subscription?.plan?.branchLimit ?? 9999;
 
