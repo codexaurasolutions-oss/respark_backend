@@ -50,9 +50,12 @@ enum InvoiceStatus {
 }
 
 enum DemoLeadStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  NEW
+  CONNECTED
+  DEMO_SCHEDULED
+  TRIAL_STARTED
+  CONVERTED
+  CANCELED
 }
 
 enum AppointmentStatus {
@@ -457,7 +460,7 @@ model DemoLead {
   phone               String
   company             String?
   message             String?
-  status              DemoLeadStatus       @default(PENDING)
+  status              DemoLeadStatus       @default(NEW)
   salonId             String?
   approvedUserId      String?
   reviewedAt          DateTime?
