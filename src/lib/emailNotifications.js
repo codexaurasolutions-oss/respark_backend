@@ -152,13 +152,49 @@ export const attemptCustomerTemplateEmail = async ({ salonId, toEmail, templateT
     }
 
     const variables = await resolveTemplateContext(salonId, context);
-    const html = renderTemplateText(template.content, variables);
+    const textContent = renderTemplateText(template.content, variables);
     const subject = template.title || "Salon update";
+    
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #0f172a; line-height: 1.6;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01); border: 1px solid #e2e8f0;">
+          
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #0f172a, #1e293b); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">
+              ${variables.salon_name || "Notification"}
+            </h1>
+          </div>
+          
+          <!-- Body -->
+          <div style="padding: 40px 32px;">
+            <div style="font-size: 16px; color: #334155; margin-bottom: 24px; white-space: pre-wrap;">${textContent}</div>
+            
+            <hr style="border: 0; border-top: 1px dashed #cbd5e1; margin: 40px 0 24px 0;" />
+            <p style="font-size: 14px; color: #64748b; margin: 0; text-align: center;">
+              Thank you for choosing <strong>${variables.salon_name || "us"}</strong>.<br/>We look forward to serving you!
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background-color: #f1f5f9; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+            <p style="font-size: 13px; color: #64748b; margin: 0; font-weight: 500;">
+              © ${new Date().getFullYear()} ${variables.salon_name || "Salon"}. All rights reserved.
+            </p>
+            <p style="font-size: 12px; color: #94a3b8; margin: 8px 0 0 0;">
+              This is an automated message. Please do not reply directly to this email.
+            </p>
+          </div>
+          
+        </div>
+      </div>
+    `;
+
     const delivery = await sendMail({
       to: toEmail,
       subject,
-      html: `<div>${html}</div>`,
-      text: html
+      html,
+      text: textContent
     });
 
     return {
