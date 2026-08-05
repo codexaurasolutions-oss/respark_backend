@@ -1248,14 +1248,28 @@ const pdfSafe = (str) => {
     const globalSettings2 = inv.branchId ? await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } }) : null;
     
     let customSalonName = "";
+    let customSalonPhone = "";
+    let customSalonAddress = "";
     if (settings?.advancedSettings?.genericSettings?.salonName) {
       customSalonName = settings.advancedSettings.genericSettings.salonName;
     } else if (globalSettings2?.advancedSettings?.genericSettings?.salonName) {
       customSalonName = globalSettings2.advancedSettings.genericSettings.salonName;
     }
+    if (settings?.advancedSettings?.genericSettings?.salonPhone) {
+      customSalonPhone = settings.advancedSettings.genericSettings.salonPhone;
+    } else if (globalSettings2?.advancedSettings?.genericSettings?.salonPhone) {
+      customSalonPhone = globalSettings2.advancedSettings.genericSettings.salonPhone;
+    }
+    if (settings?.advancedSettings?.genericSettings?.salonAddress) {
+      customSalonAddress = settings.advancedSettings.genericSettings.salonAddress;
+    } else if (globalSettings2?.advancedSettings?.genericSettings?.salonAddress) {
+      customSalonAddress = globalSettings2.advancedSettings.genericSettings.salonAddress;
+    }
     
     const footer = settings?.invoiceFooter || "Thank you for visiting.";
     const salonName = customSalonName || inv.salon?.name || inv.branch?.name || "My Salon";
+    const salonPhone = sanitizeInvoicePhone(customSalonPhone || inv.branch?.phone || inv.salon?.phone || "");
+    const salonAddress = customSalonAddress || inv.branch?.address || inv.salon?.address || "";
     const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     const items = inv.items.map((item) => {
@@ -1302,7 +1316,7 @@ const pdfSafe = (str) => {
     <div style="text-align:center;padding:20px 0 4px;">
       <div style="font-size:26px;font-weight:900;letter-spacing:3px;color:#0f172a;">${escapeHtml(salonName.toUpperCase())}</div>
       <div style="font-size:9px;letter-spacing:3.5px;color:#94a3b8;margin-top:4px;text-transform:uppercase;font-weight:600;">Hair &middot; Lifestyle &middot; Care</div>
-      ${inv.branch?.address || inv.branch?.phone || inv.branch?.name ? `<div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.6;">${[inv.branch?.address, inv.branch?.phone ? sanitizeInvoicePhone(inv.branch.phone) : null, inv.branch?.name].filter(Boolean).map(escapeHtml).join('<br>')}</div>` : ""}
+      ${salonAddress || salonPhone ? `<div style="font-size:11px;color:#64748b;margin-top:6px;line-height:1.6;">${[salonAddress, salonPhone ? `Phone: ${salonPhone}` : null].filter(Boolean).map(escapeHtml).join('<br>')}</div>` : ""}
     </div>
     <div style="border-top:1px dashed #cbd5e1;margin:14px 0;"></div>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">
@@ -1353,10 +1367,23 @@ const pdfSafe = (str) => {
     const globalSettings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } });
     const branchSettings = inv.branchId ? await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: inv.branchId } }) : null;
     let customSalonName = "";
+    let customSalonPhone = "";
+    let customSalonAddress = "";
+    const advSettings = branchSettings?.advancedSettings?.genericSettings || globalSettings?.advancedSettings?.genericSettings || {};
     if (branchSettings?.advancedSettings?.genericSettings?.salonName) {
       customSalonName = branchSettings.advancedSettings.genericSettings.salonName;
     } else if (globalSettings?.advancedSettings?.genericSettings?.salonName) {
       customSalonName = globalSettings.advancedSettings.genericSettings.salonName;
+    }
+    if (branchSettings?.advancedSettings?.genericSettings?.salonPhone) {
+      customSalonPhone = branchSettings.advancedSettings.genericSettings.salonPhone;
+    } else if (globalSettings?.advancedSettings?.genericSettings?.salonPhone) {
+      customSalonPhone = globalSettings.advancedSettings.genericSettings.salonPhone;
+    }
+    if (branchSettings?.advancedSettings?.genericSettings?.salonAddress) {
+      customSalonAddress = branchSettings.advancedSettings.genericSettings.salonAddress;
+    } else if (globalSettings?.advancedSettings?.genericSettings?.salonAddress) {
+      customSalonAddress = globalSettings.advancedSettings.genericSettings.salonAddress;
     }
 
     const width = 380;
@@ -1374,7 +1401,8 @@ const pdfSafe = (str) => {
     const salonName = customSalonName || inv.salon?.name || "My Salon";
     const branchName = inv.branch?.name || "";
     const brandName = salonName.toUpperCase();
-    const phone = sanitizeInvoicePhone(inv.branch?.phone || inv.salon?.phone || "");
+    const phone = sanitizeInvoicePhone(customSalonPhone || inv.branch?.phone || inv.salon?.phone || "");
+    const salonAddress = customSalonAddress || inv.branch?.address || inv.salon?.address || "";
     const currencyCode = inv.salon?.currency || "INR";
 
     const getCurrencySymbol = (code) => {
@@ -1436,16 +1464,12 @@ const pdfSafe = (str) => {
     y = pdf.y + 4;
     pdf.font('Helvetica').fontSize(10).text('HAIR - LIFESTYLE - CARE', { align: 'center', width: contentWidth });
     y = pdf.y + 6;
-    if (inv.branch?.address) {
-      pdf.font('Helvetica').fontSize(10).text(pdfSafe(inv.branch.address), { align: 'center', width: contentWidth });
+    if (salonAddress) {
+      pdf.font('Helvetica').fontSize(10).text(pdfSafe(salonAddress), { align: 'center', width: contentWidth });
       y = pdf.y + 2;
     }
     if (phone) {
       pdf.font('Helvetica').fontSize(10).text(pdfSafe(`Phone: ${phone}`), { align: 'center', width: contentWidth });
-      y = pdf.y + 2;
-    }
-    if (branchName) {
-      pdf.font('Helvetica').fontSize(10).text(pdfSafe(branchName), { align: 'center', width: contentWidth });
       y = pdf.y + 2;
     }
 
