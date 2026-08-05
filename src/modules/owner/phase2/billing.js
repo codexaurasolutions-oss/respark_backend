@@ -1241,14 +1241,17 @@ const pdfSafe = (str) => {
   ownerRouter.get("/invoices/:id/receipt", requireSalonPermission("invoices", "view"), async (req, res) => {
     const inv = await prisma.invoice.findFirst({
       where: { id: req.params.id, salonId: req.salonId },
-      include: { customer: true, items: true, payments: true, branch: true }
+      include: { customer: true, items: true, payments: true, branch: true, salon: true }
     });
     if (!inv) return res.status(404).json({ message: "Invoice not found" });
     const settings = await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: inv.branchId || null } });
+    const globalSettings2 = inv.branchId ? await prisma.salonSetting.findFirst({ where: { salonId: req.salonId, branchId: null } }) : null;
     
     let customSalonName = "";
-    if (settings?.advancedSettings && typeof settings.advancedSettings === "object") {
-      customSalonName = settings.advancedSettings.genericSettings?.salonName || "";
+    if (settings?.advancedSettings?.genericSettings?.salonName) {
+      customSalonName = settings.advancedSettings.genericSettings.salonName;
+    } else if (globalSettings2?.advancedSettings?.genericSettings?.salonName) {
+      customSalonName = globalSettings2.advancedSettings.genericSettings.salonName;
     }
     
     const footer = settings?.invoiceFooter || "Thank you for visiting.";
