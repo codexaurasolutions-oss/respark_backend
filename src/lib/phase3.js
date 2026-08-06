@@ -593,8 +593,9 @@ export const renderTemplateText = (content, variables) =>
   });
 
 export const resolveTemplateContext = async (salonId, context = {}) => {
-  const [salon, customer, appointment, invoice, order, membership, pack] = await Promise.all([
+  const [salon, salonSetting, customer, appointment, invoice, order, membership, pack] = await Promise.all([
     prisma.salon.findUnique({ where: { id: salonId } }),
+    prisma.salonSetting.findFirst({ where: { salonId, branchId: null } }),
     context.customerId ? prisma.customer.findFirst({ where: { id: context.customerId, salonId } }) : null,
     context.appointmentId ? prisma.appointment.findFirst({ where: { id: context.appointmentId, salonId }, include: { customer: true } }) : null,
     context.invoiceId ? prisma.invoice.findFirst({ where: { id: context.invoiceId, salonId }, include: { customer: true } }) : null,
@@ -603,15 +604,24 @@ export const resolveTemplateContext = async (salonId, context = {}) => {
     context.customerPackageId ? prisma.customerPackage.findFirst({ where: { id: context.customerPackageId, salonId }, include: { package: true, customer: true } }) : null
   ]);
 
+  const salonTimezone = salonSetting?.advancedSettings?.genericSettings?.timezone || "Asia/Kolkata";
+  const formatInTimezone = (date, options) => {
+    try {
+      return new Date(date).toLocaleString("en-IN", { timeZone: salonTimezone, ...options });
+    } catch {
+      return new Date(date).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", ...options });
+    }
+  };
+
   const resolvedCustomer = customer || appointment?.customer || invoice?.customer || order?.customer || membership?.customer || pack?.customer || null;
 
   const resolved = {
     customer_name: resolvedCustomer?.name || templateFallbacks.customer_name,
     customer_phone: resolvedCustomer?.phone || "",
     salon_name: salon?.name || templateFallbacks.salon_name,
-    appointment_date_time: appointment?.startAt ? new Date(appointment.startAt).toLocaleString() : templateFallbacks.appointment_date_time,
+    appointment_date_time: appointment?.startAt ? formatInTimezone(appointment.startAt, { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }) : templateFallbacks.appointment_date_time,
     invoice_amount: invoice ? Number(invoice.total || 0).toFixed(2) : templateFallbacks.invoice_amount,
-    membership_expiry: resolvedCustomer?.memberships?.[0]?.endsAt ? new Date(resolvedCustomer.memberships[0].endsAt).toLocaleDateString() : (membership?.endsAt ? new Date(membership.endsAt).toLocaleDateString() : templateFallbacks.membership_expiry),
+    membership_expiry: resolvedCustomer?.memberships?.[0]?.endsAt ? formatInTimezone(resolvedCustomer.memberships[0].endsAt, { year: "numeric", month: "long", day: "numeric" }) : (membership?.endsAt ? formatInTimezone(membership.endsAt, { year: "numeric", month: "long", day: "numeric" }) : templateFallbacks.membership_expiry),
     package_balance: pack?.remainingSessions != null ? String(pack.remainingSessions) : templateFallbacks.package_balance,
     order_number: order?.orderNumber || templateFallbacks.order_number,
     order_amount: order ? Number(order.total || 0).toFixed(2) : templateFallbacks.order_amount,
