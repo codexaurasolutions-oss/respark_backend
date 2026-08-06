@@ -513,12 +513,20 @@ const fallbackTemplates = {
 
 const resolveMessageTemplate = async (salonId, templateType) => {
   const normalizedType = normalizeTemplateType(templateType);
+  const fallback = fallbackTemplates[normalizedType];
+  if (!fallback) return null;
   const existing = await prisma.messageTemplate.findUnique({
     where: { salonId_type: { salonId, type: normalizedType } }
   });
-  if (existing) return existing;
-  const fallback = fallbackTemplates[normalizedType];
-  if (!fallback) return null;
+  if (existing) {
+    if (existing.title !== fallback.title || existing.content !== fallback.content) {
+      return prisma.messageTemplate.update({
+        where: { id: existing.id },
+        data: { title: fallback.title, content: fallback.content }
+      });
+    }
+    return existing;
+  }
   return prisma.messageTemplate.create({
     data: {
       salonId,
