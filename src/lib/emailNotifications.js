@@ -549,40 +549,75 @@ const areNotificationEmailsEnabled = async (salonId) => {
 
 export const buildEmailHtml = (textContent, variables) => `
 <!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
-<body style="margin:0; padding:0; background-color:#f1f5f9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9; padding:40px 16px;">
+<html lang="en" style="color-scheme:light; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <meta name="format-detection" content="telephone=no, date=no, email=no, address=no" />
+  <title>${variables.salon_name || "Notification"}</title>
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:AllowPNG/>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+  <style>
+    :root { color-scheme: light !important; supported-color-schemes: light !important; }
+    @media (prefers-color-scheme: dark) {
+      body, table, td, p, a, h1, h2, span { background-color: inherit !important; color: inherit !important; }
+    }
+    @media only screen and (max-width: 620px) {
+      .email-container { width: 100% !important; padding: 0 8px !important; }
+      .email-card { border-radius: 8px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#e2e8f0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; color:#0f172a !important;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#e2e8f0; padding:32px 16px; margin:0;">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); border:1px solid #e2e8f0;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" class="email-container" style="max-width:600px; width:100%;">
           
-          <!-- Header -->
+          <!-- Card -->
           <tr>
-            <td style="background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding:36px 32px; text-align:center;">
-              <h1 style="color:#ffffff; margin:0; font-size:26px; font-weight:800; letter-spacing:-0.5px;">${variables.salon_name || "Salon"}</h1>
-              <p style="color:#94a3b8; margin:6px 0 0 0; font-size:13px; letter-spacing:1px; text-transform:uppercase;">Notification</p>
-            </td>
-          </tr>
-          
-          <!-- Body -->
-          <tr>
-            <td style="padding:36px 32px;">
-              <p style="color:#334155; font-size:16px; margin:0 0 20px 0; line-height:1.7;">Hi ${variables.customer_name || "there"},</p>
-              ${textContent}
-            </td>
-          </tr>
-          
-          <!-- Divider -->
-          <tr>
-            <td style="padding:0 32px;"><hr style="border:none; border-top:1px solid #e2e8f0; margin:0;" /></td>
-          </tr>
-          
-          <!-- Footer -->
-          <tr>
-            <td style="padding:24px 32px; text-align:center;">
-              <p style="font-size:13px; color:#94a3b8; margin:0 0 4px 0;">&copy; ${new Date().getFullYear()} ${variables.salon_name || "Salon"}. All rights reserved.</p>
-              <p style="font-size:11px; color:#cbd5e1; margin:0;">This is an automated notification. Please do not reply directly to this email.</p>
+            <td class="email-card" style="background-color:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.08); border:1px solid #d1d5db;">
+              
+              <!-- Header -->
+              <tr>
+                <td style="background-color:#0f172a; padding:36px 32px; text-align:center;">
+                  <h1 style="color:#ffffff !important; margin:0; font-size:26px; font-weight:800; letter-spacing:-0.5px;">${variables.salon_name || "Salon"}</h1>
+                  <p style="color:#cbd5e1 !important; margin:8px 0 0 0; font-size:12px; letter-spacing:2px; text-transform:uppercase;">NOTIFICATION</p>
+                </td>
+              </tr>
+              
+              <!-- Body -->
+              <tr>
+                <td style="padding:36px 32px; background-color:#ffffff !important;">
+                  <p style="color:#0f172a !important; font-size:16px; margin:0 0 20px 0; line-height:1.7;">Hi ${variables.customer_name || "there"},</p>
+                  ${textContent}
+                </td>
+              </tr>
+              
+              <!-- Divider -->
+              <tr>
+                <td style="padding:0 32px; background-color:#ffffff !important;"><hr style="border:none; border-top:1px solid #e2e8f0; margin:0;" /></td>
+              </tr>
+              
+              <!-- Footer -->
+              <tr>
+                <td style="padding:24px 32px; text-align:center; background-color:#f8fafc !important;">
+                  <p style="font-size:13px; color:#64748b !important; margin:0 0 4px 0;">&copy; ${new Date().getFullYear()} ${variables.salon_name || "Salon"}. All rights reserved.</p>
+                  <p style="font-size:11px; color:#94a3b8 !important; margin:0;">This is an automated notification. Please do not reply directly to this email.</p>
+                </td>
+              </tr>
+              
             </td>
           </tr>
           
