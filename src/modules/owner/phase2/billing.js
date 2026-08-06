@@ -4,7 +4,7 @@ import { attemptCustomerTemplateEmail } from "../../../lib/emailNotifications.js
 import { prisma } from "../../../lib/prisma.js";
 import { addInvoicePayment, addInvoiceTip, createPosInvoice, generatePaymentLink, getDayClosingSummary, logPaymentLinkPlaceholder, refundInvoice } from "../../../lib/pos.js";
 import { reverseInvoiceLoyalty, createStaffNotification, createCustomerNotification } from "../../../lib/phase4.js";
-import { attachBranchStock, createStockMovement, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
+import { attachBranchStock, createStockMovement, convertConsumableQty, normalizeBranchId, toAmount } from "../../../lib/phase2.js";
 import { requireFeatureEnabled, requireSalonPermission } from "../../../middlewares/rbac.js";
 import { schemas, validate } from "../../../middlewares/validate.js";
 
@@ -566,16 +566,17 @@ export const registerBillingRoutes = (ownerRouter) => {
               referenceId: existingInvoice.id
             });
           } else if (removed.itemType === "SERVICE" && removed.serviceId) {
-            const svc = await tx.service.findUnique({ where: { id: removed.serviceId }, include: { consumables: true } });
+            const svc = await tx.service.findUnique({ where: { id: removed.serviceId }, include: { consumables: { include: { product: true } } } });
             if (svc && svc.consumables && svc.consumables.length > 0) {
               const serviceVariation = removed.variation || null;
               const matchedConsumables = svc.consumables.filter(c => c.variation === serviceVariation || (serviceVariation == null && c.variation == null));
               for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
+                const returnQty = convertConsumableQty(Number(cons.reqdQty), cons.product) * Number(removed.qty || 1);
                 await createStockMovement(tx, {
                   salonId: req.salonId,
                   branchId: existingInvoice.branchId,
                   productId: cons.productId,
-                  quantity: Number(cons.reqdQty) * Number(removed.qty || 1),
+                  quantity: returnQty,
                   movementType: "PRODUCT_RETURN",
                   createdByUserId: req.user.id,
                   referenceType: "INVOICE_EDIT",
@@ -653,12 +654,13 @@ export const registerBillingRoutes = (ownerRouter) => {
               const oldQty = Number(existingItem.qty || 1);
               const newQty = Number(item.qty || 1);
               if (newQty !== oldQty) {
-                const svc = await tx.service.findUnique({ where: { id: existingItem.serviceId }, include: { consumables: true } });
+                const svc = await tx.service.findUnique({ where: { id: existingItem.serviceId }, include: { consumables: { include: { product: true } } } });
                 if (svc && svc.consumables && svc.consumables.length > 0) {
                   const serviceVariation = existingItem.variation || null;
                   const matchedConsumables = svc.consumables.filter(c => c.variation === serviceVariation || (serviceVariation == null && c.variation == null));
                   for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
-                    const qtyDiff = (newQty - oldQty) * Number(cons.reqdQty);
+                    const rawQtyDiff = (newQty - oldQty) * Number(cons.reqdQty);
+                    const qtyDiff = convertConsumableQty(rawQtyDiff, cons.product);
                     if (qtyDiff < 0) {
                       await createStockMovement(tx, {
                         salonId: req.salonId,
@@ -711,7 +713,8 @@ export const registerBillingRoutes = (ownerRouter) => {
                 for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
                   const overrideKey = `${item.serviceId}:${cons.productId}`;
                   const overrideQty = req.body?.consumableOverrides?.[overrideKey];
-                  const qtyToDeduct = overrideQty != null && !isNaN(Number(overrideQty)) ? Number(overrideQty) : Number(cons.reqdQty);
+                  const rawQty = overrideQty != null && !isNaN(Number(overrideQty)) ? Number(overrideQty) : Number(cons.reqdQty);
+                  const qtyToDeduct = convertConsumableQty(rawQty, cons.product);
                   if (qtyToDeduct > 0) {
                     await createStockMovement(tx, {
                       salonId: req.salonId,
@@ -844,6 +847,42 @@ export const registerBillingRoutes = (ownerRouter) => {
             referenceType: "CANCEL",
             referenceId: invoice.id
           });
+        } else if (item.itemType === "SERVICE" && item.serviceId) {
+          const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: { include: { product: true } } } });
+          if (svc && svc.consumables && svc.consumables.length > 0) {
+            const serviceVariation = item.variation || null;
+            const matchedConsumables = svc.consumables.filter(c => c.variation === serviceVariation || (serviceVariation == null && c.variation == null));
+            for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
+              const returnQty = convertConsumableQty(Number(cons.reqdQty), cons.product) * Number(item.qty || 1);
+              if (returnQty > 0) {
+                await createStockMovement(tx, {
+                  salonId: req.salonId,
+                  branchId: invoice.branchId,
+                  productId: cons.productId,
+                  quantity: returnQty,
+                  movementType: "PRODUCT_RETURN",
+                  createdByUserId: req.user.id,
+                  referenceType: "CANCEL",
+                  referenceId: invoice.id
+                });
+              }
+            }
+          }
+          const customConsumables = Array.isArray(item.consumableData) ? item.consumableData : (Array.isArray(item.consumableItems) ? item.consumableItems : []);
+          for (const ci of customConsumables) {
+            if (ci.productId && Number(ci.qty) > 0) {
+              await createStockMovement(tx, {
+                salonId: req.salonId,
+                branchId: invoice.branchId,
+                productId: ci.productId,
+                quantity: Number(ci.qty) * Number(item.qty || 1),
+                movementType: "PRODUCT_RETURN",
+                createdByUserId: req.user.id,
+                referenceType: "CANCEL",
+                referenceId: invoice.id
+              });
+            }
+          }
         }
       }
       const packageUsages = await tx.packageUsage.findMany({ where: { invoiceId: invoice.id } });
@@ -1005,7 +1044,8 @@ export const registerBillingRoutes = (ownerRouter) => {
               const serviceVariation = item.variation || null;
               const matchedConsumables = svc.consumables.filter(c => c.variation === serviceVariation || (serviceVariation == null && c.variation == null));
               for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
-                const qtyToDeduct = Number(cons.reqdQty);
+                const rawQty = Number(cons.reqdQty);
+                const qtyToDeduct = convertConsumableQty(rawQty, cons.product);
                 if (qtyToDeduct > 0) {
                   await createStockMovement(tx, {
                     salonId: req.salonId,
@@ -1016,7 +1056,7 @@ export const registerBillingRoutes = (ownerRouter) => {
                     createdByUserId: req.user.id,
                     referenceType: "INVOICE",
                     referenceId: invoice.id,
-                    note: `Predefined consumable: ${cons.product?.name || ""} (${qtyToDeduct} ${cons.product?.unit || ""})`,
+                    note: `Predefined consumable: ${cons.product?.name || ""} (${rawQty} ${cons.product?.unit || ""})`,
                     allowNegativeStock: true
                   });
                 }

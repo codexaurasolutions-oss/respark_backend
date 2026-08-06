@@ -4,6 +4,13 @@ export const toAmount = (value) => Number(value || 0);
 export const normalizeBranchId = (value) => (value ? String(value) : null);
 export const toDate = (value) => (value ? new Date(value) : null);
 
+export const convertConsumableQty = (reqdQty, product) => {
+  const qty = toAmount(reqdQty);
+  const netWeight = toAmount(product?.netWeight);
+  if (netWeight > 0) return qty / netWeight;
+  return qty;
+};
+
 export const timeToMinutes = (value) => {
   if (!value) return null;
   const valStr = String(value).trim().toLowerCase();

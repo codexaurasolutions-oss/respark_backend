@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "./prisma.js";
-import { createStockMovement, ensureScopedBranch, ensureScopedCustomer, ensureScopedService, ensureScopedStaffMembership, getSalonSetting, logCustomerTimeline, refreshCustomerInsights, toAmount } from "./phase2.js";
+import { createStockMovement, convertConsumableQty, ensureScopedBranch, ensureScopedCustomer, ensureScopedService, ensureScopedStaffMembership, getSalonSetting, logCustomerTimeline, refreshCustomerInsights, toAmount } from "./phase2.js";
 import { calculateLoyaltyEarnPoints, getCustomerValidLoyaltyBalance, reverseInvoiceLoyalty } from "./phase4.js";
 
 const normalizeStatus = (paidAmount, total, refundAmount = 0, cancelled = false) => {
@@ -821,7 +821,8 @@ export const createPosInvoice = async ({ salonId, actorUser, body }) => {
           for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
             const overrideKey = `${item.serviceId}:${cons.productId}`;
             const overrideQty = body.consumableOverrides?.[overrideKey];
-            const qtyToDeduct = overrideQty != null ? Number(overrideQty) : Number(cons.reqdQty);
+            const rawQty = overrideQty != null ? Number(overrideQty) : Number(cons.reqdQty);
+            const qtyToDeduct = convertConsumableQty(rawQty, cons.product);
             if (qtyToDeduct > 0) {
               await createStockMovement(tx, {
                 salonId,
@@ -1229,6 +1230,42 @@ export const refundInvoice = async ({ salonId, invoiceId, amount, note, actorUse
           referenceType: "REFUND",
           referenceId: invoice.id
         });
+      } else if (item.itemType === "SERVICE" && item.serviceId) {
+        const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: { include: { product: true } } } });
+        if (svc && svc.consumables && svc.consumables.length > 0) {
+          const serviceVariation = item.variation || null;
+          const matchedConsumables = svc.consumables.filter(c => c.variation === serviceVariation || (serviceVariation == null && c.variation == null));
+          for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
+            const returnQty = convertConsumableQty(Number(cons.reqdQty), cons.product) * Number(item.qty || 1);
+            if (returnQty > 0) {
+              await createStockMovement(tx, {
+                salonId,
+                branchId: invoice.branchId,
+                productId: cons.productId,
+                quantity: returnQty,
+                movementType: "PRODUCT_RETURN",
+                createdByUserId: actorUser.id,
+                referenceType: "REFUND",
+                referenceId: invoice.id
+              });
+            }
+          }
+        }
+        const customConsumables = Array.isArray(item.consumableData) ? item.consumableData : (Array.isArray(item.consumableItems) ? item.consumableItems : []);
+        for (const ci of customConsumables) {
+          if (ci.productId && Number(ci.qty) > 0) {
+            await createStockMovement(tx, {
+              salonId,
+              branchId: invoice.branchId,
+              productId: ci.productId,
+              quantity: Number(ci.qty) * Number(item.qty || 1),
+              movementType: "PRODUCT_RETURN",
+              createdByUserId: actorUser.id,
+              referenceType: "REFUND",
+              referenceId: invoice.id
+            });
+          }
+        }
       }
     }
 

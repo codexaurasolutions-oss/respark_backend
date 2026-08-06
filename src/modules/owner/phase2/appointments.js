@@ -612,7 +612,7 @@ export const registerAppointmentRoutes = (ownerRouter) => {
       await logCustomerTimeline(tx, appointment.customerId, "INVOICE", "Appointment converted to invoice", created.invoiceNumber, created.id);
 
       // Deduct stock for predefined service consumables (with override support)
-      const { createStockMovement } = await import("../../../lib/phase2.js");
+      const { createStockMovement, convertConsumableQty } = await import("../../../lib/phase2.js");
       for (const item of items) {
         if (item.serviceId) {
           const svc = await tx.service.findUnique({ where: { id: item.serviceId }, include: { consumables: { include: { product: true } } } });
@@ -622,7 +622,8 @@ export const registerAppointmentRoutes = (ownerRouter) => {
             for (const cons of matchedConsumables.length > 0 ? matchedConsumables : svc.consumables.filter(c => c.variation == null)) {
               const overrideKey = `${item.serviceId}:${cons.productId}`;
               const overrideQty = consumableOverrides?.[overrideKey];
-              const qtyToDeduct = overrideQty != null ? Number(overrideQty) : Number(cons.reqdQty);
+              const rawQty = overrideQty != null ? Number(overrideQty) : Number(cons.reqdQty);
+              const qtyToDeduct = convertConsumableQty(rawQty, cons.product);
               if (qtyToDeduct > 0) {
                 await createStockMovement(tx, {
                   salonId: req.salonId,
