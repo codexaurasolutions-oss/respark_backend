@@ -6,104 +6,508 @@ const normalizeTemplateType = (value) => String(value || "").trim().toLowerCase(
 
 const fallbackTemplates = {
   invoice_template: {
-    title: "Invoice Generated",
-    content: "Hi {{customer_name}},<br/><br/>Your invoice from <strong>{{salon_name}}</strong> has been generated.<br/><br/><strong>Invoice Number:</strong> {{invoice_number}}<br/><strong>Total Amount:</strong> Rs.{{invoice_amount}}<br/><br/>If you have any questions, please contact our front desk."
+    title: "Invoice Generated - {{invoice_number}}",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128196;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Invoice Generated</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your invoice from <strong style="color:#0f172a;">{{salon_name}}</strong> is ready</p>
+
+<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Invoice Number</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{invoice_number}}</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Total Amount</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">Rs.{{invoice_amount}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">If you have any questions regarding this invoice, please contact our front desk and we will be happy to assist you.</p>`
   },
   invoice_refund_template: {
-    title: "Invoice Refund Processed",
-    content: "Hi {{customer_name}},<br/><br/>A refund has been processed against your recent invoice at <strong>{{salon_name}}</strong>.<br/><br/>The amount should reflect in your account shortly depending on your payment method. For any queries, please contact our front desk."
+    title: "Refund Processed",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128176;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Refund Processed</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">A refund has been issued against your recent invoice</p>
+
+<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:20px; margin-bottom:24px; text-align:center;">
+  <p style="color:#15803d; font-size:15px; margin:0; font-weight:600;">The refund amount should reflect in your account shortly, depending on your payment method.</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">For any queries regarding this refund, please reach out to our front desk and we will assist you promptly.</p>`
   },
   invoice_cancel_template: {
     title: "Invoice Cancelled",
-    content: "Hi {{customer_name}},<br/><br/>Your recent invoice at <strong>{{salon_name}}</strong> has been cancelled.<br/><br/>If you did not request this cancellation, please contact our front desk immediately."
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#ef4444,#dc2626); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#10060;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Invoice Cancelled</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your recent invoice at <strong style="color:#0f172a;">{{salon_name}}</strong> has been cancelled</p>
+
+<div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:20px; margin-bottom:24px; text-align:center;">
+  <p style="color:#dc2626; font-size:15px; margin:0; font-weight:600;">If you did not request this cancellation, please contact our front desk immediately.</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">We are here to help. Please reach out if you have any concerns.</p>`
   },
   membership_purchase_template: {
     title: "Welcome to your Membership",
-    content: "Hi {{customer_name}},<br/><br/>Your membership at <strong>{{salon_name}}</strong> is now active.<br/><br/>You can now enjoy all your exclusive benefits and perks.<br/><br/><strong>Valid until:</strong> {{membership_expiry}}"
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#8b5cf6,#7c3aed); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127942;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Welcome to your Membership</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your membership at <strong style="color:#0f172a;">{{salon_name}}</strong> is now active</p>
+
+<div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Status</td>
+      <td style="padding:8px 0; text-align:right;"><span style="background:#22c55e; color:#fff; padding:3px 12px; border-radius:20px; font-size:13px; font-weight:600;">ACTIVE</span></td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Valid Until</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{membership_expiry}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">You can now enjoy all your exclusive member benefits and perks. We look forward to serving you.</p>`
   },
   package_purchase_template: {
     title: "Your Package is Active",
-    content: "Hi {{customer_name}},<br/><br/>Your package at <strong>{{salon_name}}</strong> is now active.<br/><br/><strong>Sessions available:</strong> {{package_balance}}<br/><br/>We look forward to seeing you for your next session."
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127873;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Your Package is Active</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your package at <strong style="color:#0f172a;">{{salon_name}}</strong> is now active</p>
+
+<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Status</td>
+      <td style="padding:8px 0; text-align:right;"><span style="background:#22c55e; color:#fff; padding:3px 12px; border-radius:20px; font-size:13px; font-weight:600;">ACTIVE</span></td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Sessions Available</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">{{package_balance}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">We look forward to seeing you for your next session. Book your appointment at your convenience.</p>`
   },
   payment_receipt_template: {
-    title: "Payment Receipt",
-    content: "Hi {{customer_name}},<br/><br/>We have received your payment of <strong>Rs.{{invoice_amount}}</strong> at <strong>{{salon_name}}</strong>.<br/><br/>Thank you for your payment."
+    title: "Payment Received - Rs.{{invoice_amount}}",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9989;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Payment Received</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for your payment at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
+  <p style="color:#64748b; font-size:13px; text-transform:uppercase; letter-spacing:1px; margin:0 0 8px 0; font-weight:600;">Amount Paid</p>
+  <p style="color:#15803d; font-size:32px; font-weight:800; margin:0;">Rs.{{invoice_amount}}</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">This payment has been successfully recorded. Thank you for choosing <strong>{{salon_name}}</strong>.</p>`
   },
   appointment_confirmation: {
     title: "Appointment Confirmed",
-    content: "Hi {{customer_name}},<br/><br/>Your appointment at <strong>{{salon_name}}</strong> has been confirmed.<br/><br/><strong>Date & Time:</strong> {{appointment_date_time}}<br/><br/>If you need to reschedule, please contact us at your earliest convenience."
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128197;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Appointment Confirmed</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your appointment at <strong style="color:#0f172a;">{{salon_name}}</strong> has been confirmed</p>
+
+<div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Status</td>
+      <td style="padding:8px 0; text-align:right;"><span style="background:#22c55e; color:#fff; padding:3px 12px; border-radius:20px; font-size:13px; font-weight:600;">CONFIRMED</span></td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Date & Time</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{appointment_date_time}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">If you need to reschedule or cancel, please contact us at your earliest convenience.</p>`
   },
   appointment_reminder: {
-    title: "Appointment Reminder",
-    content: "Hi {{customer_name}},<br/><br/>This is a reminder that you have an upcoming appointment at <strong>{{salon_name}}</strong>.<br/><br/><strong>Date & Time:</strong> {{appointment_date_time}}<br/><br/>We look forward to seeing you."
+    title: "Reminder: Upcoming Appointment",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9200;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Appointment Reminder</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">This is a friendly reminder about your upcoming appointment</p>
+
+<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Salon</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{salon_name}}</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Date & Time</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{appointment_date_time}}</td>
+    </tr>
+  </table>
+</div>
+
+<div style="background:#f8fafc; border-radius:8px; padding:16px; margin-bottom:24px; text-align:center;">
+  <p style="color:#64748b; font-size:14px; margin:0;">We look forward to seeing you. Please arrive a few minutes early for the best experience.</p>
+</div>`
   },
   appointment_cancelled: {
     title: "Appointment Cancelled",
-    content: "Hi {{customer_name}},<br/><br/>Your appointment at <strong>{{salon_name}}</strong> scheduled for <strong>{{appointment_date_time}}</strong> has been cancelled.<br/><br/>We hope to see you again soon."
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#ef4444,#dc2626); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128680;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Appointment Cancelled</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your appointment has been cancelled</p>
+
+<div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Salon</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{salon_name}}</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Scheduled For</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{appointment_date_time}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">We hope to see you again soon. Feel free to book a new appointment at any time.</p>`
   },
   order_confirmation: {
-    title: "Order Confirmation",
-    content: "Hi {{customer_name}},<br/><br/>Thank you for your order from <strong>{{salon_name}}</strong>.<br/><br/><strong>Order Number:</strong> {{order_number}}<br/><strong>Total Amount:</strong> Rs.{{order_amount}}<br/><br/>We are processing your order and will keep you updated."
+    title: "Order Confirmed - {{order_number}}",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128230;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Order Confirmed</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for your order from <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Order Number</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{order_number}}</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Total Amount</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">Rs.{{order_amount}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">We are processing your order and will keep you updated on the status. Thank you for your patience.</p>`
   },
   enquiry_follow_up: {
     title: "Update on your Enquiry",
-    content: "Hi {{customer_name}},<br/><br/>Thank you for contacting <strong>{{salon_name}}</strong>. Our team has reviewed your enquiry and left an update for you.<br/><br/>We will stay in touch to ensure everything is resolved."
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128172;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Update on your Enquiry</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for contacting <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
+  <p style="color:#334155; font-size:15px; line-height:1.7; margin:0;">Our team has reviewed your enquiry and has an update for you. We are working to ensure everything is resolved to your satisfaction.</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">We will stay in touch and keep you informed. If you have any additional questions, please do not hesitate to reach out.</p>`
   },
   feedback_follow_up: {
     title: "Update on your Feedback",
-    content: "Hi {{customer_name}},<br/><br/>Thank you for sharing your feedback with <strong>{{salon_name}}</strong>. We take your comments seriously and our team has an update regarding your experience.<br/><br/>We are committed to providing you with the best possible service."
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#8b5cf6,#7c3aed); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128172;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Update on your Feedback</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for sharing your feedback with <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
+  <p style="color:#334155; font-size:15px; line-height:1.7; margin:0;">We take your comments seriously. Our team has reviewed your feedback and has an update regarding your experience.</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Your satisfaction is our priority. We are committed to providing you with the best possible service.</p>`
   },
   feedback_request_template: {
     title: "How was your experience?",
-    content: "Hi {{customer_name}},<br/><br/>Thank you for your recent visit to <strong>{{salon_name}}</strong>. We hope you had a great experience.<br/><br/>We would love to hear your thoughts. Please share your feedback at your convenience."
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#11088;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">How was your experience?</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for visiting <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
+  <p style="color:#334155; font-size:15px; line-height:1.7; margin:0;">We hope you had a wonderful experience. Your feedback helps us improve and serve you better.</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">We would love to hear your thoughts. Please take a moment to share your feedback at your convenience.</p>`
   },
   birthday_offer_template: {
-    title: "Happy Birthday",
-    content: "Hi {{customer_name}},<br/><br/>Wishing you a very Happy Birthday from all of us at <strong>{{salon_name}}</strong>.<br/><br/>We have a special birthday treat waiting for you. Visit us soon to claim it."
+    title: "Happy Birthday {{customer_name}}!",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#ec4899,#db2777); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127874;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Happy Birthday!</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Wishing you a wonderful birthday from all of us at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#fdf2f8; border:1px solid #fbcfe8; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
+  <p style="color:#db2777; font-size:16px; font-weight:600; margin:0 0 8px 0;">A Special Birthday Treat Awaits You!</p>
+  <p style="color:#64748b; font-size:14px; margin:0;">Visit us soon to claim your exclusive birthday offer. We look forward to making your day even more special.</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">From all of us at {{salon_name}}, we wish you a year filled with joy and happiness.</p>`
   },
   anniversary_offer_template: {
-    title: "Happy Anniversary",
-    content: "Hi {{customer_name}},<br/><br/>Happy Anniversary from <strong>{{salon_name}}</strong>.<br/><br/>Celebrate with a special pampering session. We have an exclusive anniversary offer just for you."
+    title: "Happy Anniversary!",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#ec4899,#be185d); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128141;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Happy Anniversary!</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Celebrating with you from <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#fdf2f8; border:1px solid #fbcfe8; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
+  <p style="color:#be185d; font-size:16px; font-weight:600; margin:0 0 8px 0;">Exclusive Anniversary Offer</p>
+  <p style="color:#64748b; font-size:14px; margin:0;">Celebrate with a special pampering session. We have an exclusive anniversary treat just for you.</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Visit us to enjoy your exclusive anniversary offer. Here's to many more beautiful moments ahead.</p>`
   },
   loyalty_earning_template: {
-    title: "Loyalty Points Earned",
-    content: "Hi {{customer_name}},<br/><br/>You have earned <strong>{{points_earned}} loyalty points</strong> at <strong>{{salon_name}}</strong>.<br/><br/><strong>Your new balance:</strong> {{new_balance}} points.<br/><br/>Keep visiting to unlock exciting rewards."
+    title: "You earned {{points_earned}} loyalty points!",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127942;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Loyalty Points Earned</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">You have earned points at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Points Earned</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#d97706; font-size:18px;">+{{points_earned}}</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">New Balance</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">{{new_balance}} points</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Keep visiting to earn more points and unlock exciting rewards. Your loyalty means the world to us.</p>`
   },
   loyalty_expiry_template: {
-    title: "Loyalty Points Expiring Soon",
-    content: "Hi {{customer_name}},<br/><br/>Your loyalty points at <strong>{{salon_name}}</strong> are expiring soon.<br/><br/>Book your next visit today and redeem your points before they expire."
+    title: "Your loyalty points are expiring soon",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#ef4444,#dc2626); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9200;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Points Expiring Soon</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your loyalty points at <strong style="color:#0f172a;">{{salon_name}}</strong> are about to expire</p>
+
+<div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
+  <p style="color:#dc2626; font-size:16px; font-weight:600; margin:0 0 8px 0;">Don't let your points go to waste!</p>
+  <p style="color:#64748b; font-size:14px; margin:0;">Book your next visit today and redeem your points before they expire.</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Contact us to book an appointment and make the most of your loyalty rewards.</p>`
   },
   membership_expiry_template: {
-    title: "Membership Expiring Soon",
-    content: "Hi {{customer_name}},<br/><br/>Your membership at <strong>{{salon_name}}</strong> is expiring on <strong>{{membership_expiry}}</strong>.<br/><br/>Renew now to continue enjoying your VIP perks and discounts."
+    title: "Your membership is expiring soon",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128197;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Membership Expiring Soon</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your membership at <strong style="color:#0f172a;">{{salon_name}}</strong> is nearing its end</p>
+
+<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Expiry Date</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#d97706; font-size:16px;">{{membership_expiry}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Renew your membership now to continue enjoying your exclusive VIP perks and discounts without interruption.</p>`
   },
   membership_renewal_template: {
-    title: "Membership Renewed",
-    content: "Hi {{customer_name}},<br/><br/>Your membership at <strong>{{salon_name}}</strong> has been renewed successfully.<br/><br/><strong>New expiry date:</strong> {{membership_expiry}}<br/><br/>Thank you for being a valued member."
+    title: "Membership Renewed Successfully",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9989;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Membership Renewed</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your membership at <strong style="color:#0f172a;">{{salon_name}}</strong> has been renewed</p>
+
+<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Status</td>
+      <td style="padding:8px 0; text-align:right;"><span style="background:#22c55e; color:#fff; padding:3px 12px; border-radius:20px; font-size:13px; font-weight:600;">ACTIVE</span></td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">New Expiry Date</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{membership_expiry}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Thank you for being a valued member. We look forward to continuing to serve you.</p>`
   },
   package_expiry_template: {
-    title: "Package Expiring Soon",
-    content: "Hi {{customer_name}},<br/><br/>Your package at <strong>{{salon_name}}</strong> is nearing its expiration date.<br/><br/><strong>Sessions remaining:</strong> {{package_balance}}<br/><br/>Book your appointments before they expire."
+    title: "Your package is expiring soon",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9200;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Package Expiring Soon</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your package at <strong style="color:#0f172a;">{{salon_name}}</strong> is nearing its expiration</p>
+
+<div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Sessions Remaining</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#d97706; font-size:18px;">{{package_balance}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Book your remaining sessions before the package expires. Contact us to schedule your next appointment.</p>`
   },
   gift_card_issued: {
-    title: "Gift Card Received",
-    content: "Hi {{customer_name}},<br/><br/>You have received a gift card from <strong>{{salon_name}}</strong>.<br/><br/><strong>Code:</strong> {{gift_card_code}}<br/><strong>Value:</strong> Rs.{{gift_card_amount}}<br/><br/>Show this code at the desk on your next visit to redeem."
+    title: "You received a gift card!",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#8b5cf6,#7c3aed); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127873;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Gift Card Received</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">You have received a gift card from <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:linear-gradient(135deg,#faf5ff,#f3e8ff); border:2px dashed #c4b5fd; border-radius:12px; padding:28px; margin-bottom:24px; text-align:center;">
+  <p style="color:#7c3aed; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin:0 0 8px 0; font-weight:700;">Gift Card</p>
+  <p style="color:#0f172a; font-size:24px; font-weight:800; margin:0 0 12px 0; letter-spacing:2px;">{{gift_card_code}}</p>
+  <p style="color:#7c3aed; font-size:14px; margin:0; font-weight:500;">Value: Rs.{{gift_card_amount}}</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Show this code at the front desk on your next visit to redeem your gift card balance.</p>`
   },
   gift_card_expiry_template: {
-    title: "Gift Card Expiring Soon",
-    content: "Hi {{customer_name}},<br/><br/>Your gift card at <strong>{{salon_name}}</strong> is expiring soon.<br/><br/>Book your appointment and redeem your balance before it expires."
+    title: "Your gift card is expiring soon",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#ef4444,#dc2626); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9200;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Gift Card Expiring Soon</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your gift card at <strong style="color:#0f172a;">{{salon_name}}</strong> is about to expire</p>
+
+<div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
+  <p style="color:#dc2626; font-size:16px; font-weight:600; margin:0 0 8px 0;">Don't let your gift card go to waste!</p>
+  <p style="color:#64748b; font-size:14px; margin:0;">Book your appointment and redeem your balance before it expires.</p>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Contact us to book an appointment and enjoy your gift card benefits.</p>`
   },
   gift_card_redeemed_template: {
-    title: "Gift Card Redeemed",
-    content: "Hi {{customer_name}},<br/><br/>Your gift card (Code: {{gift_card_code}}) has been used for <strong>Rs.{{amount_used}}</strong> at <strong>{{salon_name}}</strong>.<br/><br/><strong>Remaining Balance:</strong> Rs.{{balance_amount}}"
+    title: "Gift Card Used - Rs.{{amount_used}}",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9989;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Gift Card Redeemed</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your gift card has been used at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Gift Card Code</td>
+      <td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a; font-family:monospace;">{{gift_card_code}}</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Amount Used</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#15803d; font-size:18px;">Rs.{{amount_used}}</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Remaining Balance</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:16px;">Rs.{{balance_amount}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">This transaction has been recorded. You can use your remaining balance on your next visit.</p>`
   },
   referral_code_sms: {
     title: "Your Referral Code",
-    content: "Hi {{customer_name}},<br/><br/>Here is your personal referral code for <strong>{{salon_name}}</strong>:<br/><br/><strong>{{referral_code}}</strong><br/><br/>Share this code with your friends and family. When they visit us, you both earn rewards."
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128279;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Your Personal Referral Code</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Share the love with your friends and family</p>
+
+<div style="background:#eff6ff; border:2px dashed #93c5fd; border-radius:12px; padding:28px; margin-bottom:24px; text-align:center;">
+  <p style="color:#2563eb; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin:0 0 8px 0; font-weight:700;">Your Referral Code</p>
+  <p style="color:#0f172a; font-size:24px; font-weight:800; margin:0; letter-spacing:2px; font-family:monospace;">{{referral_code}}</p>
+</div>
+
+<div style="background:#f8fafc; border-radius:12px; padding:20px; margin-bottom:24px;">
+  <p style="color:#334155; font-size:14px; margin:0; text-align:center; line-height:1.7;">Share this code with friends and family. When they visit <strong>{{salon_name}}</strong>, you both earn rewards!</p>
+</div>`
   },
   referrer_reward_sms: {
-    title: "Referral Reward Earned",
-    content: "Hi {{customer_name}},<br/><br/>A friend used your referral code and you have earned <strong>{{points_earned}} loyalty points</strong> at <strong>{{salon_name}}</strong>.<br/><br/>Keep sharing your code to keep earning rewards."
+    title: "Referral Reward Earned!",
+    content: `<div style="text-align:center; margin-bottom:24px;">
+  <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127942;</div>
+</div>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Referral Reward Earned!</h2>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">A friend used your referral code at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
+
+<div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
+    <tr>
+      <td style="padding:8px 0; color:#64748b; font-weight:500;">Points Earned</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#15803d; font-size:18px;">+{{points_earned}}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Keep sharing your referral code to keep earning rewards. Thank you for spreading the word!</p>`
   }
 };
 
@@ -135,6 +539,52 @@ const areNotificationEmailsEnabled = async (salonId) => {
   return setting?.advancedSettings?.notificationSettings?.emailEnabled !== false;
 };
 
+export const buildEmailHtml = (textContent, variables) => `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0; padding:0; background-color:#f1f5f9; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9; padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06); border:1px solid #e2e8f0;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding:36px 32px; text-align:center;">
+              <h1 style="color:#ffffff; margin:0; font-size:26px; font-weight:800; letter-spacing:-0.5px;">${variables.salon_name || "Salon"}</h1>
+              <p style="color:#94a3b8; margin:6px 0 0 0; font-size:13px; letter-spacing:1px; text-transform:uppercase;">Notification</p>
+            </td>
+          </tr>
+          
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 32px;">
+              <p style="color:#334155; font-size:16px; margin:0 0 20px 0; line-height:1.7;">Hi ${variables.customer_name || "there"},</p>
+              ${textContent}
+            </td>
+          </tr>
+          
+          <!-- Divider -->
+          <tr>
+            <td style="padding:0 32px;"><hr style="border:none; border-top:1px solid #e2e8f0; margin:0;" /></td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 32px; text-align:center;">
+              <p style="font-size:13px; color:#94a3b8; margin:0 0 4px 0;">&copy; ${new Date().getFullYear()} ${variables.salon_name || "Salon"}. All rights reserved.</p>
+              <p style="font-size:11px; color:#cbd5e1; margin:0;">This is an automated notification. Please do not reply directly to this email.</p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
 export const attemptCustomerTemplateEmail = async ({ salonId, toEmail, templateType, context = {} }) => {
   if (!toEmail) {
     return { skipped: true, reason: "missing-recipient" };
@@ -155,35 +605,7 @@ export const attemptCustomerTemplateEmail = async ({ salonId, toEmail, templateT
     const textContent = renderTemplateText(template.content, variables);
     const subject = template.title || "Salon update";
     
-    const html = `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px 20px; color: #0f172a; line-height: 1.6;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01); border: 1px solid #e2e8f0;">
-          
-          <!-- Header -->
-          <div style="background: linear-gradient(135deg, #0f172a, #1e293b); padding: 32px 24px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">
-              ${variables.salon_name || "Notification"}
-            </h1>
-          </div>
-          
-          <!-- Body -->
-          <div style="padding: 40px 32px;">
-            <div style="font-size: 16px; color: #334155; margin-bottom: 24px; white-space: pre-wrap;">${textContent}</div>
-          </div>
-          
-          <!-- Footer -->
-          <div style="background-color: #f1f5f9; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
-            <p style="font-size: 13px; color: #64748b; margin: 0; font-weight: 500;">
-              &copy; ${new Date().getFullYear()} ${variables.salon_name || "Salon"}. All rights reserved.
-            </p>
-            <p style="font-size: 12px; color: #94a3b8; margin: 8px 0 0 0;">
-              This is an automated notification. Please do not reply directly to this email.
-            </p>
-          </div>
-          
-        </div>
-      </div>
-    `;
+    const html = buildEmailHtml(template.content, variables);
 
     const delivery = await sendMail({
       to: toEmail,
