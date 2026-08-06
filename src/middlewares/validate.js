@@ -631,6 +631,8 @@ export const schemas = {
       height: z.number().min(0).nullable().optional(),
       unit: z.string().max(20).nullable().optional(),
       unitConversion: z.number().min(0).nullable().optional(),
+      discountType: z.enum(["NONE", "FLAT", "PERCENTAGE"]).optional(),
+      discountValue: z.number().min(0).nullable().optional(),
       favourite: z.boolean().optional()
     })
   }),
