@@ -193,7 +193,7 @@ export const registerEnquiryRoutes = (ownerRouter) => {
         email: enquiry.email || null,
         source: `ENQUIRY:${enquiry.source}`,
         notes: enquiry.notes || null,
-        branchId: enquiry.interestedBranchId || null
+        branchId: req.body.branchId || enquiry.interestedBranchId || null
       }
     });
     await prisma.enquiry.update({
