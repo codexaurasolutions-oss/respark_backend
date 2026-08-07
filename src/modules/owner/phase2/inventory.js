@@ -6,16 +6,24 @@ import { nextNumber } from "./shared.js";
 
 export const registerInventoryRoutes = (ownerRouter) => {
   ownerRouter.get("/inventory/categories", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "view"), async (req, res) => {
+    const branchId = normalizeBranchId(req.query.branchId);
+    const catWhere = { salonId: req.salonId, isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
     res.json(await prisma.productCategory.findMany({
-      where: { salonId: req.salonId },
+      where: catWhere,
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }]
     }));
   });
 
   ownerRouter.post("/inventory/categories", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "create"), validate(schemas.productCategory), async (req, res) => {
+    const branchId = normalizeBranchId(req.body.branchId);
+    if (branchId) {
+      const branch = await prisma.branch.findFirst({ where: { id: branchId, salonId: req.salonId, isActive: true } });
+      if (!branch) return res.status(404).json({ message: "Branch not found" });
+    }
     res.status(201).json(await prisma.productCategory.create({
       data: {
         salonId: req.salonId,
+        branchId: branchId || null,
         name: req.body.name,
         description: req.body.description || null,
         imageUrl: req.body.imageUrl || null,

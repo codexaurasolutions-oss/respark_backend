@@ -632,16 +632,19 @@ ownerRouter.post("/service-categories/import", requireSalonPermission("services"
 ownerRouter.get("/service-categories", requireSalonPermission("services", "view"), async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
   const svcWhere = { isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
+  const catWhere = { salonId: req.salonId, isActive: true, parentId: null, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
   const svcInclude = { consumables: { include: { product: true } } };
-  res.json(await prisma.serviceCategory.findMany({ where: { salonId: req.salonId, isActive: true, parentId: null }, include: { children: { where: { isActive: true }, include: { services: { where: svcWhere, include: svcInclude } } }, services: { where: svcWhere, include: svcInclude }, }, orderBy: { createdAt: "desc" } }));
+  res.json(await prisma.serviceCategory.findMany({ where: catWhere, include: { children: { where: { isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) }, include: { services: { where: svcWhere, include: svcInclude } } }, services: { where: svcWhere, include: svcInclude }, }, orderBy: { createdAt: "desc" } }));
 });
 ownerRouter.post("/service-categories", requireSalonPermission("services", "create"), async (req, res) => {
   const { name, parentId } = req.body;
+  const branchId = normalizeBranchId(req.body.branchId);
+  if (branchId) await ensureBranch(req.salonId, branchId);
   if (!name || name.length < 2) return res.status(400).json({ message: "Name must be at least 2 characters" });
   const where = { salonId: req.salonId, name: name.trim(), isActive: true, parentId: parentId || null };
   const existing = await prisma.serviceCategory.findFirst({ where });
   if (existing) return res.status(409).json({ message: "Category with this name already exists" });
-  const data = { salonId: req.salonId, name: name.trim() };
+  const data = { salonId: req.salonId, name: name.trim(), branchId: branchId || null };
   if (parentId) data.parentId = parentId;
   res.status(201).json(await prisma.serviceCategory.create({ data, include: { children: true } }));
 });
