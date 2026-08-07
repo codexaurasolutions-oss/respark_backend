@@ -24,7 +24,6 @@ const getSalonName = async (salonId) => {
   return firstSalon?.name || "Skillify";
 };
 
-// GET /test-email/send
 testEmailRouter.get("/send", async (req, res) => {
   try {
     const toEmail = req.query.to || "ahmedbilalkhangl09@gmail.com";
@@ -41,11 +40,12 @@ testEmailRouter.get("/send", async (req, res) => {
   <p style="color:#15803d; font-size:16px; font-weight:600; margin:0;">All features are working correctly. You will receive styled notification emails automatically.</p>
 </div>`;
     const variables = { salon_name: salonName, customer_name: "there" };
+    const renderedContent = renderTemplateText(content, variables);
 
     const mailOptions = {
       to: toEmail,
       subject: `[${salonName}] Email System Test`,
-      html: buildEmailHtml(content, variables),
+      html: buildEmailHtml(renderedContent, variables),
       text: `${salonName} Email System Test - Email delivery is working!`
     };
 

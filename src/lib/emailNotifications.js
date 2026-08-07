@@ -639,7 +639,7 @@ export const attemptCustomerTemplateEmail = async ({ salonId, toEmail, templateT
     const textContent = renderTemplateText(template.content, variables);
     const subject = template.title || "Salon update";
     
-    const html = buildEmailHtml(template.content, variables);
+    const html = buildEmailHtml(textContent, variables);
 
     const delivery = await sendMail({
       to: toEmail,
