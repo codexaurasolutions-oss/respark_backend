@@ -774,16 +774,24 @@ ownerRouter.get("/customers/export", requireSalonPermission("customers", "view")
     c.createdAt ? c.createdAt.toISOString() : ""
   ]);
 
-  const csv = buildCsv(headers, rows);
-  
   if (String(format).toLowerCase() === "xls" || String(format).toLowerCase() === "xlsx" || String(format).toLowerCase() === "excel") {
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", "attachment; filename=\"customers-export.csv\"");
+    const ExcelJS = require("exceljs");
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Customers");
+    worksheet.addRow(headers);
+    rows.forEach(row => worksheet.addRow(row));
+    
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=\"customers-export.xlsx\"");
+    
+    await workbook.xlsx.write(res);
+    res.end();
   } else {
+    const csv = buildCsv(headers, rows);
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", "attachment; filename=\"customers-export.csv\"");
+    res.send(csv);
   }
-  res.send(csv);
 });
 
 ownerRouter.post("/customers/import", requireSalonPermission("customers", "create"), upload.single("file"), forceBranchForUploads, async (req, res) => {
