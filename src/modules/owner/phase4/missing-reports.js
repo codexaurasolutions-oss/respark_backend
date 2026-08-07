@@ -548,7 +548,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
           product: m.product?.name || "Unknown",
           unit: m.product?.secondaryUnit || m.product?.unit || "",
           currentStock: Number(m.product?.currentStock || 0),
-          service: m.note || "General",
+          service: m.note ? m.note.replace(/\s*\([^)]*\)$/, "") : "General",
           qtyPerService: 0,
           totalUsed: 0,
           cost: 0
