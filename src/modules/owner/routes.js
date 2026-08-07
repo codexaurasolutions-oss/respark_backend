@@ -1334,8 +1334,9 @@ ownerRouter.post("/follow-ups", requireSalonPermission("customers", "edit"), val
 
 ownerRouter.get("/users", requireSalonPermission("staff", "view"), async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
+  const includeArchived = req.query.includeArchived === "true";
   res.json(await prisma.userSalon.findMany({
-    where: { salonId: req.salonId, isArchived: false, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
+    where: { salonId: req.salonId, ...(includeArchived ? {} : { isArchived: false }), ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) },
     include: { user: true, branch: true, customRole: true, serviceAssignments: { include: { service: true } } },
     orderBy: { id: "desc" }
   }));
@@ -1541,6 +1542,11 @@ ownerRouter.patch("/users/:id/archive", requireSalonPermission("staff", "delete"
   const row = await prisma.userSalon.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
   if (!row) return res.status(404).json({ message: "User mapping not found" });
   res.json(await prisma.userSalon.update({ where: { id: req.params.id }, data: { isArchived: true } }));
+});
+ownerRouter.patch("/users/:id/unarchive", requireSalonPermission("staff", "delete"), async (req, res) => {
+  const row = await prisma.userSalon.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+  if (!row) return res.status(404).json({ message: "User mapping not found" });
+  res.json(await prisma.userSalon.update({ where: { id: req.params.id }, data: { isArchived: false } }));
 });
 
 ownerRouter.get("/support-tickets", requireSalonPermission("support", "view"), async (req, res) => {
