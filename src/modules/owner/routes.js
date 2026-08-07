@@ -632,7 +632,8 @@ ownerRouter.post("/service-categories/import", requireSalonPermission("services"
 ownerRouter.get("/service-categories", requireSalonPermission("services", "view"), async (req, res) => {
   const branchId = normalizeBranchId(req.query.branchId);
   const svcWhere = { isActive: true, ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}) };
-  res.json(await prisma.serviceCategory.findMany({ where: { salonId: req.salonId, isActive: true, parentId: null }, include: { children: { where: { isActive: true }, include: { services: { where: svcWhere } } }, services: { where: svcWhere }, }, orderBy: { createdAt: "desc" } }));
+  const svcInclude = { consumables: { include: { product: true } } };
+  res.json(await prisma.serviceCategory.findMany({ where: { salonId: req.salonId, isActive: true, parentId: null }, include: { children: { where: { isActive: true }, include: { services: { where: svcWhere, include: svcInclude } } }, services: { where: svcWhere, include: svcInclude }, }, orderBy: { createdAt: "desc" } }));
 });
 ownerRouter.post("/service-categories", requireSalonPermission("services", "create"), async (req, res) => {
   const { name, parentId } = req.body;
