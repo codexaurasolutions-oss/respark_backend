@@ -4,10 +4,29 @@ export const toAmount = (value) => Number(value || 0);
 export const normalizeBranchId = (value) => (value ? String(value) : null);
 export const toDate = (value) => (value ? new Date(value) : null);
 
+const UNIT_TO_BASE = {
+  mg: 0.001,
+  gm: 1,
+  kg: 1000,
+  oz: 28.3495,
+  ml: 1,
+  ltr: 1000,
+};
+
+export const getUnitConversionFactor = (primaryUnit, secondaryUnit) => {
+  if (!primaryUnit || !secondaryUnit) return null;
+  const pBase = UNIT_TO_BASE[primaryUnit.toLowerCase()];
+  const sBase = UNIT_TO_BASE[secondaryUnit.toLowerCase()];
+  if (pBase == null || sBase == null) return null;
+  return sBase / pBase;
+};
+
 export const convertConsumableQty = (reqdQty, product) => {
   const qty = toAmount(reqdQty);
   const netWeight = toAmount(product?.netWeight);
   if (netWeight > 0) return qty / netWeight;
+  const autoFactor = getUnitConversionFactor(product?.unit, product?.secondaryUnit);
+  if (autoFactor != null && autoFactor > 0) return qty / autoFactor;
   return qty;
 };
 
