@@ -614,11 +614,15 @@ export const resolveTemplateContext = async (salonId, context = {}) => {
   };
 
   const resolvedCustomer = customer || appointment?.customer || invoice?.customer || order?.customer || membership?.customer || pack?.customer || null;
+  const currencyCode = salon?.currency || salonSetting?.advancedSettings?.genericSettings?.currency || "INR";
+  const CURRENCY_SYMBOLS = { INR: "₹", PKR: "Rs.", USD: "$", EUR: "€", GBP: "£", AED: "AED ", SAR: "SAR " };
+  const currencySymbol = CURRENCY_SYMBOLS[currencyCode.toUpperCase()] || `${currencyCode} `;
 
   const resolved = {
     customer_name: resolvedCustomer?.name || templateFallbacks.customer_name,
     customer_phone: resolvedCustomer?.phone || "",
     salon_name: salon?.name || templateFallbacks.salon_name,
+    currency_symbol: currencySymbol,
     appointment_date_time: appointment?.startAt ? formatInTimezone(appointment.startAt, { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }) : templateFallbacks.appointment_date_time,
     invoice_amount: invoice ? Number(invoice.total || 0).toFixed(2) : templateFallbacks.invoice_amount,
     membership_expiry: resolvedCustomer?.memberships?.[0]?.endsAt ? formatInTimezone(resolvedCustomer.memberships[0].endsAt, { year: "numeric", month: "long", day: "numeric" }) : (membership?.endsAt ? formatInTimezone(membership.endsAt, { year: "numeric", month: "long", day: "numeric" }) : templateFallbacks.membership_expiry),

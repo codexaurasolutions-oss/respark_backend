@@ -24,6 +24,19 @@ const getSalonName = async (salonId) => {
   return firstSalon?.name || "Skillify";
 };
 
+const CURRENCY_SYMBOLS = { INR: "₹", PKR: "{{currency_symbol}}", USD: "$", EUR: "€", GBP: "£", AED: "AED ", SAR: "SAR " };
+const getSalonCurrency = async (salonId) => {
+  let currency = "INR";
+  if (salonId) {
+    const salon = await prisma.salon.findUnique({ where: { id: salonId }, select: { currency: true } });
+    if (salon?.currency) currency = salon.currency;
+  } else {
+    const first = await prisma.salon.findFirst({ select: { currency: true }, orderBy: { createdAt: "asc" } });
+    if (first?.currency) currency = first.currency;
+  }
+  return CURRENCY_SYMBOLS[currency.toUpperCase()] || `${currency} `;
+};
+
 testEmailRouter.get("/send", async (req, res) => {
   try {
     const toEmail = req.query.to || "ahmedbilalkhangl09@gmail.com";
@@ -77,7 +90,8 @@ testEmailRouter.get("/send-all", async (req, res) => {
   const TO = req.query.to || "ahmedbilalkhangl09@gmail.com";
 
   const salonName = await getSalonName(req.query.salonId);
-  const vars = { salon_name: salonName, customer_name: "there" };
+  const salonCurrency = await getSalonCurrency(req.query.salonId);
+  const vars = { salon_name: salonName, customer_name: "there", currency_symbol: salonCurrency };
 
   const allTemplates = [
     {
@@ -92,7 +106,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Invoice Number</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">INV-2026-001</td></tr>
     <tr><td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td></tr>
-    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Total Amount</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">Rs.2,500.00</td></tr>
+    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Total Amount</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">{{currency_symbol}}2,500.00</td></tr>
   </table>
 </div>
 <p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">If you have any questions regarding this invoice, please contact our front desk and we will be happy to assist you.</p>`
@@ -167,7 +181,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
 <p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for your payment at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#64748b; font-size:13px; text-transform:uppercase; letter-spacing:1px; margin:0 0 8px 0; font-weight:600;">Amount Paid</p>
-  <p style="color:#15803d; font-size:32px; font-weight:800; margin:0;">Rs.2,500.00</p>
+  <p style="color:#15803d; font-size:32px; font-weight:800; margin:0;">{{currency_symbol}}2,500.00</p>
 </div>
 <p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">This payment has been successfully recorded. Thank you for choosing <strong>{{salon_name}}</strong>.</p>`
     },
@@ -236,7 +250,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Order Number</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">ORD-2026-042</td></tr>
     <tr><td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td></tr>
-    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Total Amount</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">Rs.1,200.00</td></tr>
+    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Total Amount</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">{{currency_symbol}}1,200.00</td></tr>
   </table>
 </div>
 <p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">We are processing your order and will keep you updated on the status. Thank you for your patience.</p>`
@@ -397,7 +411,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
 <div style="background:linear-gradient(135deg,#faf5ff,#f3e8ff); border:2px dashed #c4b5fd; border-radius:12px; padding:28px; margin-bottom:24px; text-align:center;">
   <p style="color:#7c3aed; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin:0 0 8px 0; font-weight:700;">Gift Card</p>
   <p style="color:#0f172a; font-size:24px; font-weight:800; margin:0 0 12px 0; letter-spacing:2px;">GIFT-ABCD-1234</p>
-  <p style="color:#7c3aed; font-size:14px; margin:0; font-weight:500;">Value: Rs.1,000.00</p>
+  <p style="color:#7c3aed; font-size:14px; margin:0; font-weight:500;">Value: {{currency_symbol}}1,000.00</p>
 </div>
 <p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Show this code at the front desk on your next visit to redeem your gift card balance.</p>`
     },
@@ -427,9 +441,9 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Gift Card Code</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a; font-family:monospace;">GIFT-ABCD-1234</td></tr>
     <tr><td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td></tr>
-    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Amount Used</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#15803d; font-size:18px;">Rs.500.00</td></tr>
+    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Amount Used</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#15803d; font-size:18px;">{{currency_symbol}}500.00</td></tr>
     <tr><td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td></tr>
-    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Remaining Balance</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:16px;">Rs.500.00</td></tr>
+    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Remaining Balance</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:16px;">{{currency_symbol}}500.00</td></tr>
   </table>
 </div>
 <p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">This transaction has been recorded. You can use your remaining balance on your next visit.</p>`
