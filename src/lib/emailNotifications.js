@@ -24,7 +24,7 @@ const fallbackTemplates = {
     </tr>
     <tr>
       <td style="padding:8px 0; color:#64748b; font-weight:500;">Total Amount</td>
-      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">Rs.{{invoice_amount}}</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">{{currency_symbol}}{{invoice_amount}}</td>
     </tr>
   </table>
 </div>
@@ -112,7 +112,7 @@ const fallbackTemplates = {
 <p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">We look forward to seeing you for your next session. Book your appointment at your convenience.</p>`
   },
   payment_receipt_template: {
-    title: "Payment Received - Rs.{{invoice_amount}}",
+    title: "Payment Received - {{currency_symbol}}{{invoice_amount}}",
     content: `<div style="text-align:center; margin-bottom:24px;">
   <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9989;</div>
 </div>
@@ -121,7 +121,7 @@ const fallbackTemplates = {
 
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#64748b; font-size:13px; text-transform:uppercase; letter-spacing:1px; margin:0 0 8px 0; font-weight:600;">Amount Paid</p>
-  <p style="color:#15803d; font-size:32px; font-weight:800; margin:0;">Rs.{{invoice_amount}}</p>
+  <p style="color:#15803d; font-size:32px; font-weight:800; margin:0;">{{currency_symbol}}{{invoice_amount}}</p>
 </div>
 
 <p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">This payment has been successfully recorded. Thank you for choosing <strong>{{salon_name}}</strong>.</p>`
@@ -225,7 +225,7 @@ const fallbackTemplates = {
     </tr>
     <tr>
       <td style="padding:8px 0; color:#64748b; font-weight:500;">Total Amount</td>
-      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">Rs.{{order_amount}}</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:18px;">{{currency_symbol}}{{order_amount}}</td>
     </tr>
   </table>
 </div>
@@ -420,7 +420,7 @@ const fallbackTemplates = {
 <div style="background:linear-gradient(135deg,#faf5ff,#f3e8ff); border:2px dashed #c4b5fd; border-radius:12px; padding:28px; margin-bottom:24px; text-align:center;">
   <p style="color:#7c3aed; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin:0 0 8px 0; font-weight:700;">Gift Card</p>
   <p style="color:#0f172a; font-size:24px; font-weight:800; margin:0 0 12px 0; letter-spacing:2px;">{{gift_card_code}}</p>
-  <p style="color:#7c3aed; font-size:14px; margin:0; font-weight:500;">Value: Rs.{{gift_card_amount}}</p>
+  <p style="color:#7c3aed; font-size:14px; margin:0; font-weight:500;">Value: {{currency_symbol}}{{gift_card_amount}}</p>
 </div>
 
 <p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Show this code at the front desk on your next visit to redeem your gift card balance.</p>`
@@ -441,7 +441,7 @@ const fallbackTemplates = {
 <p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">Contact us to book an appointment and enjoy your gift card benefits.</p>`
   },
   gift_card_redeemed_template: {
-    title: "Gift Card Used - Rs.{{amount_used}}",
+    title: "Gift Card Used - {{currency_symbol}}{{amount_used}}",
     content: `<div style="text-align:center; margin-bottom:24px;">
   <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9989;</div>
 </div>
@@ -459,14 +459,14 @@ const fallbackTemplates = {
     </tr>
     <tr>
       <td style="padding:8px 0; color:#64748b; font-weight:500;">Amount Used</td>
-      <td style="padding:8px 0; text-align:right; font-weight:700; color:#15803d; font-size:18px;">Rs.{{amount_used}}</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#15803d; font-size:18px;">{{currency_symbol}}{{amount_used}}</td>
     </tr>
     <tr>
       <td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td>
     </tr>
     <tr>
       <td style="padding:8px 0; color:#64748b; font-weight:500;">Remaining Balance</td>
-      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:16px;">Rs.{{balance_amount}}</td>
+      <td style="padding:8px 0; text-align:right; font-weight:700; color:#0f172a; font-size:16px;">{{currency_symbol}}{{balance_amount}}</td>
     </tr>
   </table>
 </div>
