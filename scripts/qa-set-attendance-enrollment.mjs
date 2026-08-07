@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const email = process.env.ATTENDANCE_USER_EMAIL || "owner@respark.local";
+const email = process.env.ATTENDANCE_USER_EMAIL || "owner@skillify.local";
 const photoUrl = process.env.ATTENDANCE_PHOTO_URL;
 
 if (!photoUrl) {

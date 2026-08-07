@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const email = process.env.ATTENDANCE_USER_EMAIL || "owner@respark.local";
+const email = process.env.ATTENDANCE_USER_EMAIL || "owner@skillify.local";
 
 try {
   const user = await prisma.user.findUnique({

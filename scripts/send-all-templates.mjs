@@ -8,7 +8,7 @@ const allTemplates = [
     title: "Invoice Generated",
     content: `Hi Ahmed,
 
-Your invoice from <strong>Respark Salon</strong> has been generated.
+Your invoice from <strong>Skillify Salon</strong> has been generated.
 
 <strong>Invoice Number:</strong> INV-2026-001
 <strong>Total Amount:</strong> Rs.2,500.00
@@ -20,7 +20,7 @@ If you have any questions, please contact our front desk.`
     title: "Invoice Refund Processed",
     content: `Hi Ahmed,
 
-A refund has been processed against your recent invoice at <strong>Respark Salon</strong>.
+A refund has been processed against your recent invoice at <strong>Skillify Salon</strong>.
 
 The amount should reflect in your account shortly depending on your payment method. For any queries, please contact our front desk.`
   },
@@ -29,7 +29,7 @@ The amount should reflect in your account shortly depending on your payment meth
     title: "Invoice Cancelled",
     content: `Hi Ahmed,
 
-Your recent invoice at <strong>Respark Salon</strong> has been cancelled.
+Your recent invoice at <strong>Skillify Salon</strong> has been cancelled.
 
 If you did not request this cancellation, please contact our front desk immediately.`
   },
@@ -38,7 +38,7 @@ If you did not request this cancellation, please contact our front desk immediat
     title: "Welcome to your Membership",
     content: `Hi Ahmed,
 
-Your membership at <strong>Respark Salon</strong> is now active.
+Your membership at <strong>Skillify Salon</strong> is now active.
 
 You can now enjoy all your exclusive benefits and perks.
 
@@ -49,7 +49,7 @@ You can now enjoy all your exclusive benefits and perks.
     title: "Your Package is Active",
     content: `Hi Ahmed,
 
-Your package at <strong>Respark Salon</strong> is now active.
+Your package at <strong>Skillify Salon</strong> is now active.
 
 <strong>Sessions available:</strong> 10
 
@@ -60,7 +60,7 @@ We look forward to seeing you for your next session.`
     title: "Payment Receipt",
     content: `Hi Ahmed,
 
-We have received your payment of <strong>Rs.2,500.00</strong> at <strong>Respark Salon</strong>.
+We have received your payment of <strong>Rs.2,500.00</strong> at <strong>Skillify Salon</strong>.
 
 Thank you for your payment.`
   },
@@ -69,7 +69,7 @@ Thank you for your payment.`
     title: "Appointment Confirmed",
     content: `Hi Ahmed,
 
-Your appointment at <strong>Respark Salon</strong> has been confirmed.
+Your appointment at <strong>Skillify Salon</strong> has been confirmed.
 
 <strong>Date & Time:</strong> Thursday, August 06, 2026 at 10:00 AM
 
@@ -80,7 +80,7 @@ If you need to reschedule, please contact us at your earliest convenience.`
     title: "Appointment Reminder",
     content: `Hi Ahmed,
 
-This is a reminder that you have an upcoming appointment at <strong>Respark Salon</strong>.
+This is a reminder that you have an upcoming appointment at <strong>Skillify Salon</strong>.
 
 <strong>Date & Time:</strong> Thursday, August 06, 2026 at 10:00 AM
 
@@ -91,7 +91,7 @@ We look forward to seeing you.`
     title: "Appointment Cancelled",
     content: `Hi Ahmed,
 
-Your appointment at <strong>Respark Salon</strong> scheduled for <strong>Thursday, August 06, 2026 at 10:00 AM</strong> has been cancelled.
+Your appointment at <strong>Skillify Salon</strong> scheduled for <strong>Thursday, August 06, 2026 at 10:00 AM</strong> has been cancelled.
 
 We hope to see you again soon.`
   },
@@ -100,7 +100,7 @@ We hope to see you again soon.`
     title: "Order Confirmation",
     content: `Hi Ahmed,
 
-Thank you for your order from <strong>Respark Salon</strong>.
+Thank you for your order from <strong>Skillify Salon</strong>.
 
 <strong>Order Number:</strong> ORD-2026-042
 <strong>Total Amount:</strong> Rs.1,200.00
@@ -112,7 +112,7 @@ We are processing your order and will keep you updated.`
     title: "Update on your Enquiry",
     content: `Hi Ahmed,
 
-Thank you for contacting <strong>Respark Salon</strong>. Our team has reviewed your enquiry and left an update for you.
+Thank you for contacting <strong>Skillify Salon</strong>. Our team has reviewed your enquiry and left an update for you.
 
 We will stay in touch to ensure everything is resolved.`
   },
@@ -121,7 +121,7 @@ We will stay in touch to ensure everything is resolved.`
     title: "Update on your Feedback",
     content: `Hi Ahmed,
 
-Thank you for sharing your feedback with <strong>Respark Salon</strong>. We take your comments seriously and our team has an update regarding your experience.
+Thank you for sharing your feedback with <strong>Skillify Salon</strong>. We take your comments seriously and our team has an update regarding your experience.
 
 We are committed to providing you with the best possible service.`
   },
@@ -130,7 +130,7 @@ We are committed to providing you with the best possible service.`
     title: "How was your experience?",
     content: `Hi Ahmed,
 
-Thank you for your recent visit to <strong>Respark Salon</strong>. We hope you had a great experience.
+Thank you for your recent visit to <strong>Skillify Salon</strong>. We hope you had a great experience.
 
 We would love to hear your thoughts. Please share your feedback at your convenience.`
   },
@@ -139,7 +139,7 @@ We would love to hear your thoughts. Please share your feedback at your convenie
     title: "Happy Birthday",
     content: `Hi Ahmed,
 
-Wishing you a very Happy Birthday from all of us at <strong>Respark Salon</strong>.
+Wishing you a very Happy Birthday from all of us at <strong>Skillify Salon</strong>.
 
 We have a special birthday treat waiting for you. Visit us soon to claim it.`
   },
@@ -148,7 +148,7 @@ We have a special birthday treat waiting for you. Visit us soon to claim it.`
     title: "Happy Anniversary",
     content: `Hi Ahmed,
 
-Happy Anniversary from <strong>Respark Salon</strong>.
+Happy Anniversary from <strong>Skillify Salon</strong>.
 
 Celebrate with a special pampering session. We have an exclusive anniversary offer just for you.`
   },
@@ -157,7 +157,7 @@ Celebrate with a special pampering session. We have an exclusive anniversary off
     title: "Loyalty Points Earned",
     content: `Hi Ahmed,
 
-You have earned <strong>50 loyalty points</strong> at <strong>Respark Salon</strong>.
+You have earned <strong>50 loyalty points</strong> at <strong>Skillify Salon</strong>.
 
 <strong>Your new balance:</strong> 250 points.
 
@@ -168,7 +168,7 @@ Keep visiting to unlock exciting rewards.`
     title: "Loyalty Points Expiring Soon",
     content: `Hi Ahmed,
 
-Your loyalty points at <strong>Respark Salon</strong> are expiring soon.
+Your loyalty points at <strong>Skillify Salon</strong> are expiring soon.
 
 Book your next visit today and redeem your points before they expire.`
   },
@@ -177,7 +177,7 @@ Book your next visit today and redeem your points before they expire.`
     title: "Membership Expiring Soon",
     content: `Hi Ahmed,
 
-Your membership at <strong>Respark Salon</strong> is expiring on <strong>August 6, 2026</strong>.
+Your membership at <strong>Skillify Salon</strong> is expiring on <strong>August 6, 2026</strong>.
 
 Renew now to continue enjoying your VIP perks and discounts.`
   },
@@ -186,7 +186,7 @@ Renew now to continue enjoying your VIP perks and discounts.`
     title: "Membership Renewed",
     content: `Hi Ahmed,
 
-Your membership at <strong>Respark Salon</strong> has been renewed successfully.
+Your membership at <strong>Skillify Salon</strong> has been renewed successfully.
 
 <strong>New expiry date:</strong> August 6, 2027
 
@@ -197,7 +197,7 @@ Thank you for being a valued member.`
     title: "Package Expiring Soon",
     content: `Hi Ahmed,
 
-Your package at <strong>Respark Salon</strong> is nearing its expiration date.
+Your package at <strong>Skillify Salon</strong> is nearing its expiration date.
 
 <strong>Sessions remaining:</strong> 3
 
@@ -208,7 +208,7 @@ Book your appointments before they expire.`
     title: "Gift Card Received",
     content: `Hi Ahmed,
 
-You have received a gift card from <strong>Respark Salon</strong>.
+You have received a gift card from <strong>Skillify Salon</strong>.
 
 <strong>Code:</strong> GIFT-ABCD-1234
 <strong>Value:</strong> Rs.1,000.00
@@ -220,7 +220,7 @@ Show this code at the desk on your next visit to redeem.`
     title: "Gift Card Expiring Soon",
     content: `Hi Ahmed,
 
-Your gift card at <strong>Respark Salon</strong> is expiring soon.
+Your gift card at <strong>Skillify Salon</strong> is expiring soon.
 
 Book your appointment and redeem your balance before it expires.`
   },
@@ -229,7 +229,7 @@ Book your appointment and redeem your balance before it expires.`
     title: "Gift Card Redeemed",
     content: `Hi Ahmed,
 
-Your gift card (Code: GIFT-ABCD-1234) has been used for <strong>Rs.500.00</strong> at <strong>Respark Salon</strong>.
+Your gift card (Code: GIFT-ABCD-1234) has been used for <strong>Rs.500.00</strong> at <strong>Skillify Salon</strong>.
 
 <strong>Remaining Balance:</strong> Rs.500.00`
   },
@@ -238,7 +238,7 @@ Your gift card (Code: GIFT-ABCD-1234) has been used for <strong>Rs.500.00</stron
     title: "Your Referral Code",
     content: `Hi Ahmed,
 
-Here is your personal referral code for <strong>Respark Salon</strong>:
+Here is your personal referral code for <strong>Skillify Salon</strong>:
 
 <strong>AHMED-REF-2026</strong>
 
@@ -249,16 +249,16 @@ Share this code with your friends and family. When they visit us, you both earn 
     title: "Referral Reward Earned",
     content: `Hi Ahmed,
 
-A friend used your referral code and you have earned <strong>100 loyalty points</strong> at <strong>Respark Salon</strong>.
+A friend used your referral code and you have earned <strong>100 loyalty points</strong> at <strong>Skillify Salon</strong>.
 
 Keep sharing your code to keep earning rewards.`
   },
   {
     name: "26. Welcome Email",
-    title: "Welcome to Respark Salon",
+    title: "Welcome to Skillify Salon",
     content: `Hi Ahmed,
 
-Welcome to <strong>Respark Salon</strong>! Your account has been created successfully.
+Welcome to <strong>Skillify Salon</strong>! Your account has been created successfully.
 
 We are excited to have you on board. Explore our services and book your first appointment today.`
   }
@@ -269,7 +269,7 @@ const wrapHtml = (variables, bodyContent) => `
     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01); border: 1px solid #e2e8f0;">
       <div style="background: linear-gradient(135deg, #0f172a, #1e293b); padding: 32px 24px; text-align: center;">
         <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">
-          ${variables.salon_name || "Respark Salon"}
+          ${variables.salon_name || "Skillify Salon"}
         </h1>
       </div>
       <div style="padding: 40px 32px;">
@@ -277,7 +277,7 @@ const wrapHtml = (variables, bodyContent) => `
       </div>
       <div style="background-color: #f1f5f9; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
         <p style="font-size: 13px; color: #64748b; margin: 0; font-weight: 500;">
-          &copy; 2026 ${variables.salon_name || "Respark Salon"}. All rights reserved.
+          &copy; 2026 ${variables.salon_name || "Skillify Salon"}. All rights reserved.
         </p>
         <p style="font-size: 12px; color: #94a3b8; margin: 8px 0 0 0;">
           This is an automated notification. Please do not reply directly to this email.
@@ -288,7 +288,7 @@ const wrapHtml = (variables, bodyContent) => `
 `;
 
 const variables = {
-  salon_name: "Respark Salon",
+  salon_name: "Skillify Salon",
   customer_name: "Ahmed",
   customer_phone: "+91 98765 43210",
   invoice_number: "INV-2026-001",
@@ -318,7 +318,7 @@ async function sendAll() {
       const html = wrapHtml(variables, tmpl.content);
       await sendMail({
         to: TO,
-        subject: `[Respark Preview] ${tmpl.title}`,
+        subject: `[Skillify Preview] ${tmpl.title}`,
         html,
         text: tmpl.content.replace(/<[^>]+>/g, "")
       });

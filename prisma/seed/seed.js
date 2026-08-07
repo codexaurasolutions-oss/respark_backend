@@ -5,8 +5,8 @@ import { defaultOwnerPermissions } from "../../src/lib/permissions.js";
 const prisma = new PrismaClient();
 
 async function main() {
-  const superAdminEmail = "superadmin@respark.local";
-  const ownerEmail = "owner@respark.local";
+  const superAdminEmail = "superadmin@skillify.local";
+  const ownerEmail = "owner@skillify.local";
 
   console.log("Cleaning up existing database records...");
 
@@ -209,12 +209,12 @@ async function main() {
   console.log("Seeding staff users (6 total)...");
 
   const staffData = [
-    { name: "Rohan Sharma", email: "rohan@respark.local", role: "STAFF", branchId: branch1.id, customRoleId: seniorStylistRole.id, phone: "+919876543231" },
-    { name: "Pooja Patel", email: "pooja@respark.local", role: "STAFF", branchId: branch2.id, customRoleId: seniorStylistRole.id, phone: "+919876543232" },
-    { name: "Amit Kumar", email: "amit@respark.local", role: "STAFF", branchId: branch3.id, phone: "+919876543233" },
-    { name: "Sneha Reddy", email: "sneha@respark.local", role: "MANAGER", branchId: branch1.id, phone: "+919876543234" },
-    { name: "Vikram Singh", email: "vikram@respark.local", role: "RECEPTIONIST", branchId: branch4.id, customRoleId: receptionistRole.id, phone: "+919876543235" },
-    { name: "Neha Gupta", email: "neha@respark.local", role: "STAFF", branchId: branch4.id, phone: "+919876543236" }
+    { name: "Rohan Sharma", email: "rohan@skillify.local", role: "STAFF", branchId: branch1.id, customRoleId: seniorStylistRole.id, phone: "+919876543231" },
+    { name: "Pooja Patel", email: "pooja@skillify.local", role: "STAFF", branchId: branch2.id, customRoleId: seniorStylistRole.id, phone: "+919876543232" },
+    { name: "Amit Kumar", email: "amit@skillify.local", role: "STAFF", branchId: branch3.id, phone: "+919876543233" },
+    { name: "Sneha Reddy", email: "sneha@skillify.local", role: "MANAGER", branchId: branch1.id, phone: "+919876543234" },
+    { name: "Vikram Singh", email: "vikram@skillify.local", role: "RECEPTIONIST", branchId: branch4.id, customRoleId: receptionistRole.id, phone: "+919876543235" },
+    { name: "Neha Gupta", email: "neha@skillify.local", role: "STAFF", branchId: branch4.id, phone: "+919876543236" }
   ];
 
   for (const staff of staffData) {

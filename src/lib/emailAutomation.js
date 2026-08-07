@@ -665,13 +665,13 @@ export const processScheduledFollowUps = async () => {
 
       await sendMail({
         to: customer.email,
-        subject: `Follow-Up from ReSpark`,
+        subject: `Follow-Up from Skillify`,
         html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <p>Hi ${customer.name || "Customer"},</p>
           <p>${messageContent}</p>
-          <p style="color: #64748b; font-size: 0.85rem;">— ${staffName}, ReSpark</p>
+          <p style="color: #64748b; font-size: 0.85rem;">— ${staffName}, Skillify</p>
         </div>`,
-        text: `Hi ${customer.name || "Customer"},\n\n${messageContent}\n\n— ${staffName}, ReSpark`
+        text: `Hi ${customer.name || "Customer"},\n\n${messageContent}\n\n— ${staffName}, Skillify`
       }).catch(() => {});
 
       details.emailSent = true;

@@ -1585,7 +1585,7 @@ model SalonSetting {
 
 model GlobalSetting {
   id                   String   @id @default(cuid())
-  systemName           String   @default("ReSpark Clone SaaS")
+  systemName           String   @default("Skillify Clone SaaS")
   globalLogo           String?
   maintenanceMode      Boolean  @default(false)
   taxLabel             String   @default("Tax")

@@ -135,7 +135,7 @@ publicRouter.get("/plans", asyncHandler(async (req, res) => {
 }));
 
 // SECURITY: The following 3 debug endpoints have been REMOVED from production.
-// They previously allowed anyone with the hardcoded key "respark123" to:
+// They previously allowed anyone with the hardcoded key "skillify123" to:
 //   1. /public/debug-db       - read all users, settings, gift cards
 //   2. /public/debug-code     - read source code (security disclosure)
 //   3. /public/run-seed-services - WIPE all services & categories and re-seed

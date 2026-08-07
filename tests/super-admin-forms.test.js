@@ -175,7 +175,7 @@ describe("super admin salon and plan forms", () => {
     prismaMock.globalSetting.update.mockImplementation(async ({ data }) => ({ id: "setting-1", ...data }));
 
     const response = await request(buildApp()).post("/super-admin/settings").send({
-      systemName: "ReSpark Clone SaaS",
+      systemName: "Skillify Clone SaaS",
       maintenanceMode: false,
       taxLabel: "Tax",
       defaultCurrency: "PKR",

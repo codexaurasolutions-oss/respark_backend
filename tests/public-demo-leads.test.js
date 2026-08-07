@@ -44,7 +44,7 @@ describe("public single-salon routes", () => {
 
   it("returns maintenanceMode in public settings payload", async () => {
     prismaMock.globalSetting.findFirst.mockResolvedValue({
-      systemName: "ReSpark QA",
+      systemName: "Skillify QA",
       maintenanceMode: true,
       contactEmail: "hello@test.local"
     });
@@ -53,7 +53,7 @@ describe("public single-salon routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.maintenanceMode).toBe(true);
-    expect(response.body.systemName).toBe("ReSpark QA");
+    expect(response.body.systemName).toBe("Skillify QA");
   });
 
   it("does not expose the old public demo lead endpoint anymore", async () => {

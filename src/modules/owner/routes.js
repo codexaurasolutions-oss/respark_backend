@@ -2000,7 +2000,7 @@ ownerRouter.post("/_test-email-templates", async (req, res) => {
     try {
       await sendMail({
         to: TO,
-        subject: `[Respark Preview] ${tmpl.title}`,
+        subject: `[Skillify Preview] ${tmpl.title}`,
         html: wrapHtml(tmpl.content),
         text: tmpl.content.replace(/<[^>]+>/g, "")
       });

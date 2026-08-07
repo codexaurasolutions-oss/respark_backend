@@ -54,6 +54,15 @@ export const registerInventoryRoutes = (ownerRouter) => {
     res.json(await prisma.productCategory.update({ where: { id: category.id }, data: { isActive: false } }));
   });
 
+  ownerRouter.delete("/inventory/categories/:id", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "delete"), async (req, res) => {
+    const category = await prisma.productCategory.findFirst({ where: { id: req.params.id, salonId: req.salonId } });
+    if (!category) return res.status(404).json({ message: "Category not found" });
+    const productCount = await prisma.product.count({ where: { categoryId: category.id } });
+    if (productCount > 0) return res.status(400).json({ message: `Cannot delete category with ${productCount} product(s).` });
+    await prisma.productCategory.delete({ where: { id: category.id } });
+    res.json({ message: "Category deleted" });
+  });
+
   ownerRouter.get("/inventory/products", requireFeatureEnabled("inventory"), requireSalonPermission("inventory", "view"), async (req, res) => {
     const branchId = normalizeBranchId(req.query.branchId);
     const q = req.query.q ? String(req.query.q).trim() : "";
