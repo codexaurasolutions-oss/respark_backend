@@ -546,6 +546,8 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       if (!grouped[key]) {
         grouped[key] = {
           product: m.product?.name || "Unknown",
+          unit: m.product?.unit || "",
+          currentStock: Number(m.product?.currentStock || 0),
           service: m.note || "General",
           qtyPerService: 0,
           totalUsed: 0,
@@ -558,12 +560,14 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     });
     const mapped = Object.values(grouped).map((g, idx) => ({
       "Product": g.product,
+      "Unit": g.unit || "-",
       "Service": g.service,
       "Qty Used Per Service": g.qtyPerService,
       "Total Used": g.totalUsed,
+      "Remaining Stock": g.currentStock,
       "Cost": g.cost
     }));
-    res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Qty Used Per Service", "Total Used", "Cost"]));
+    res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Total Used", "Cost"]));
   });
 
   // ============ Total Consumed ============
