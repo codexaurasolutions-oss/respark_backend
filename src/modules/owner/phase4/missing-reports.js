@@ -585,6 +585,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
         grouped[key] = {
           product: m.product?.name || "Unknown",
           category: m.product?.category?.name || "-",
+          unit: m.product?.secondaryUnit || m.product?.unit || "pcs",
           totalQuantity: 0,
           value: 0
         };
@@ -596,6 +597,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     const mapped = Object.values(grouped).map((g, idx) => ({
       "Product": g.product,
       "Category": g.category,
+      "Unit": g.unit,
       "Total Quantity Consumed": g.totalQuantity,
       "Value": g.value
     }));
