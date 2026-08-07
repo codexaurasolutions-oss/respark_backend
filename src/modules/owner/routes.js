@@ -1037,43 +1037,45 @@ ownerRouter.post("/customers", requireSalonPermission("customers", "create"), va
     data: buildCustomerData(req.body, req.salonId)
   });
 
-  // ── Wire referralCodeSMS toggle ────────────────────────────────────────────
-  try {
-    const setting = await prisma.salonSetting.findFirst({
-      where: { salonId: req.salonId, branchId: null }
-    });
-    const toggles = setting?.advancedSettings?.notificationSettings?.toggles || {};
-    const emailEnabled = setting?.advancedSettings?.notificationSettings?.emailEnabled !== false;
-
-    if (toggles.referralCodeSMS !== false) {
-      const namePart = (customer.name || "GUEST").trim().split(" ")[0].replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-      const phonePart = (customer.phone || "0000").replace(/[^0-9]/g, "").slice(-4);
-      const referralCode = `${namePart}${phonePart}`;
-
-      await prisma.customerNotification.create({
-        data: {
-          salonId: req.salonId,
-          customerId: customer.id,
-          title: "🎁 Your Referral Code",
-          message: `Share your referral code "${referralCode}" with friends! Both of you get rewarded when they visit us.`
-        }
-      }).catch(() => {});
-
-      if (emailEnabled && customer.email) {
-        const { attemptCustomerTemplateEmail } = await import("../../lib/emailNotifications.js");
-        await attemptCustomerTemplateEmail({
-          salonId: req.salonId,
-          toEmail: customer.email,
-          templateType: "referral_code_sms",
-          context: { customerId: customer.id, referralCode }
-        }).catch(() => {});
-      }
-    }
-  } catch (referralErr) {
-    console.error("[owner/customers] Referral code notification error (non-blocking):", referralErr.message);
-  }
-
   res.status(201).json(customer);
+
+  // ── Fire-and-forget: referral code notification + email ──────────────────────
+  (async () => {
+    try {
+      const setting = await prisma.salonSetting.findFirst({
+        where: { salonId: req.salonId, branchId: null }
+      });
+      const toggles = setting?.advancedSettings?.notificationSettings?.toggles || {};
+      const emailEnabled = setting?.advancedSettings?.notificationSettings?.emailEnabled !== false;
+
+      if (toggles.referralCodeSMS !== false) {
+        const namePart = (customer.name || "GUEST").trim().split(" ")[0].replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+        const phonePart = (customer.phone || "0000").replace(/[^0-9]/g, "").slice(-4);
+        const referralCode = `${namePart}${phonePart}`;
+
+        await prisma.customerNotification.create({
+          data: {
+            salonId: req.salonId,
+            customerId: customer.id,
+            title: "🎁 Your Referral Code",
+            message: `Share your referral code "${referralCode}" with friends! Both of you get rewarded when they visit us.`
+          }
+        }).catch(() => {});
+
+        if (emailEnabled && customer.email) {
+          const { attemptCustomerTemplateEmail } = await import("../../lib/emailNotifications.js");
+          await attemptCustomerTemplateEmail({
+            salonId: req.salonId,
+            toEmail: customer.email,
+            templateType: "referral_code_sms",
+            context: { customerId: customer.id, referralCode }
+          }).catch(() => {});
+        }
+      }
+    } catch (referralErr) {
+      console.error("[owner/customers] Referral code notification error (non-blocking):", referralErr.message);
+    }
+  })();
 });
 ownerRouter.patch("/customers/:id", requireSalonPermission("customers", "edit"), validate(schemas.customerPatch), updateCustomerHandler);
 ownerRouter.put("/customers/:id", requireSalonPermission("customers", "edit"), validate(schemas.customerPatch), updateCustomerHandler);
