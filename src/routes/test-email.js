@@ -3,38 +3,50 @@
  * Send test emails via GET request
  * 
  * Usage:
- * GET /test-email/send?to=ahmedbilalkhangl09@gmail.com
+ * GET /test-email/send?to=ahmedbilalkhangl09@gmail.com&salonId=xxx
  * GET /test-email/send (defaults to ahmedbilalkhangl09@gmail.com)
  */
 
 import { Router } from "express";
+import { prisma } from "../lib/prisma.js";
 import { sendMail } from "../lib/mailer.js";
 import { buildEmailHtml } from "../lib/emailNotifications.js";
+import { renderTemplateText } from "../lib/phase3.js";
 
 export const testEmailRouter = Router();
+
+const getSalonName = async (salonId) => {
+  if (salonId) {
+    const salon = await prisma.salon.findUnique({ where: { id: salonId }, select: { name: true } });
+    if (salon?.name) return salon.name;
+  }
+  const firstSalon = await prisma.salon.findFirst({ select: { name: true }, orderBy: { createdAt: "asc" } });
+  return firstSalon?.name || "Skillify";
+};
 
 // GET /test-email/send
 testEmailRouter.get("/send", async (req, res) => {
   try {
     const toEmail = req.query.to || "ahmedbilalkhangl09@gmail.com";
+    const salonName = await getSalonName(req.query.salonId);
 
-    console.log(`[TEST EMAIL] Sending to: ${toEmail}`);
+    console.log(`[TEST EMAIL] Sending to: ${toEmail} | Salon: ${salonName}`);
 
-    const mailOptions = {
-      to: toEmail,
-      subject: "[Respark] Email System Test",
-      html: buildEmailHtml(
-        `<div style="text-align:center; margin-bottom:24px;">
+    const content = `<div style="text-align:center; margin-bottom:24px;">
   <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9989;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Email System Working!</h2>
 <p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">All email notifications are operational</p>
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#15803d; font-size:16px; font-weight:600; margin:0;">All features are working correctly. You will receive styled notification emails automatically.</p>
-</div>`,
-        { salon_name: "Respark Salon", customer_name: "there" }
-      ),
-      text: "Respark Email System Test - Email delivery is working!"
+</div>`;
+    const variables = { salon_name: salonName, customer_name: "there" };
+
+    const mailOptions = {
+      to: toEmail,
+      subject: `[${salonName}] Email System Test`,
+      html: buildEmailHtml(content, variables),
+      text: `${salonName} Email System Test - Email delivery is working!`
     };
 
     const result = await sendMail(mailOptions);
@@ -64,8 +76,8 @@ testEmailRouter.get("/send", async (req, res) => {
 testEmailRouter.get("/send-all", async (req, res) => {
   const TO = req.query.to || "ahmedbilalkhangl09@gmail.com";
 
-  const salonName = "Respark Salon";
-  const vars = { salon_name: salonName, customer_name: "Ahmed" };
+  const salonName = await getSalonName(req.query.salonId);
+  const vars = { salon_name: salonName, customer_name: "there" };
 
   const allTemplates = [
     {
@@ -75,7 +87,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128196;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Invoice Generated</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your invoice from <strong style="color:#0f172a;">Respark Salon</strong> is ready</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your invoice from <strong style="color:#0f172a;">{{salon_name}}</strong> is ready</p>
 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Invoice Number</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">INV-2026-001</td></tr>
@@ -105,7 +117,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#ef4444,#dc2626); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#10060;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Invoice Cancelled</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your recent invoice at <strong style="color:#0f172a;">Respark Salon</strong> has been cancelled</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your recent invoice at <strong style="color:#0f172a;">{{salon_name}}</strong> has been cancelled</p>
 <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:20px; margin-bottom:24px; text-align:center;">
   <p style="color:#dc2626; font-size:15px; margin:0; font-weight:600;">If you did not request this cancellation, please contact our front desk immediately.</p>
 </div>
@@ -118,7 +130,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#8b5cf6,#7c3aed); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127942;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Welcome to your Membership</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your membership at <strong style="color:#0f172a;">Respark Salon</strong> is now active</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your membership at <strong style="color:#0f172a;">{{salon_name}}</strong> is now active</p>
 <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Status</td><td style="padding:8px 0; text-align:right;"><span style="background:#22c55e; color:#fff; padding:3px 12px; border-radius:20px; font-size:13px; font-weight:600;">ACTIVE</span></td></tr>
@@ -135,7 +147,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127873;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Your Package is Active</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your package at <strong style="color:#0f172a;">Respark Salon</strong> is now active</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your package at <strong style="color:#0f172a;">{{salon_name}}</strong> is now active</p>
 <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Status</td><td style="padding:8px 0; text-align:right;"><span style="background:#22c55e; color:#fff; padding:3px 12px; border-radius:20px; font-size:13px; font-weight:600;">ACTIVE</span></td></tr>
@@ -152,12 +164,12 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9989;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Payment Received</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for your payment at <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for your payment at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#64748b; font-size:13px; text-transform:uppercase; letter-spacing:1px; margin:0 0 8px 0; font-weight:600;">Amount Paid</p>
   <p style="color:#15803d; font-size:32px; font-weight:800; margin:0;">Rs.2,500.00</p>
 </div>
-<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">This payment has been successfully recorded. Thank you for choosing <strong>Respark Salon</strong>.</p>`
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">This payment has been successfully recorded. Thank you for choosing <strong>{{salon_name}}</strong>.</p>`
     },
     {
       name: "7. Appointment Confirmed",
@@ -166,7 +178,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128197;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Appointment Confirmed</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your appointment at <strong style="color:#0f172a;">Respark Salon</strong> has been confirmed</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your appointment at <strong style="color:#0f172a;">{{salon_name}}</strong> has been confirmed</p>
 <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Status</td><td style="padding:8px 0; text-align:right;"><span style="background:#22c55e; color:#fff; padding:3px 12px; border-radius:20px; font-size:13px; font-weight:600;">CONFIRMED</span></td></tr>
@@ -186,7 +198,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
 <p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">This is a friendly reminder about your upcoming appointment</p>
 <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
-    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Salon</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">Respark Salon</td></tr>
+    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Salon</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{salon_name}}</td></tr>
     <tr><td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td></tr>
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Date & Time</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">Thursday, August 06, 2026 at 10:00 AM</td></tr>
   </table>
@@ -205,7 +217,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
 <p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your appointment has been cancelled</p>
 <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
-    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Salon</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">Respark Salon</td></tr>
+    <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Salon</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">{{salon_name}}</td></tr>
     <tr><td colspan="2" style="padding:4px 0;"><hr style="border:none; border-top:1px dashed #cbd5e1; margin:0;" /></td></tr>
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Scheduled For</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">Thursday, August 06, 2026 at 10:00 AM</td></tr>
   </table>
@@ -219,7 +231,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128230;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Order Confirmed</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for your order from <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for your order from <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Order Number</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a;">ORD-2026-042</td></tr>
@@ -236,7 +248,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128172;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Update on your Enquiry</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for contacting <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for contacting <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#334155; font-size:15px; line-height:1.7; margin:0;">Our team has reviewed your enquiry and has an update for you. We are working to ensure everything is resolved to your satisfaction.</p>
 </div>
@@ -249,7 +261,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#8b5cf6,#7c3aed); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128172;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Update on your Feedback</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for sharing your feedback with <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for sharing your feedback with <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#faf5ff; border:1px solid #e9d5ff; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#334155; font-size:15px; line-height:1.7; margin:0;">We take your comments seriously. Our team has reviewed your feedback and has an update regarding your experience.</p>
 </div>
@@ -262,7 +274,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#11088;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">How was your experience?</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for visiting <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Thank you for visiting <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#334155; font-size:15px; line-height:1.7; margin:0;">We hope you had a wonderful experience. Your feedback helps us improve and serve you better.</p>
 </div>
@@ -275,12 +287,12 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#ec4899,#db2777); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127874;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Happy Birthday!</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Wishing you a wonderful birthday from all of us at <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Wishing you a wonderful birthday from all of us at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#fdf2f8; border:1px solid #fbcfe8; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#db2777; font-size:16px; font-weight:600; margin:0 0 8px 0;">A Special Birthday Treat Awaits You!</p>
   <p style="color:#64748b; font-size:14px; margin:0;">Visit us soon to claim your exclusive birthday offer. We look forward to making your day even more special.</p>
 </div>
-<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">From all of us at Respark Salon, we wish you a year filled with joy and happiness.</p>`
+<p style="color:#64748b; font-size:14px; line-height:1.7; text-align:center; margin:0;">From all of us at {{salon_name}}, we wish you a year filled with joy and happiness.</p>`
     },
     {
       name: "15. Anniversary Offer",
@@ -289,7 +301,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#ec4899,#be185d); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128141;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Happy Anniversary!</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Celebrating with you from <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Celebrating with you from <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#fdf2f8; border:1px solid #fbcfe8; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#be185d; font-size:16px; font-weight:600; margin:0 0 8px 0;">Exclusive Anniversary Offer</p>
   <p style="color:#64748b; font-size:14px; margin:0;">Celebrate with a special pampering session. We have an exclusive anniversary treat just for you.</p>
@@ -303,7 +315,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127942;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Loyalty Points Earned</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">You have earned points at <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">You have earned points at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Points Earned</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#d97706; font-size:18px;">+50</td></tr>
@@ -320,7 +332,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#ef4444,#dc2626); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9200;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Points Expiring Soon</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your loyalty points at <strong style="color:#0f172a;">Respark Salon</strong> are about to expire</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your loyalty points at <strong style="color:#0f172a;">{{salon_name}}</strong> are about to expire</p>
 <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#dc2626; font-size:16px; font-weight:600; margin:0 0 8px 0;">Don't let your points go to waste!</p>
   <p style="color:#64748b; font-size:14px; margin:0;">Book your next visit today and redeem your points before they expire.</p>
@@ -334,7 +346,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128197;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Membership Expiring Soon</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your membership at <strong style="color:#0f172a;">Respark Salon</strong> is nearing its end</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your membership at <strong style="color:#0f172a;">{{salon_name}}</strong> is nearing its end</p>
 <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Expiry Date</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#d97706; font-size:16px;">August 6, 2026</td></tr>
@@ -349,7 +361,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9989;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Membership Renewed</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your membership at <strong style="color:#0f172a;">Respark Salon</strong> has been renewed</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your membership at <strong style="color:#0f172a;">{{salon_name}}</strong> has been renewed</p>
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Status</td><td style="padding:8px 0; text-align:right;"><span style="background:#22c55e; color:#fff; padding:3px 12px; border-radius:20px; font-size:13px; font-weight:600;">ACTIVE</span></td></tr>
@@ -366,7 +378,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#f59e0b,#d97706); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9200;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Package Expiring Soon</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your package at <strong style="color:#0f172a;">Respark Salon</strong> is nearing its expiration</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your package at <strong style="color:#0f172a;">{{salon_name}}</strong> is nearing its expiration</p>
 <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Sessions Remaining</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#d97706; font-size:18px;">3</td></tr>
@@ -381,7 +393,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#8b5cf6,#7c3aed); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127873;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Gift Card Received</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">You have received a gift card from <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">You have received a gift card from <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:linear-gradient(135deg,#faf5ff,#f3e8ff); border:2px dashed #c4b5fd; border-radius:12px; padding:28px; margin-bottom:24px; text-align:center;">
   <p style="color:#7c3aed; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin:0 0 8px 0; font-weight:700;">Gift Card</p>
   <p style="color:#0f172a; font-size:24px; font-weight:800; margin:0 0 12px 0; letter-spacing:2px;">GIFT-ABCD-1234</p>
@@ -396,7 +408,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#ef4444,#dc2626); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9200;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Gift Card Expiring Soon</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your gift card at <strong style="color:#0f172a;">Respark Salon</strong> is about to expire</p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your gift card at <strong style="color:#0f172a;">{{salon_name}}</strong> is about to expire</p>
 <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#dc2626; font-size:16px; font-weight:600; margin:0 0 8px 0;">Don't let your gift card go to waste!</p>
   <p style="color:#64748b; font-size:14px; margin:0;">Book your appointment and redeem your balance before it expires.</p>
@@ -410,7 +422,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#9989;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Gift Card Redeemed</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your gift card has been used at <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your gift card has been used at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Gift Card Code</td><td style="padding:8px 0; text-align:right; font-weight:600; color:#0f172a; font-family:monospace;">GIFT-ABCD-1234</td></tr>
@@ -435,7 +447,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <p style="color:#0f172a; font-size:24px; font-weight:800; margin:0; letter-spacing:2px; font-family:monospace;">AHMED-REF-2026</p>
 </div>
 <div style="background:#f8fafc; border-radius:12px; padding:20px; margin-bottom:24px;">
-  <p style="color:#334155; font-size:14px; margin:0; text-align:center; line-height:1.7;">Share this code with friends and family. When they visit <strong>Respark Salon</strong>, you both earn rewards!</p>
+  <p style="color:#334155; font-size:14px; margin:0; text-align:center; line-height:1.7;">Share this code with friends and family. When they visit <strong>{{salon_name}}</strong>, you both earn rewards!</p>
 </div>`
     },
     {
@@ -445,7 +457,7 @@ testEmailRouter.get("/send-all", async (req, res) => {
   <div style="display:inline-block; background:linear-gradient(135deg,#22c55e,#16a34a); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#127942;</div>
 </div>
 <h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Referral Reward Earned!</h2>
-<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">A friend used your referral code at <strong style="color:#0f172a;">Respark Salon</strong></p>
+<p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">A friend used your referral code at <strong style="color:#0f172a;">{{salon_name}}</strong></p>
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:24px; margin-bottom:24px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px; color:#334155;">
     <tr><td style="padding:8px 0; color:#64748b; font-weight:500;">Points Earned</td><td style="padding:8px 0; text-align:right; font-weight:700; color:#15803d; font-size:18px;">+100</td></tr>
@@ -455,11 +467,11 @@ testEmailRouter.get("/send-all", async (req, res) => {
     },
     {
       name: "26. Welcome Email",
-      title: "Welcome to Respark Salon!",
+      title: "Welcome to {{salon_name}}!",
       content: `<div style="text-align:center; margin-bottom:24px;">
   <div style="display:inline-block; background:linear-gradient(135deg,#3b82f6,#2563eb); width:56px; height:56px; border-radius:50%; line-height:56px; font-size:24px;">&#128075;</div>
 </div>
-<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Welcome to Respark Salon!</h2>
+<h2 style="color:#0f172a; font-size:22px; font-weight:700; text-align:center; margin:0 0 8px 0;">Welcome to {{salon_name}}!</h2>
 <p style="color:#64748b; text-align:center; font-size:14px; margin:0 0 28px 0;">Your account has been created successfully</p>
 <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:24px; margin-bottom:24px; text-align:center;">
   <p style="color:#334155; font-size:15px; line-height:1.7; margin:0 0 16px 0;">We are excited to have you on board. Explore our services and book your first appointment today.</p>
@@ -472,11 +484,13 @@ testEmailRouter.get("/send-all", async (req, res) => {
   const results = [];
   for (const tmpl of allTemplates) {
     try {
+      const renderedContent = renderTemplateText(tmpl.content, vars);
+      const renderedSubject = renderTemplateText(tmpl.title, vars);
       await sendMail({
         to: TO,
-        subject: `[Respark Preview] ${tmpl.title}`,
-        html: buildEmailHtml(tmpl.content, vars),
-        text: tmpl.content.replace(/<[^>]+>/g, "")
+        subject: `[${salonName}] ${renderedSubject}`,
+        html: buildEmailHtml(renderedContent, vars),
+        text: renderedContent.replace(/<[^>]+>/g, "")
       });
       results.push({ name: tmpl.name, status: "sent" });
       await new Promise(r => setTimeout(r, 500));
