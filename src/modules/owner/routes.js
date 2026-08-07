@@ -928,7 +928,7 @@ ownerRouter.get("/customers", requireSalonPermission("customers", "view"), async
   const skip = Number(req.query.skip) || 0;
   const where = {
     salonId: req.salonId,
-    ...(branchId ? { branchId } : {}),
+    ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
     ...(query ? {
       OR: [
         { name: { contains: query, mode: "insensitive" } },

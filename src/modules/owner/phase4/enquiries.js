@@ -192,7 +192,8 @@ export const registerEnquiryRoutes = (ownerRouter) => {
         phone: enquiry.phone,
         email: enquiry.email || null,
         source: `ENQUIRY:${enquiry.source}`,
-        notes: enquiry.notes || null
+        notes: enquiry.notes || null,
+        branchId: enquiry.interestedBranchId || null
       }
     });
     await prisma.enquiry.update({
