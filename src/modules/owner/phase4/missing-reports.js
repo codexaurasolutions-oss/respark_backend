@@ -546,7 +546,7 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       if (!grouped[key]) {
         grouped[key] = {
           product: m.product?.name || "Unknown",
-          unit: m.product?.unit || "",
+          unit: m.product?.secondaryUnit || m.product?.unit || "",
           currentStock: Number(m.product?.currentStock || 0),
           service: m.note || "General",
           qtyPerService: 0,
