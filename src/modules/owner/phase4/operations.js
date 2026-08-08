@@ -892,13 +892,13 @@ export const registerOperationsRoutes = (ownerRouter) => {
       });
       if (existing) return res.status(409).json({ message: "Attendance has already been marked today." });
       const accuracyMeters = Number(req.body.accuracyMeters || 0);
-      const hasRealGPS = accuracyMeters > 0 && accuracyMeters <= 5000;
+      const isAccurateGPS = accuracyMeters > 0 && accuracyMeters <= 1000;
       const { distance, geoStatus } = validateGeofence({
         branch: membership.branch,
         latitude: req.body.latitude,
         longitude: req.body.longitude
       });
-      if (hasRealGPS && geoStatus === "OUTSIDE") return res.status(400).json({ message: `You are ${Math.round(distance)}m from the salon. Allowed radius: ${Math.round(Number(membership.branch?.geofenceRadiusMeters || 200))}m. Please move closer.` });
+      if (isAccurateGPS && geoStatus === "OUTSIDE") return res.status(400).json({ message: `You are ${Math.round(distance)}m from the salon. Allowed radius: ${Math.round(Number(membership.branch?.geofenceRadiusMeters || 200))}m. Please move closer.` });
       const now = new Date();
       const created = await prisma.attendanceRecord.create({
         data: {
@@ -996,13 +996,13 @@ export const registerOperationsRoutes = (ownerRouter) => {
       });
       if (!row) return res.status(404).json({ message: "Open attendance record not found" });
       const accuracyMeters = Number(req.body.accuracyMeters || 0);
-      const hasRealGPS = accuracyMeters > 0 && accuracyMeters <= 5000;
+      const isAccurateGPS = accuracyMeters > 0 && accuracyMeters <= 1000;
       const { distance, geoStatus } = validateGeofence({
         branch: membership.branch,
         latitude: req.body.latitude,
         longitude: req.body.longitude
       });
-      if (hasRealGPS && geoStatus === "OUTSIDE") return res.status(400).json({ message: `You are ${Math.round(distance)}m from the salon. Allowed radius: ${Math.round(Number(membership.branch?.geofenceRadiusMeters || 200))}m. Please move closer.` });
+      if (isAccurateGPS && geoStatus === "OUTSIDE") return res.status(400).json({ message: `You are ${Math.round(distance)}m from the salon. Allowed radius: ${Math.round(Number(membership.branch?.geofenceRadiusMeters || 200))}m. Please move closer.` });
       const checkOutAt = new Date();
       if (new Date(checkOutAt) <= new Date(row.checkInAt)) return res.status(400).json({ message: "Check-out time cannot be before check-in time." });
       const workedMinutes = roundMinutesDiff(row.checkInAt, checkOutAt);
