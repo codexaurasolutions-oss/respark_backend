@@ -543,29 +543,46 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     const grouped = {};
     movements.forEach((m) => {
       const key = m.productId;
+      const p = m.product || {};
+      
+      let conversion = Number(p.netWeight || 0);
+      if (conversion <= 0) {
+        const u1 = (p.unit || "").toLowerCase();
+        const u2 = (p.secondaryUnit || "").toLowerCase();
+        if (["liter", "ltr", "l"].includes(u1) && ["ml", "milliliter"].includes(u2)) conversion = 1000;
+        else if (["kg", "kilogram"].includes(u1) && ["g", "gram", "grams"].includes(u2)) conversion = 1000;
+        else conversion = 1;
+      }
+
+      const primaryQty = Math.abs(Number(m.quantity || 0));
+      const secondaryQty = primaryQty * conversion;
+      const primaryUnit = p.unit || "unit";
+      const secondaryUnit = p.secondaryUnit || p.unit || "unit";
+
       if (!grouped[key]) {
         grouped[key] = {
-          product: m.product?.name || "Unknown",
-          unit: m.product?.secondaryUnit || m.product?.unit || "",
-          currentStock: Number(m.product?.currentStock || 0),
+          product: p.name || "Unknown",
+          unit: secondaryUnit,
+          primaryUnitLabel: primaryUnit,
+          currentStock: Number(p.currentStock || 0),
           service: m.note ? m.note.replace(/\s*\([^)]*\)$/, "") : "General",
-          qtyPerService: 0,
+          serviceCount: 0,
           totalUsed: 0,
           cost: 0
         };
       }
-      grouped[key].qtyPerService += 1;
-      grouped[key].totalUsed += Math.abs(Number(m.quantity || 0));
-      grouped[key].cost += Math.abs(Number(m.quantity || 0)) * Number(m.product?.costPrice || 0);
+      grouped[key].serviceCount += 1;
+      grouped[key].totalUsed += secondaryQty;
+      grouped[key].cost += primaryQty * Number(p.costPrice || 0);
     });
-    const mapped = Object.values(grouped).map((g, idx) => ({
+    const mapped = Object.values(grouped).map((g) => ({
       "Product": g.product,
       "Unit": g.unit || "-",
       "Service": g.service,
-      "Qty Used Per Service": g.qtyPerService,
-      "Total Used": g.totalUsed,
-      "Remaining Stock": g.currentStock,
-      "Cost": g.cost
+      "Qty Used Per Service": g.serviceCount > 0 ? Number((g.totalUsed / g.serviceCount).toFixed(2)) : 0,
+      "Total Used": Number(g.totalUsed.toFixed(2)),
+      "Remaining Stock": `${Number(g.currentStock.toFixed(2))} ${g.primaryUnitLabel}`,
+      "Cost": Number(g.cost.toFixed(2))
     }));
     res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Total Used", "Cost"]));
   });
@@ -581,25 +598,39 @@ export const registerMissingReportRoutes = (ownerRouter) => {
     const grouped = {};
     movements.forEach((m) => {
       const key = m.productId;
+      const p = m.product || {};
+      
+      let conversion = Number(p.netWeight || 0);
+      if (conversion <= 0) {
+        const u1 = (p.unit || "").toLowerCase();
+        const u2 = (p.secondaryUnit || "").toLowerCase();
+        if (["liter", "ltr", "l"].includes(u1) && ["ml", "milliliter"].includes(u2)) conversion = 1000;
+        else if (["kg", "kilogram"].includes(u1) && ["g", "gram", "grams"].includes(u2)) conversion = 1000;
+        else conversion = 1;
+      }
+
+      const primaryQty = Math.abs(Number(m.quantity || 0));
+      const secondaryQty = primaryQty * conversion;
+      const secondaryUnit = p.secondaryUnit || p.unit || "unit";
+
       if (!grouped[key]) {
         grouped[key] = {
-          product: m.product?.name || "Unknown",
-          category: m.product?.category?.name || "-",
-          unit: m.product?.secondaryUnit || m.product?.unit || "pcs",
+          product: p.name || "Unknown",
+          category: p.category?.name || "-",
+          unit: secondaryUnit,
           totalQuantity: 0,
           value: 0
         };
       }
-      const qty = Math.abs(Number(m.quantity || 0));
-      grouped[key].totalQuantity += qty;
-      grouped[key].value += qty * Number(m.product?.costPrice || 0);
+      grouped[key].totalQuantity += secondaryQty;
+      grouped[key].value += primaryQty * Number(p.costPrice || 0);
     });
-    const mapped = Object.values(grouped).map((g, idx) => ({
+    const mapped = Object.values(grouped).map((g) => ({
       "Product": g.product,
       "Category": g.category,
       "Unit": g.unit,
-      "Total Quantity Consumed": g.totalQuantity,
-      "Value": g.value
+      "Total Quantity Consumed": Number(g.totalQuantity.toFixed(2)),
+      "Value": Number(g.value.toFixed(2))
     }));
     res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Total Quantity Consumed", "Value"]));
   });
