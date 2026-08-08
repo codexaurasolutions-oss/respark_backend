@@ -34,6 +34,8 @@ const getAllowedOrigins = (overrideOrigins = null) => {
     process.env.FRONTEND_APP_URLS,
     "https://skillify-frontend.vercel.app",
     "https://skillify-frontend-phi.vercel.app",
+    "https://respark-frontend-phi.vercel.app",
+    "https://respark-frontend.vercel.app",
     "http://127.0.0.1:5173",
     "http://localhost:5173"
   ]);
