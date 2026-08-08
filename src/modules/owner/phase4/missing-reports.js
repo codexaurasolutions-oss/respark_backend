@@ -582,9 +582,9 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Qty Used Per Service": g.serviceCount > 0 ? Number((g.totalUsed / g.serviceCount).toFixed(2)) : 0,
       "Total Used": Number(g.totalUsed.toFixed(2)),
       "Remaining Stock": `${Number(g.currentStock.toFixed(2))} ${g.primaryUnitLabel}`,
-      "Cost": Number(g.cost.toFixed(2))
+      "Total Cost": Number(g.cost.toFixed(2))
     }));
-    res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Total Used", "Cost"]));
+    res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Total Used", "Total Cost"]));
   });
 
   // ============ Total Consumed ============
@@ -630,9 +630,9 @@ export const registerMissingReportRoutes = (ownerRouter) => {
       "Category": g.category,
       "Unit": g.unit,
       "Total Quantity Consumed": Number(g.totalQuantity.toFixed(2)),
-      "Value": Number(g.value.toFixed(2))
+      "Total Cost": Number(g.value.toFixed(2))
     }));
-    res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Total Quantity Consumed", "Value"]));
+    res.json(appendTotalRow(mapped, "Product", "TOTAL", ["Total Quantity Consumed", "Total Cost"]));
   });
 
   // ============ Purchase Order Report ============
