@@ -371,7 +371,11 @@ export const registerAppointmentRoutes = (ownerRouter) => {
     const fullAppointment = await fetchAppointment(req.salonId, appointment.id);
     if (!canAccessAppointment(req, fullAppointment)) return res.status(403).json({ message: "You can only update your assigned appointments" });
     await prisma.$transaction(async (tx) => {
-      await tx.appointment.update({ where: { id: appointment.id }, data: { status: req.body.status } });
+      const updateData = { status: req.body.status };
+      if (req.body.status === "IN_PROGRESS" && appointment.status !== "IN_PROGRESS") updateData.actualStartedAt = new Date();
+      if (req.body.status === "COMPLETED" && appointment.status !== "COMPLETED") updateData.actualCompletedAt = new Date();
+      
+      await tx.appointment.update({ where: { id: appointment.id }, data: updateData });
       await logAppointmentChange(tx, appointment.id, req.user.id, "STATUS_CHANGED", appointment.status, req.body.status, req.body.note || null);
     });
     if (req.body.status === "IN_PROGRESS") {
